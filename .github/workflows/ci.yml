@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Type checks (parallel matrix) ─────────────────────────────────────
+  typecheck:
+    name: Typecheck ${{ matrix.project }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [server, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ${{ matrix.project }}/package-lock.json
+
+      - run: cd ${{ matrix.project }} && npm ci
+
+      - run: cd ${{ matrix.project }} && npx tsc --noEmit
+
+  # ── API tests (parallel with typechecks) ──────────────────────────────
+  api-tests:
+    name: API Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: preclinical
+          POSTGRES_DB: preclinical
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://postgres:preclinical@localhost:5432/preclinical
+      PORT: 8000
+      NODE_ENV: test
+      OPENAI_API_KEY: test-key
+      OPENAI_BASE_URL: https://api.openai.com/v1
+      TESTER_MODEL: gpt-4o-mini
+      GRADER_MODEL: gpt-4o-mini
+      TEST_BASE_URL: http://localhost:8000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            tests/package-lock.json
+
+      - name: Install deps (server + tests in parallel)
+        run: cd server && npm ci & cd tests && npm ci & wait
+
+      - name: Install psql
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Init database
+        run: psql "$DATABASE_URL" -f server/schema.sql && psql "$DATABASE_URL" -f server/seed.sql
+
+      - name: Start server
+        run: cd server && npm run dev &
+
+      - name: Wait for server
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8000/health > /dev/null 2>&1 && echo "Server ready" && exit 0
+            sleep 1
+          done
+          echo "Server failed to start" && exit 1
+
+      - name: Run API tests
+        run: cd tests && npm test

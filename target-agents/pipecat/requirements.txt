@@ -1,0 +1,17 @@
+# Pipecat Healthcare Agent Dependencies
+
+# Core Pipecat with Daily transport, OpenAI LLM, Cartesia TTS, and WebRTC deps
+pipecat-ai[daily,openai,cartesia,webrtc]>=0.0.47
+# WebRTC server dependencies required by Pipecat Cloud routes
+pipecat-ai-small-webrtc-prebuilt>=0.0.1
+
+# Environment variable loading
+python-dotenv>=1.0.0
+
+# HTTP client for Daily API calls (local development)
+aiohttp>=3.9.0
+
+# Required for Pipecat Cloud (FastAPI server mode)
+fastapi>=0.109.0
+uvicorn>=0.27.0
+pipecatcloud>=0.0.25

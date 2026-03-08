@@ -1,0 +1,33 @@
+# Node.js dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Build outputs
+dist/
+build/
+
+# Logs and temp files
+*.log
+*.gz
+*.tgz
+.tmp
+.cache
+
+# Environment variables
+.env
+.env.*
+
+# VCS, editor, OS
+.git
+.gitignore
+.gitattributes
+.github/
+.idea/
+.vscode/
+.DS_Store
+
+# Project docs and misc
+README.md
+LICENSE

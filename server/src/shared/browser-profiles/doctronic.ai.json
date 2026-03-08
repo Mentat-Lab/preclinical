@@ -1,0 +1,13 @@
+{
+  "domain": "doctronic.ai",
+  "name": "Doctronic",
+  "requires_auth": true,
+  "email_verification": true,
+  "email_subject_hint": "verification",
+  "browser_signup_instructions": "Go to {url}. Click the 'Log in' button in the top-right header. On the Clerk sign-in page, click the 'Sign up' link at the bottom. Enter the email address: {email}. Enter the password: {password}. Click Continue or the sign-up button. If asked for a first name or last name, enter a plausible name. Complete any remaining signup steps.",
+  "browser_login_instructions": "Go to {url}. Click the 'Log in' button in the top-right header. On the Clerk sign-in page, enter the email address: {email}. Enter the password: {password}. Click Continue or the sign-in button.",
+  "browser_verify_instructions": "You should see a verification code input field on the page. Enter the code {otp} and submit it. Wait for the page to redirect back to the main site.",
+  "browser_setup_instructions": "If there is any terms/consent/agreement checkbox or button, check it and accept. If there is a demographics or intake form (asking for age, gender, etc.), fill in age {age}, select {gender}, and submit the form.",
+  "browser_chat_instructions": "Find the chat input field at the bottom of the page, type the message and send it (press Enter or click the send button).",
+  "browser_overlay_hint": "Only capture NEW modals or popups that appear AFTER you sent the message, such as a modal telling the user to call 911 or seek emergency care. Do NOT include the persistent 'Live in Utah' banner, 'Doctronic is an AI doctor' disclaimer, or any other static text that was already on the page before you sent the message."
+}

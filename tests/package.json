@@ -1,0 +1,17 @@
+{
+  "name": "preclinical-tests",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui"
+  },
+  "devDependencies": {
+    "@vitest/ui": "^3.2.4",
+    "dotenv": "^16.4.5",
+    "vitest": "^3.2.4"
+  }
+}

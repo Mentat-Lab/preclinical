@@ -1,0 +1,14 @@
+# Pipecat Text Agent Dependencies
+# Minimal dependencies - no TTS or audio required
+
+# OpenAI Python SDK for LLM
+openai>=1.0.0
+
+# Daily Python SDK for WebRTC
+daily-python>=0.10.0
+
+# Environment variable loading
+python-dotenv>=1.0.0
+
+# HTTP client for Daily API calls
+aiohttp>=3.9.0

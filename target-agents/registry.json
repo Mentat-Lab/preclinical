@@ -1,0 +1,22 @@
+{
+  "openai": {
+    "path": "openai-api",
+    "description": "OpenAI-compatible HTTP target agent"
+  },
+  "vapi": {
+    "path": "vapi",
+    "description": "Mock Vapi /chat target agent"
+  },
+  "browser": {
+    "path": "browser",
+    "description": "Local browser chat UI target agent"
+  },
+  "livekit": {
+    "path": "livekit/text",
+    "description": "LiveKit text target agent"
+  },
+  "pipecat": {
+    "path": "pipecat/text-livekit",
+    "description": "Pipecat text target agent (LiveKit transport)"
+  }
+}

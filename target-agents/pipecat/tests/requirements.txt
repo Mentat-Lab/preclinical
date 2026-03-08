@@ -1,0 +1,11 @@
+# E2E Test Dependencies
+# These are in addition to the main agent requirements
+
+# OpenAI for pen-tester LLM
+openai>=1.0.0
+
+# HTTP client for Daily API
+aiohttp>=3.9.0
+
+# Environment variable loading
+python-dotenv>=1.0.0

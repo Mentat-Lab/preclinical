@@ -1,0 +1,23 @@
+# Pipecat Cloud Deployment Configuration
+#
+# Deploy with:
+#   pcc deploy
+#
+# First-time setup:
+#   1. pcc auth login
+#   2. pcc secrets set preclinical-pipecat-secrets --file .env
+#   3. docker build --platform=linux/arm64 -t <username>/preclinical-pipecat-agent:0.1 .
+#   4. docker push <username>/preclinical-pipecat-agent:0.1
+#   5. pcc deploy
+
+agent_name = "preclinical-pipecat-agent"
+
+# Docker Hub image
+image = "mnvsk97/preclinical-pipecat-agent:1.0"
+
+# Secrets set name (contains OPENAI_API_KEY, etc.)
+secret_set = "preclinical-pipecat-secrets"
+
+[scaling]
+# Scale to zero when not in use
+min_instances = 0

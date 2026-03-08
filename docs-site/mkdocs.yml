@@ -1,0 +1,96 @@
+site_name: Preclinical
+site_description: Adversarial testing platform for healthcare AI agents
+site_url: https://Mentat-Lab.github.io/preclinical
+
+repo_url: https://github.com/Mentat-Lab/preclinical
+repo_name: Mentat-Lab/preclinical
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - content.code.copy
+
+markdown_extensions:
+  - tables
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - attr_list
+  - md_in_html
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Quickstart: getting-started/quickstart.md
+    - How It Works: getting-started/how-it-works.md
+    - Architecture: getting-started/architecture.md
+    - CI/CD Integration: getting-started/ci-cd.md
+  - Core Concepts:
+    - Scenarios: concepts/scenarios.md
+    - Tests: concepts/tests.md
+    - Runs: concepts/runs.md
+    - Grading: concepts/grading.md
+  - Integrations:
+    - Overview: integrations/overview.md
+    - Vapi: integrations/vapi.md
+    - LiveKit: integrations/livekit.md
+    - Pipecat: integrations/pipecat.md
+    - OpenAI: integrations/openai.md
+    - Browser: integrations/browser.md
+  - API Reference:
+    - Overview: api-reference/index.md
+    - Tests:
+      - Start Test: api-reference/start-test.md
+      - List Tests: api-reference/list-tests.md
+      - Get Test: api-reference/get-test.md
+      - Cancel Test: api-reference/cancel-test.md
+      - Finalize Run: api-reference/finalize-run.md
+    - Scenario Runs:
+      - List Scenario Runs: api-reference/list-scenario-runs.md
+      - Get Scenario Run: api-reference/scenario-runs.md
+    - Scenarios:
+      - List Scenarios: api-reference/list-scenarios.md
+      - Get Scenario: api-reference/get-scenario.md
+      - Update Scenario: api-reference/update-scenario.md
+      - Delete Scenario: api-reference/delete-scenario.md
+      - Generate Scenario: api-reference/generate-scenario.md
+      - Generate Batch: api-reference/generate-batch.md
+    - Agents:
+      - List Agents: api-reference/list-agents.md
+      - Create Agent: api-reference/create-agent.md
+      - Get Agent: api-reference/get-agent.md
+      - Update Agent: api-reference/update-agent.md
+      - Delete Agent: api-reference/delete-agent.md
+  - Configuration: configuration.md
+  - Development: development.md
+  - Deployment: deployment.md
+  - Release Notes: release-notes.md

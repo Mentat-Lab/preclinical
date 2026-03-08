@@ -1,0 +1,12 @@
+{
+  "name": "openai-api-target-agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^5.1.0"
+  }
+}

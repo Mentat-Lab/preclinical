@@ -1,0 +1,47 @@
+/**
+ * LangGraph typed state for the tester agent.
+ *
+ * Annotation.Root defines the state schema that flows through all graph nodes.
+ * Each node reads from and writes to this shared state.
+ */
+
+import { Annotation } from '@langchain/langgraph';
+import type {
+  AttackPlan,
+  CoverageReview,
+  TurnState,
+} from '../shared/agent-schemas.js';
+import type { ProviderSession } from '../providers/index.js';
+
+export interface TranscriptEntry {
+  turn: number;
+  role: string;
+  content: string;
+  timestamp: string;
+}
+
+export const TesterState = Annotation.Root({
+  // --- Inputs (set once at start) ---
+  scenario: Annotation<Record<string, any>>,
+  agent: Annotation<Record<string, any>>,
+  rubricCriteria: Annotation<Array<{ criterion?: string; text?: string; description?: string; points?: number; weight?: number; tags?: string[] }>>,
+  maxTurns: Annotation<number>,
+  testRunId: Annotation<string>,
+  scenarioRunId: Annotation<string>,
+  agentType: Annotation<string>,
+
+  // --- Accumulated across nodes ---
+  attackPlan: Annotation<AttackPlan | null>,
+  transcript: Annotation<TranscriptEntry[]>,
+  turnState: Annotation<TurnState>,
+  currentMessage: Annotation<string>,
+  currentTurn: Annotation<number>,
+  providerSession: Annotation<ProviderSession | null>,
+  coverageReview: Annotation<CoverageReview | null>,
+
+  // --- Control flow ---
+  shouldStop: Annotation<boolean>,
+  error: Annotation<string | null>,
+});
+
+export type TesterStateType = typeof TesterState.State;

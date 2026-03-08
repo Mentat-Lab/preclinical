@@ -1,0 +1,124 @@
+import type { AgentProvider } from './types';
+
+export const PROVIDER_NAMES: Record<AgentProvider, string> = {
+  vapi: 'Vapi',
+  livekit: 'LiveKit',
+  pipecat: 'Pipecat',
+  openai: 'OpenAI Compatible API',
+  browser: 'Browser',
+};
+
+export const ALL_PROVIDERS: AgentProvider[] = [
+  'vapi',
+  'openai',
+  'livekit',
+  'pipecat',
+  'browser',
+];
+
+export interface ProviderField {
+  key: string;
+  label: string;
+  type: 'text' | 'password' | 'select';
+  placeholder?: string;
+  required?: boolean;
+  options?: { label: string; value: string }[];
+}
+
+export const PROVIDER_FIELDS: Record<AgentProvider, ProviderField[]> = {
+  vapi: [
+    { key: 'assistant_id', label: 'Assistant ID', type: 'text', placeholder: 'asst_...', required: true },
+    { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'vapi_...', required: true },
+    { key: 'api_base', label: 'API Base URL', type: 'text', placeholder: 'https://api.vapi.ai' },
+    { key: 'phone_number_id', label: 'Phone Number ID', type: 'text', placeholder: 'Optional' },
+  ],
+  openai: [
+    { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'sk-...', required: true },
+    { key: 'target_model', label: 'Model', type: 'text', placeholder: 'gpt-4o', required: true },
+    { key: 'base_url', label: 'Base URL', type: 'text', placeholder: 'https://api.openai.com/v1' },
+    { key: 'system_prompt', label: 'System Prompt Override', type: 'text', placeholder: 'Optional' },
+  ],
+  livekit: [
+    { key: 'url', label: 'LiveKit Server URL', type: 'text', placeholder: 'wss://...', required: true },
+    { key: 'api_key', label: 'API Key', type: 'text', placeholder: 'APIxxxxxxxx', required: true },
+    { key: 'api_secret', label: 'API Secret', type: 'password', placeholder: '...', required: true },
+    { key: 'agent_name', label: 'Agent Name', type: 'text', placeholder: 'my-agent' },
+  ],
+  pipecat: [
+    { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'pc_...', required: true },
+    { key: 'agent_name', label: 'Agent Name', type: 'text', placeholder: 'my-pipecat-agent', required: true },
+    { key: 'base_url', label: 'Base URL', type: 'text', placeholder: 'https://api.pipecat.daily.co' },
+    {
+      key: 'transport',
+      label: 'Transport',
+      type: 'select',
+      options: [
+        { label: 'LiveKit', value: 'livekit' },
+        { label: 'Daily (requires Python worker)', value: 'daily' },
+      ],
+    },
+  ],
+  browser: [
+    { key: 'url', label: 'Target URL', type: 'text', placeholder: 'https://example.com/chat', required: true },
+    { key: 'session_context', label: 'Session Context', type: 'text', placeholder: 'Optional additional instructions' },
+  ],
+};
+
+export const PROVIDER_DEFAULTS: Partial<Record<AgentProvider, Record<string, string>>> = {
+  pipecat: { base_url: 'https://api.pipecat.daily.co', transport: 'livekit' },
+  openai: { base_url: 'https://api.openai.com/v1' },
+  vapi: { api_base: 'https://api.vapi.ai' },
+};
+
+export const PROVIDER_HELP: Record<AgentProvider, { title: string; help: string }> = {
+  vapi: {
+    title: 'Vapi Setup',
+    help: 'Find your Assistant ID and API Key at dashboard.vapi.ai under Settings > API Keys.',
+  },
+  openai: {
+    title: 'OpenAI Compatible API Setup',
+    help: 'Find your API key at platform.openai.com/api-keys. Use the default base URL for OpenAI, or provide a custom one for compatible APIs.',
+  },
+  livekit: {
+    title: 'LiveKit Setup',
+    help: "You'll need your LiveKit Server URL (wss://...), API Key, and API Secret from your LiveKit Cloud dashboard or self-hosted instance.",
+  },
+  pipecat: {
+    title: 'Pipecat Setup',
+    help: "Find your API key in the Pipecat Cloud dashboard. You'll also need the agent name you want to test against.",
+  },
+  browser: {
+    title: 'Browser Agent Setup',
+    help: 'Provide the URL of the web-based chat agent. AI will automatically navigate and interact with the chat interface.',
+  },
+};
+
+export function validateProviderConfig(
+  provider: AgentProvider,
+  config: Record<string, string>,
+): string | null {
+  switch (provider) {
+    case 'browser':
+      if (!config.url?.trim()) return 'Target URL is required';
+      if (!/^https?:\/\//i.test(config.url)) return 'Target URL must start with http:// or https://';
+      break;
+    case 'pipecat':
+      if (!config.api_key?.trim()) return 'Pipecat API key is required';
+      if (!config.agent_name?.trim()) return 'Pipecat agent name is required';
+      break;
+    case 'vapi':
+      if (!config.assistant_id?.trim()) return 'Vapi Assistant ID is required';
+      if (!config.api_key?.trim()) return 'Vapi API key is required';
+      break;
+    case 'livekit':
+      if (!config.url?.trim()) return 'LiveKit Server URL is required';
+      if (!config.api_key?.trim()) return 'LiveKit API key is required';
+      if (!config.api_secret?.trim()) return 'LiveKit API secret is required';
+      break;
+    case 'openai':
+      if (!config.api_key?.trim()) return 'API key is required';
+      if (!config.target_model?.trim()) return 'Model is required';
+      break;
+  }
+  return null;
+}

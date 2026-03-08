@@ -1,0 +1,319 @@
+# =============================================================================
+# Python
+# =============================================================================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+/lib/
+/lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Scrapy
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath
+*.sage.py
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.virtualenv/
+
+# Spyder
+.spyderproject
+.spyproject
+
+# Rope
+.ropeproject
+
+# mkdocs
+/site
+docs-site/site/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre
+.pyre/
+
+# pytype
+.pytype/
+
+# Cython
+cython_debug/
+
+# UV package manager
+.uv/
+uv.lock
+
+# =============================================================================
+# Node.js / Next.js
+# =============================================================================
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# Next.js build output
+.next/
+out/
+
+# Vercel
+.vercel
+
+# Production build
+build/
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# ESLint
+.eslintcache
+
+# Storybook
+storybook-static/
+
+# PWA
+**/public/sw.js
+**/public/workbox-*.js
+**/public/swe-worker-*.js
+
+# =============================================================================
+# Environment & Secrets
+# =============================================================================
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.template
+
+# Secrets
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+.secrets/
+
+# =============================================================================
+# IDEs & Editors
+# =============================================================================
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# JetBrains (PyCharm, WebStorm, etc.)
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Vim
+*.swp
+*.swo
+*~
+.vim/
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# =============================================================================
+# Operating Systems
+# =============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# =============================================================================
+# Logs & Databases
+# =============================================================================
+
+# Logs
+logs/
+*.log
+log/
+
+# SQLite databases
+*.sqlite
+*.sqlite3
+*.db
+
+# =============================================================================
+# Project Specific
+# =============================================================================
+
+# Data files
+data/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+.tmp-snapshot.md
+
+# Claude Code
+.claude/
+
+# Cursor
+.cursor/
+
+# Conductor
+.conductor/
+
+# Superdesign
+.superdesign/
+
+# Test results (generated)
+test-results/
+**/test-results/
+
+# Screenshots (debug/test artifacts)
+*.png
+smoke-test-*.png
+
+# Playwright MCP artifacts
+.playwright-mcp/
+
+# Playwright reports
+playwright-report/
+**/playwright-report/
+
+# Test context (generated)
+tests/setup/.test-context.json
+
+# Playwright auth state (contains session cookies)
+tests/.auth/
+
+# Reports and exports
+reports/
+exports/
+*.pdf
+!docs/*.pdf

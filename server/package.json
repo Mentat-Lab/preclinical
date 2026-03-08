@@ -1,0 +1,31 @@
+{
+  "name": "@preclinical/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.0",
+    "@langchain/anthropic": "^1.3.22",
+    "@langchain/core": "^1.1.30",
+    "@langchain/langgraph": "^1.2.0",
+    "@langchain/openai": "^1.2.12",
+    "@livekit/rtc-node": "^0.13.24",
+    "hono": "^4.6.0",
+    "livekit-server-sdk": "^2.15.0",
+    "pg-boss": "^10.1.0",
+    "postgres": "^3.4.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^3.2.4"
+  }
+}

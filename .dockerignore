@@ -1,0 +1,26 @@
+.git
+.github
+.cursor
+.internal-docs
+
+# Dependencies and build outputs
+**/node_modules
+**/dist
+**/.next
+**/coverage
+
+# Local env and caches
+.env
+.env.*
+!.env.example
+**/.DS_Store
+**/.cache
+**/.turbo
+**/.vite
+**/*.log
+
+# Python artifacts
+**/__pycache__
+**/.pytest_cache
+**/.venv
+**/*.pyc

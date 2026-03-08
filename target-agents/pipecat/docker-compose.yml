@@ -1,0 +1,26 @@
+# Pipecat Agent Local Development Stack
+#
+# Usage:
+#   docker compose --env-file ../../.env up --build
+#
+# Or use the script:
+#   ./scripts/deploy_local.sh
+
+services:
+  pipecat-agent:
+    build:
+      context: .
+    environment:
+      OPENAI_API_KEY: "${OPENAI_API_KEY}"
+      OPENAI_BASE_URL: "${OPENAI_BASE_URL:-https://api.openai.com/v1}"
+      CARTESIA_API_KEY: "${CARTESIA_API_KEY}"
+      DAILY_API_KEY: "${DAILY_API_KEY}"
+      # External room injection (for E2E testing)
+      # If DAILY_ROOM_URL is set, agent joins that room instead of creating one
+      DAILY_ROOM_URL: "${DAILY_ROOM_URL:-}"
+      DAILY_ROOM_TOKEN: "${DAILY_ROOM_TOKEN:-}"
+      LOCAL_RUN: "1"
+    command: ["python", "bot.py"]
+    # Note: If DAILY_ROOM_URL is not set, the agent will create a new room
+    # If DAILY_ROOM_URL is set, the agent will join that room
+    # Check the logs: docker compose logs -f pipecat-agent

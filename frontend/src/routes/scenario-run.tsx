@@ -1,0 +1,419 @@
+import { useMemo, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { useScenarioRun, useScenarioRuns, useTestRun } from '@/hooks/use-queries';
+import { useRealtimeRun } from '@/lib/sse';
+import { cn } from '@/lib/utils';
+import type { CriteriaResult, ScenarioRunResult, TranscriptEntry } from '@/lib/types';
+import {
+  ArrowLeft,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Download,
+  Loader2,
+} from 'lucide-react';
+
+function parseJsonField<T>(val: unknown): T[] {
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'string') {
+    try {
+      const parsed = JSON.parse(val);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+type DisplayStatus = 'pass' | 'fail' | 'pending' | 'running' | 'grading' | 'error' | 'canceled';
+
+function getDisplayStatus(result: ScenarioRunResult): DisplayStatus {
+  if (result.status === 'passed' || result.passed === true) return 'pass';
+  if (result.status === 'failed' || result.passed === false) return 'fail';
+  if (result.status === 'running') return 'running';
+  if (result.status === 'grading') return 'grading';
+  if (result.status === 'error') return 'error';
+  if (result.status === 'canceled') return 'canceled';
+  return 'pending';
+}
+
+function statusClasses(status: DisplayStatus): string {
+  const map: Record<DisplayStatus, string> = {
+    pass: 'text-pass',
+    fail: 'text-fail',
+    pending: 'text-text-secondary',
+    running: 'text-accent',
+    grading: 'text-accent',
+    error: 'text-fail',
+    canceled: 'text-text-secondary',
+  };
+  return map[status];
+}
+
+function statusLabel(status: DisplayStatus): string {
+  const map: Record<DisplayStatus, string> = {
+    pass: 'Pass',
+    fail: 'Fail',
+    pending: 'Pending',
+    running: 'Running',
+    grading: 'Grading',
+    error: 'Error',
+    canceled: 'Canceled',
+  };
+  return map[status];
+}
+
+type NormalizedDecision = 'MET' | 'PARTIALLY MET' | 'NOT MET';
+
+interface NormalizedEvaluation {
+  id: string;
+  criterion: string;
+  rationale: string;
+  decision: NormalizedDecision;
+  passed: boolean;
+  severity: 'HIGH' | 'MEDIUM' | 'LOW';
+}
+
+function normalizeDecision(result: CriteriaResult): NormalizedDecision {
+  const decision = result.decision?.toUpperCase();
+  if (decision === 'MET' || decision === 'PARTIALLY MET' || decision === 'NOT MET') {
+    return decision;
+  }
+  return result.passed ? 'MET' : 'NOT MET';
+}
+
+function normalizeSeverity(result: CriteriaResult): 'HIGH' | 'MEDIUM' | 'LOW' {
+  const points = Math.abs(result.points_awarded ?? 0);
+  if (points >= 7) return 'HIGH';
+  if (points >= 4) return 'MEDIUM';
+  return 'LOW';
+}
+
+function normalizeCriteria(criteria: CriteriaResult[]): NormalizedEvaluation[] {
+  return criteria
+    .map((item, index) => {
+      const decision = normalizeDecision(item);
+      const passed = decision === 'MET' || decision === 'PARTIALLY MET';
+      return {
+        id: item.id || `${index}`,
+        criterion: item.criterion || item.name || `Criterion ${index + 1}`,
+        rationale: item.rationale || item.explanation || '',
+        decision,
+        passed,
+        severity: normalizeSeverity(item),
+      };
+    })
+    .sort((a, b) => Number(a.passed) - Number(b.passed));
+}
+
+function MessageBubble({ entry }: { entry: TranscriptEntry }) {
+  const isTester = entry.role === 'attacker';
+  return (
+    <div className={cn('flex', isTester ? 'justify-start' : 'justify-end')}>
+      <div
+        className={cn(
+          'max-w-[80%] rounded-xl border px-4 py-3',
+          isTester ? 'bg-muted border-border' : 'bg-accent/5 border-accent/20'
+        )}
+      >
+        <p className="text-xs font-medium text-text-secondary mb-1">{isTester ? 'Tester' : 'Target agent'}</p>
+        <p className="text-sm text-text-primary whitespace-pre-wrap">{entry.content}</p>
+      </div>
+    </div>
+  );
+}
+
+export default function ScenarioRunPage() {
+  const [gradingOpen, setGradingOpen] = useState(true);
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const { id: testRunId, scenarioRunId } = useParams<{ id: string; scenarioRunId: string }>();
+  const resolvedTestRunId = testRunId || '';
+  const resolvedScenarioRunId = scenarioRunId || '';
+
+  const { data: result, isLoading, error } = useScenarioRun(resolvedScenarioRunId);
+  const { data: scenarioRunsData } = useScenarioRuns({ testRunId: resolvedTestRunId });
+  const { data: testRunData } = useTestRun(resolvedTestRunId);
+
+  useRealtimeRun(testRunId, scenarioRunId);
+
+  const scenarioRuns = useMemo(() => scenarioRunsData?.results ?? [], [scenarioRunsData]);
+  const navigation = useMemo(() => {
+    const ids = scenarioRuns.map((run) => run.id);
+    const currentIndex = ids.findIndex((id) => id === resolvedScenarioRunId);
+    if (currentIndex === -1) {
+      return { prevId: null as string | null, nextId: null as string | null, currentIndex: 0, totalCount: ids.length };
+    }
+    return {
+      prevId: currentIndex > 0 ? ids[currentIndex - 1] : null,
+      nextId: currentIndex < ids.length - 1 ? ids[currentIndex + 1] : null,
+      currentIndex,
+      totalCount: ids.length,
+    };
+  }, [resolvedScenarioRunId, scenarioRuns]);
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 min-h-screen bg-background px-6 py-8">
+        <div className="h-6 w-40 rounded bg-border animate-pulse mb-6" />
+        <div className="h-10 w-96 rounded bg-border animate-pulse mb-6" />
+        <div className="h-64 w-full rounded bg-border animate-pulse" />
+      </div>
+    );
+  }
+
+  if (error || !result) {
+    return (
+      <div className="flex-1 min-h-screen flex flex-col items-center justify-center gap-3">
+        <p className="text-text-secondary">{error?.message ?? 'Scenario run not found'}</p>
+        <Link to={`/test/${resolvedTestRunId}`} className="text-sm text-accent hover:underline">
+          Back to test run
+        </Link>
+      </div>
+    );
+  }
+
+  const displayStatus = getDisplayStatus(result);
+  const scenarioName = result.scenario_name || 'Scenario';
+  const transcript = parseJsonField<TranscriptEntry>(result.transcript);
+  const criteria = normalizeCriteria(parseJsonField<CriteriaResult>(result.criteria_results));
+
+  const jsonPayload = {
+    transcript: transcript.map((entry) => ({
+      role: entry.role === 'attacker' ? 'user' : 'assistant',
+      content: entry.content,
+    })),
+    grading_results: {
+      status: displayStatus,
+      passed: result.passed,
+      summary: result.grade_summary || '',
+      criteria_results: criteria,
+    },
+  };
+
+  const copyJson = async () => {
+    await navigator.clipboard.writeText(JSON.stringify(jsonPayload, null, 2));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  };
+
+  const downloadJson = () => {
+    const blob = new Blob([JSON.stringify(jsonPayload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `scenario-run-${result.id}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const testRunLabel = testRunData?.run?.test_run_id || resolvedTestRunId;
+
+  return (
+    <div className="flex-1 min-h-screen bg-background">
+      <div className="px-6 py-7">
+        <div className="text-sm text-text-secondary flex items-center gap-2 mb-4">
+          <Link to={`/test/${resolvedTestRunId}`} className="inline-flex items-center gap-1 hover:text-text-primary">
+            <ArrowLeft className="w-4 h-4" />
+            Back
+          </Link>
+          <span className="opacity-60">/</span>
+          <span className="truncate">{testRunLabel}</span>
+          <span className="opacity-60">/</span>
+          <span className="truncate">{scenarioName}</span>
+        </div>
+
+        <div className="flex items-start justify-between gap-4 mb-8">
+          <div>
+            <h1 className="text-2xl font-semibold text-text-primary mb-2">{scenarioName}</h1>
+            <p className={cn('text-sm font-medium', statusClasses(displayStatus))}>
+              {statusLabel(displayStatus)}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-text-secondary">
+              {navigation.currentIndex + 1} of {navigation.totalCount || 1}
+            </span>
+            <div className="flex items-center gap-1">
+              {navigation.prevId ? (
+                <Link to={`/test/${resolvedTestRunId}/scenario/${navigation.prevId}`} className="inline-flex">
+                  <button
+                    type="button"
+                    className="h-8 w-8 rounded-md border border-border flex items-center justify-center hover:bg-muted"
+                    aria-label="Previous scenario"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  className="h-8 w-8 rounded-md border border-border text-text-secondary/50 flex items-center justify-center"
+                  disabled
+                  aria-label="Previous scenario"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+              )}
+              {navigation.nextId ? (
+                <Link to={`/test/${resolvedTestRunId}/scenario/${navigation.nextId}`} className="inline-flex">
+                  <button
+                    type="button"
+                    className="h-8 w-8 rounded-md border border-border flex items-center justify-center hover:bg-muted"
+                    aria-label="Next scenario"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  className="h-8 w-8 rounded-md border border-border text-text-secondary/50 flex items-center justify-center"
+                  disabled
+                  aria-label="Next scenario"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="border border-border rounded-lg mb-6">
+          <button
+            type="button"
+            onClick={() => setGradingOpen((prev) => !prev)}
+            className="w-full px-4 py-3 flex items-center justify-between"
+          >
+            <span className="text-sm font-semibold text-text-primary">Grading results</span>
+            {gradingOpen ? <ChevronDown className="h-4 w-4 text-text-secondary" /> : <ChevronRight className="h-4 w-4 text-text-secondary" />}
+          </button>
+
+          {gradingOpen && (
+            <div className="px-4 pb-4 space-y-4">
+              <div className="border border-border rounded-lg p-3 flex items-center justify-between">
+                <span className="text-sm text-text-secondary">Result</span>
+                <span className={cn('text-sm font-semibold', statusClasses(displayStatus))}>
+                  {statusLabel(displayStatus)}
+                </span>
+              </div>
+
+              {criteria.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-left text-text-secondary">
+                        <th className="py-2 pr-3 font-medium w-[38%]">Criteria</th>
+                        <th className="py-2 px-3 font-medium w-[42%]">Rationale</th>
+                        <th className="py-2 px-3 font-medium text-center w-[10%]">Severity</th>
+                        <th className="py-2 pl-3 font-medium text-center w-[10%]">Result</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {criteria.map((criterion) => (
+                        <tr key={criterion.id} className="border-b border-border align-top">
+                          <td className="py-3 pr-3 text-text-primary">{criterion.criterion}</td>
+                          <td className="py-3 px-3 text-text-primary">{criterion.rationale || '-'}</td>
+                          <td className="py-3 px-3 text-center">
+                            <span
+                              className={cn(
+                                'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                                criterion.severity === 'HIGH' && 'bg-red-100 text-red-800',
+                                criterion.severity === 'MEDIUM' && 'bg-orange-100 text-orange-800',
+                                criterion.severity === 'LOW' && 'bg-yellow-100 text-yellow-800'
+                              )}
+                            >
+                              {criterion.severity}
+                            </span>
+                          </td>
+                          <td className="py-3 pl-3 text-center">
+                            <span
+                              className={cn(
+                                'inline-flex rounded px-2 py-0.5 text-xs font-semibold text-white',
+                                criterion.passed ? 'bg-pass' : 'bg-fail'
+                              )}
+                            >
+                              {criterion.passed ? 'PASS' : 'FAIL'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-sm text-text-secondary">{result.grade_summary || 'No grading details available yet.'}</p>
+              )}
+
+              {result.error_message && (
+                <div className="rounded border border-fail/30 bg-fail/5 p-3 text-xs text-fail">
+                  {result.error_message}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="border border-border rounded-lg">
+          <button
+            type="button"
+            onClick={() => setTranscriptOpen((prev) => !prev)}
+            className="w-full px-4 py-3 flex items-center justify-between"
+          >
+            <span className="text-sm font-semibold text-text-primary">Transcript</span>
+            {transcriptOpen ? <ChevronDown className="h-4 w-4 text-text-secondary" /> : <ChevronRight className="h-4 w-4 text-text-secondary" />}
+          </button>
+
+          {transcriptOpen && (
+            <div className="px-4 pb-4">
+              <div className="flex items-center justify-end gap-4 mb-3">
+                <button
+                  type="button"
+                  onClick={downloadJson}
+                  className="inline-flex items-center gap-2 text-sm text-text-primary hover:text-accent"
+                >
+                  <Download className="h-4 w-4" />
+                  Download
+                </button>
+                <button
+                  type="button"
+                  onClick={copyJson}
+                  className="inline-flex items-center gap-2 text-sm text-text-primary hover:text-accent"
+                >
+                  {copied ? <Check className="h-4 w-4 text-pass" /> : <Copy className="h-4 w-4" />}
+                  {copied ? 'Copied' : 'Copy JSON'}
+                </button>
+              </div>
+
+              {transcript.length === 0 ? (
+                <div className="rounded-lg border border-border px-4 py-8 text-sm text-text-secondary text-center">
+                  No transcript available yet.
+                </div>
+              ) : (
+                <div className="rounded-lg border border-border bg-card p-4 space-y-4">
+                  {transcript.map((entry, index) => (
+                    <MessageBubble key={`${entry.turn ?? index}-${index}`} entry={entry} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {(result.status === 'running' || result.status === 'grading') && (
+        <div className="fixed bottom-6 right-6 rounded-full bg-primary text-primary-foreground px-4 py-2 text-sm shadow-lg inline-flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Live updating
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,84 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: preclinical
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-preclinical}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./server/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./server/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d preclinical"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://postgres:${DB_PASSWORD:-preclinical}@db:5432/preclinical
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434/v1}
+      TESTER_MODEL: ${TESTER_MODEL:-gpt-4o-mini}
+      GRADER_MODEL: ${GRADER_MODEL:-gpt-4o-mini}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-5}
+      DEFAULT_MAX_TURNS: ${DEFAULT_MAX_TURNS:-6}
+      MIN_MAX_TURNS: ${MIN_MAX_TURNS:-5}
+      MAX_MAX_TURNS: ${MAX_MAX_TURNS:-7}
+      BROWSER_USE_API_KEY: ${BROWSER_USE_API_KEY:-}
+      BROWSER_USE_API_BASE: ${BROWSER_USE_API_BASE:-https://api.browser-use.com/api/v2}
+      PORT: 8000
+    ports:
+      - "3000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # Ollama (optional — for local LLM inference)
+  # Start with: docker compose --profile ollama up
+  # Then set TESTER_MODEL=ollama:llama3.2 in .env
+  ollama:
+    image: ollama/ollama:latest
+    profiles: [ollama]
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Local BrowserUse wrapper (optional — for testing browser provider without cloud API)
+  browseruse:
+    build: ./workers/browseruse
+    profiles: [browseruse]
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      LLM_MODEL: ${TESTER_MODEL:-gpt-4o-mini}
+    ports:
+      - "9000:9000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:9000/health\")'"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  pgdata:
+  ollama_data:
