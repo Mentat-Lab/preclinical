@@ -9,7 +9,7 @@ Open-source platform for testing healthcare AI agents with adversarial multi-tur
 
 </div>
 
-## Project Overview
+## Overview
 Preclinical is an open-source healthcare AI safety testing platform. It simulates realistic adversarial patient interactions against your agent, stores transcripts, and grades outcomes against safety rubrics.
 
 [![How Preclinical Works](docs-site/docs/images/Preclinical.gif)](docs-site/docs/images/Preclinical.gif)
@@ -20,47 +20,27 @@ Key capabilities:
 - Local self-hosted runtime with Docker
 - Provider support: `openai`, `vapi`, `livekit`, `pipecat`, `browser`
 
-## Demo
-- UI: `http://localhost:3000`
-- API health: `http://localhost:3000/health`
-- Fast local run demo: follow Quick Start, then run the Validation Commands section
+## What It Does
+Each test run:
+1. Generates an attack plan with a simulated patient persona
+2. Runs a multi-turn conversation against your agent (text, voice, or browser)
+3. Grades the transcript on safety criteria (triage accuracy, harmful advice, hallucinations, etc.)
 
 ## Quick Start
-This is the fastest validated path for `feat/oss-self-hosted`.
 
 ### Prerequisites
 - Docker Desktop (or Docker Engine + Docker Compose)
-- Git
-- Node.js 18+ (only needed to run local tests)
-- A valid `OPENAI_API_KEY` for full end-to-end run execution
+- An `OPENAI_API_KEY` (or Anthropic/Ollama — see [Environment Variables](#environment-variables))
 
-### Clone and use the self-hosted branch
+### Clone and configure
 ```bash
 git clone https://github.com/Mentat-Lab/preclinical.git
 cd preclinical
-git checkout feat/oss-self-hosted
-```
-
-### Create `.env`
-```bash
 cp .env.example .env
+# Edit .env and set OPENAI_API_KEY=sk-...
 ```
 
-### Add API key (easy path)
-Option A: interactive prompt
-```bash
-read -s -p "Enter OPENAI_API_KEY: " OPENAI_KEY && echo
-printf "\nOPENAI_API_KEY=%s\n" "$OPENAI_KEY" >> .env
-unset OPENAI_KEY
-```
-
-Option B: edit manually
-```bash
-# Open .env and set
-# OPENAI_API_KEY=sk-...
-```
-
-### Start the app
+### Start
 ```bash
 docker compose up --build -d
 ```
@@ -75,46 +55,24 @@ Expected:
 - `app` and `db` are healthy
 - health returns JSON containing `"status":"ok"`
 
-### Open the UI
-- `http://localhost:3000`
+Open `http://localhost:3000` to access the UI.
 
 > First run note: Docker builds the app image from source. Initial build is slower; subsequent starts are faster.
 
-## What It Does
-Preclinical runs adversarial multi-turn conversations against healthcare AI agents, then grades transcripts against safety rubrics. It simulates patient behavior using red-team methodologies inspired by GOAT (Generative Offensive Agent Tester), Crescendo attacks, and Persona Teaming.
-
-Each test run:
-1. Generates an attack plan with a simulated patient persona
-2. Runs a multi-turn conversation against your agent (text, voice, or browser)
-3. Grades the transcript on safety criteria (triage accuracy, harmful advice, hallucinations, etc.)
-
-## Docker Setup
-Preclinical self-hosted runs as two core services:
-- `db` (PostgreSQL 16)
-- `app` (API + frontend on port `3000`)
-
-Common commands:
+## Docker Commands
 ```bash
-# Start
-docker compose up -d
-
-# Rebuild app after changes
-docker compose up -d --build app
-
-# Logs
-docker compose logs -f app
-
-# Stop
-docker compose down
+docker compose up -d              # start
+docker compose up -d --build app  # rebuild after code changes
+docker compose logs -f app        # logs
+docker compose down               # stop
 ```
 
 ## Runtime Modes
-### Default mode (recommended)
-- Uses OpenAI-backed tester/grader models
-- Requires `OPENAI_API_KEY`
 
-### Ollama local-model mode (optional)
-- No cloud model key required
+### Default (OpenAI)
+Requires `OPENAI_API_KEY` in `.env`.
+
+### Ollama (fully local, no cloud key required)
 ```bash
 docker compose --profile ollama up -d
 ```
@@ -125,16 +83,16 @@ GRADER_MODEL=ollama:llama3.2
 OLLAMA_BASE_URL=http://ollama:11434/v1
 ```
 
-### BrowserUse local wrapper mode (optional)
+### BrowserUse local wrapper (optional)
 ```bash
 docker compose --profile browseruse up -d
 ```
 
-## API Keys / External Services
-### Required for full validated quickstart
+## API Keys
+### Required
 - `OPENAI_API_KEY`
 
-### Optional by provider/path
+### Optional (by provider)
 - `VAPI_API_KEY` (+ assistant config)
 - `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`
 - `PIPECAT_API_KEY` and related Pipecat config
@@ -146,32 +104,18 @@ docker compose --profile browseruse up -d
 - LiveKit: https://cloud.livekit.io
 - Pipecat: https://www.pipecat.ai/
 
-## Updating / Maintenance
+## Updating
 ```bash
-git checkout feat/oss-self-hosted
 git pull
-
 docker compose down
 docker compose up --build -d
 ```
-
-If dependencies changed, rebuild affected services.
 
 ## Philosophy
 - Safety-first testing before real patient exposure
 - Self-hosted by default for control and transparency
 - Provider-agnostic integration model
 - Reproducible scenarios and auditable grading
-
-## Project Resources
-- Repository: https://github.com/Mentat-Lab/preclinical
-- Contributing guide: [CONTRIBUTING.md](CONTRIBUTING.md)
-
-## Roadmap
-Current focus areas:
-- Improve self-hosted onboarding and docs
-- Expand provider-specific smoke/E2E reliability
-- Strengthen local-first workflows (Ollama, BrowserUse, target agents)
 
 ## Architecture
 ```mermaid
@@ -201,7 +145,7 @@ POST /start-run
 | `browser` | Headless browser | Web-based chat agents |
 
 ## Target Agents
-Pre-built target agents for local testing and development:
+Pre-built target agents for local testing:
 
 ```text
 target-agents/
@@ -258,30 +202,13 @@ Requires a running PostgreSQL and valid `DATABASE_URL`.
 
 ```bash
 # Server (port 8000)
-cd server
-npm install
-npm run dev
+cd server && npm install && npm run dev
 
 # Frontend (port 3000, proxies API to :8000)
-cd ../frontend
-npm install
-npm run dev
+cd frontend && npm install && npm run dev
 
 # Tests
-cd ../tests
-npm install
-npm test
-```
-
-## Fully Local (No Cloud APIs)
-Run with Ollama:
-```bash
-docker compose --profile ollama up
-```
-Set in `.env`:
-```bash
-TESTER_MODEL=ollama:llama3.2
-GRADER_MODEL=ollama:llama3.2
+cd tests && npm install && npm test
 ```
 
 ## Adding a Provider
@@ -303,7 +230,6 @@ interface Provider {
 ```
 
 ## Environment Variables
-Essentials:
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
@@ -315,7 +241,7 @@ Essentials:
 | `ANTHROPIC_API_KEY` | No | — | For Claude models (`claude-*`) |
 | `OLLAMA_BASE_URL` | No | `http://localhost:11434/v1` | Ollama base URL for `ollama:*` models |
 
-\* Not required if you use only Anthropic or Ollama for tester/grader.
+\* Not required if using only Anthropic or Ollama for tester/grader.
 
 See [`.env.example`](.env.example) for full configuration.
 
@@ -350,11 +276,10 @@ preclinical/
 - Secrets are loaded from `.env` and should never be committed
 - Use least-privilege keys and rotate regularly
 
-## Limitations / Disclaimers
-- Testing platform only; not medical advice software
+## Limitations
+- Testing platform only — not medical advice software
 - Healthcare deployments may require additional legal/compliance controls
 - Optional profiles (`ollama`, `browseruse`) can require large first-time downloads/build times
-- Full end-to-end execution requires valid model backend credentials/config
 
 ## Contributing
 See [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -364,30 +289,3 @@ Preclinical builds on open-source technologies including Hono, Vite/React, Postg
 
 ## License
 Apache-2.0 — see [LICENSE](LICENSE).
-
-## Citation
-If you reference this project, cite:
-- Project: Preclinical
-- Repository: https://github.com/Mentat-Lab/preclinical
-
-## Validation Commands (Recommended Before PRs)
-```bash
-# 1) Service health
-docker compose ps
-curl -sS http://localhost:3000/health
-
-# 2) Server tests
-cd server && npm install && npm run test
-
-# 3) Frontend production build
-cd ../frontend && npm install && npm run build
-
-# 4) API tests
-cd ../tests && npm install && TEST_BASE_URL=http://localhost:3000 npm run test
-
-# 5) E2E provider-target (openai)
-RUN_PROVIDER_E2E=1 E2E_MAX_ATTEMPTS=1 TEST_BASE_URL=http://localhost:3000 npm run test:e2e
-
-# 6) E2E provider-target (openai + vapi)
-RUN_PROVIDER_E2E=1 RUN_VAPI_PROVIDER_E2E=1 E2E_MAX_ATTEMPTS=1 TEST_BASE_URL=http://localhost:3000 npm run test:e2e
-```
