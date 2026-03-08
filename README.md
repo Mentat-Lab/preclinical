@@ -26,7 +26,6 @@ Key capabilities:
 - Fast local run demo: follow Quick Start, then run the Validation Commands section
 
 ## Quick Start
-This is the fastest validated path for `feat/oss-self-hosted`.
 
 ### Prerequisites
 - Docker Desktop (or Docker Engine + Docker Compose)
@@ -34,11 +33,10 @@ This is the fastest validated path for `feat/oss-self-hosted`.
 - Node.js 18+ (only needed to run local tests)
 - A valid `OPENAI_API_KEY` for full end-to-end run execution
 
-### Clone and use the self-hosted branch
+### Clone
 ```bash
 git clone https://github.com/Mentat-Lab/preclinical.git
 cd preclinical
-git checkout feat/oss-self-hosted
 ```
 
 ### Create `.env`
@@ -148,7 +146,6 @@ docker compose --profile browseruse up -d
 
 ## Updating / Maintenance
 ```bash
-git checkout feat/oss-self-hosted
 git pull
 
 docker compose down
