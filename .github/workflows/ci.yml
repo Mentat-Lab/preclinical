@@ -95,3 +95,27 @@ jobs:
 
       - name: Run API tests
         run: cd tests && npm test
+
+  # ── Security checks (parallel with typechecks) ────────────────────────
+  security:
+    name: Security Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Secret scanning with gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Audit server dependencies
+        run: cd server && npm ci && npm audit --audit-level=high || true
+
+      - name: Audit frontend dependencies
+        run: cd frontend && npm ci && npm audit --audit-level=high || true

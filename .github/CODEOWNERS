@@ -1,0 +1,12 @@
+# Default owner for everything
+* @saikrishna-deterministic
+
+# CI/CD and repo config — require owner review
+.github/ @saikrishna-deterministic
+docker-compose*.yml @saikrishna-deterministic
+
+# Server core — require owner review
+server/src/providers/ @saikrishna-deterministic
+server/src/graphs/ @saikrishna-deterministic
+server/src/shared/ @saikrishna-deterministic
+server/schema.sql @saikrishna-deterministic
