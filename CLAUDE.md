@@ -55,7 +55,7 @@ Configurable via env: `DEFAULT_MAX_TURNS=6`, `MIN_MAX_TURNS=5`, `MAX_MAX_TURNS=7
 - `frontend/` — Vite + React + TanStack Query
 - `tests/` — Vitest API tests
 - `target-agents/` — Self-hosted target agents for smoke tests (openai-api, livekit, pipecat)
-- `workers/browseruse/` — Local BrowserUse wrapper (optional, used via `docker compose --profile browseruse up`)
+- `services/browseruse/` — Local BrowserUse wrapper (optional, used via `docker compose --profile browseruse up`)
 - `docs-site/` — MkDocs Material documentation site
 
 ## Deployment

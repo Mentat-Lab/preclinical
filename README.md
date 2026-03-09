@@ -306,7 +306,7 @@ preclinical/
 ├── frontend/             # Vite + React UI
 ├── tests/                # API and E2E tests
 ├── target-agents/        # Local provider mock/target agents
-├── workers/              # Optional worker integrations (e.g., BrowserUse)
+├── services/             # Optional supporting services (e.g., BrowserUse)
 └── docs-site/            # Documentation site assets
 ```
 

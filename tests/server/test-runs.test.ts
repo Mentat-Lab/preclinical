@@ -145,6 +145,80 @@ describe('Test Runs API', () => {
       // Either 400 (no scenarios found) or 404 are acceptable
       expect([400, 404]).toContain(res.status);
     });
+
+    it('accepts concurrency_limit parameter → 200', async () => {
+      const res = await api.post<{
+        id: string;
+        status: string;
+      }>('/start-run', {
+        agent_id: agentId,
+        scenario_ids: [scenarioIds[0]],
+        max_turns: 2,
+        concurrency_limit: 2,
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.data).toHaveProperty('id');
+      expect(res.data.status).toBe('running');
+
+      startedRunIds.push(res.data.id);
+    });
+
+    it('returns 400 or 0 scenarios when tags match nothing', async () => {
+      const res = await api.post<{
+        id?: string;
+        total_scenarios?: number;
+        error?: string;
+      }>('/start-run', {
+        agent_id: agentId,
+        max_turns: 2,
+        tags: ['some-tag-that-wont-match'],
+      });
+
+      // Server either rejects with 400 (no scenarios found) or
+      // returns 200 with 0 scenarios — both are acceptable
+      if (res.status === 200) {
+        expect(res.data.total_scenarios).toBe(0);
+        if (res.data.id) startedRunIds.push(res.data.id);
+      } else {
+        expect(res.status).toBe(400);
+        expect(res.data.error).toMatch(/no.*scenario|scenario.*not found/i);
+      }
+    });
+
+    it('returns 400 when scenario_ids is an empty array', async () => {
+      const res = await api.post<{ error: string }>('/start-run', {
+        agent_id: agentId,
+        scenario_ids: [],
+        max_turns: 2,
+      });
+
+      expect(res.status).toBe(400);
+      expect(res.data.error).toMatch(/no.*scenario|scenario.*not found/i);
+    });
+
+    it('stores custom name and returns it in GET /api/v1/tests/:id', async () => {
+      const customName = 'My Custom Run Name';
+
+      const startRes = await api.post<{ id: string }>('/start-run', {
+        agent_id: agentId,
+        scenario_ids: [scenarioIds[0]],
+        max_turns: 2,
+        name: customName,
+      });
+
+      expect(startRes.status).toBe(200);
+      const runId = startRes.data.id;
+      startedRunIds.push(runId);
+
+      const getRes = await api.get<{ id: string; name?: string }>(
+        `/api/v1/tests/${runId}`
+      );
+
+      expect(getRes.status).toBe(200);
+      expect(getRes.data.id).toBe(runId);
+      expect(getRes.data.name).toBe(customName);
+    });
   });
 
   // ── GET /api/v1/tests ─────────────────────────────────────────────────────

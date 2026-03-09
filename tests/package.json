@@ -13,5 +13,8 @@
     "@vitest/ui": "^3.2.4",
     "dotenv": "^16.4.5",
     "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "typescript": "^5.9.3"
   }
 }

@@ -34,9 +34,9 @@ import { log } from '../lib/logger.js';
 // Constants
 // ---------------------------------------------------------------------------
 
-const PLANNING_TIMEOUT_MS = 60_000;
-const TURN_TIMEOUT_MS = 30_000;
-const COVERAGE_TIMEOUT_MS = 60_000;
+const PLANNING_TIMEOUT_MS = config.planningTimeoutMs;
+const TURN_TIMEOUT_MS = config.turnTimeoutMs;
+const COVERAGE_TIMEOUT_MS = config.coverageTimeoutMs;
 const DUPLICATE_SIMILARITY_THRESHOLD = 0.85;
 
 // ---------------------------------------------------------------------------

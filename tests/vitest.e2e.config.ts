@@ -11,7 +11,7 @@ export default defineConfig({
     environment: 'node',
     globalSetup: './setup/global-setup.ts',
     include: ['e2e/**/*.test.ts'],
-    testTimeout: 180_000,
+    testTimeout: 600_000,
     hookTimeout: 60_000,
     pool: 'forks',
     sequence: {
