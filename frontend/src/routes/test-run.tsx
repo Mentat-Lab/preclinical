@@ -111,7 +111,7 @@ export default function TestRunPage() {
   const deleteMutation = useMutation({
     mutationFn: () => api.deleteTestRun(id || ''),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.testRuns() });
+      queryClient.invalidateQueries({ queryKey: ['testRuns'] });
       navigate(run?.agent_id ? `/agents/${run.agent_id}` : '/');
     },
   });
