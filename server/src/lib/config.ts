@@ -23,4 +23,9 @@ export const config = {
   defaultMaxTurns: parseInt(process.env.DEFAULT_MAX_TURNS || '6', 10),
   minMaxTurns: parseInt(process.env.MIN_MAX_TURNS || '5', 10),
   maxMaxTurns: parseInt(process.env.MAX_MAX_TURNS || '7', 10),
+
+  // Graph timeouts (ms)
+  planningTimeoutMs: parseInt(process.env.PLANNING_TIMEOUT_MS || '60000', 10),
+  turnTimeoutMs: parseInt(process.env.TURN_TIMEOUT_MS || '30000', 10),
+  coverageTimeoutMs: parseInt(process.env.COVERAGE_TIMEOUT_MS || '60000', 10),
 } as const;

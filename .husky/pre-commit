@@ -1,0 +1,32 @@
+#!/usr/bin/env sh
+
+# ── Secret detection ──────────────────────────────────────────────────────
+# Check for common secret patterns in staged files
+SECRETS_FOUND=$(git diff --cached --diff-filter=ACM -p | grep '^+' | grep -v '^+++' | grep -iE '(AKIA[0-9A-Z]{16}|sk-[a-zA-Z0-9]{20,}|-----BEGIN (RSA |EC )?PRIVATE KEY-----|password\s*=\s*["\x27][^"\x27]{8,}|api[_-]?key\s*[:=]\s*["\x27][a-zA-Z0-9]{20,})' || true)
+
+if [ -n "$SECRETS_FOUND" ]; then
+  echo "❌ Potential secrets detected in staged changes!"
+  echo "$SECRETS_FOUND"
+  echo ""
+  echo "If this is a false positive, use: git commit --no-verify"
+  exit 1
+fi
+
+# ── TypeScript type checking ──────────────────────────────────────────────
+# Only check projects that have staged changes
+SERVER_CHANGED=$(git diff --cached --name-only --diff-filter=ACM | grep '^server/' || true)
+FRONTEND_CHANGED=$(git diff --cached --name-only --diff-filter=ACM | grep '^frontend/' || true)
+
+if [ -n "$SERVER_CHANGED" ]; then
+  echo "⏳ Type-checking server..."
+  cd server && npx tsc --noEmit || exit 1
+  cd ..
+fi
+
+if [ -n "$FRONTEND_CHANGED" ]; then
+  echo "⏳ Type-checking frontend..."
+  cd frontend && npx tsc --noEmit || exit 1
+  cd ..
+fi
+
+echo "✅ Pre-commit checks passed"

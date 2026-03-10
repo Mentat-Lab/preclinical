@@ -39,7 +39,6 @@ Set these based on which integrations you use:
 | Variable | Provider |
 |----------|----------|
 | `BROWSER_USE_API_KEY` | BrowserUse Cloud |
-| `AGENTMAIL_API_KEY` | AgentMail |
 
 !!! note "Per-Agent Configuration"
     Provider credentials like Vapi API keys, LiveKit credentials, and Pipecat API keys are configured **per-agent** in the agent's `config` object — not as server environment variables. See [Integrations](integrations/overview.md) for details on each provider's config fields.

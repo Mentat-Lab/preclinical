@@ -1,0 +1,5 @@
+[allowlist]
+  description = "Test fixtures use intentionally fake key patterns to verify secret-masking behavior"
+  paths = [
+    "tests/server/agents.test.ts",
+  ]

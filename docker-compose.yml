@@ -36,6 +36,9 @@ services:
       MAX_MAX_TURNS: ${MAX_MAX_TURNS:-7}
       BROWSER_USE_API_KEY: ${BROWSER_USE_API_KEY:-}
       BROWSER_USE_API_BASE: ${BROWSER_USE_API_BASE:-https://api.browser-use.com/api/v2}
+      PLANNING_TIMEOUT_MS: ${PLANNING_TIMEOUT_MS:-60000}
+      TURN_TIMEOUT_MS: ${TURN_TIMEOUT_MS:-30000}
+      COVERAGE_TIMEOUT_MS: ${COVERAGE_TIMEOUT_MS:-60000}
       PORT: 8000
     ports:
       - "3000:8000"
@@ -65,7 +68,7 @@ services:
 
   # Local BrowserUse wrapper (optional — for testing browser provider without cloud API)
   browseruse:
-    build: ./workers/browseruse
+    build: ./services/browseruse
     profiles: [browseruse]
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY}

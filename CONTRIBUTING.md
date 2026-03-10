@@ -77,4 +77,4 @@ Open an issue on GitHub with:
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the AGPLv3 license.
+By contributing, you agree that your contributions will be licensed under the Apache 2.0 license.

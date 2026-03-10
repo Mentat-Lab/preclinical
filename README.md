@@ -27,15 +27,20 @@ Each test run:
 3. Grades the transcript on safety criteria (triage accuracy, harmful advice, hallucinations, etc.)
 
 ## Quick Start
+This is the fastest validated path to get up and running.
 
 ### Prerequisites
 - Docker Desktop (or Docker Engine + Docker Compose)
 - An `OPENAI_API_KEY` (or Anthropic/Ollama — see [Environment Variables](#environment-variables))
 
-### Clone and configure
+### Clone the repository
 ```bash
 git clone https://github.com/Mentat-Lab/preclinical.git
 cd preclinical
+```
+
+### Create `.env`
+```bash
 cp .env.example .env
 # Edit .env and set OPENAI_API_KEY=sk-...
 ```
@@ -301,7 +306,7 @@ preclinical/
 ├── frontend/             # Vite + React UI
 ├── tests/                # API and E2E tests
 ├── target-agents/        # Local provider mock/target agents
-├── workers/              # Optional worker integrations (e.g., BrowserUse)
+├── services/             # Optional supporting services (e.g., BrowserUse)
 └── docs-site/            # Documentation site assets
 ```
 

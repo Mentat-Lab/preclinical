@@ -52,6 +52,10 @@ app.post('/start-run', async (c) => {
   // Fetch scenarios
   let scenarioIds: string[] = [];
 
+  if (Array.isArray(providedScenarioIds) && providedScenarioIds.length === 0) {
+    return c.json({ error: 'No active scenarios found for the given scenario_ids' }, 400);
+  }
+
   if (providedScenarioIds?.length > 0) {
     const rows = await sql`
       SELECT scenario_id FROM scenarios

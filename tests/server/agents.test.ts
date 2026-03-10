@@ -279,4 +279,69 @@ describe('Agents API', () => {
       expect((res.data as { error: string }).error).toMatch(/not found/i);
     });
   });
+
+  // ── Config masking ────────────────────────────────────────────────────────
+
+  describe('Config masking — sensitive keys are masked in responses', () => {
+    function getConfig(data: unknown): Record<string, unknown> {
+      const cfg = (data as any).config;
+      return typeof cfg === 'string' ? JSON.parse(cfg) : cfg;
+    }
+
+    it('POST creates agent with api_key in config → response masks the api_key value', async () => {
+      const sensitiveKey = 'sk-1234567890abcdef';
+      const res = await createAgent({
+        name: 'Masking POST Agent',
+        config: { model: 'gpt-4o', api_key: sensitiveKey },
+      });
+
+      expect(res.status).toBe(201);
+      const cfg = getConfig(res.data);
+      expect(cfg.api_key).not.toBe(sensitiveKey);
+      expect(String(cfg.api_key)).toContain('•');
+    });
+
+    it('GET single agent masks sensitive config keys', async () => {
+      const sensitiveKey = 'sk-1234567890abcdef';
+      const created = await createAgent({
+        name: 'Masking GET Agent',
+        config: { model: 'gpt-4o', api_key: sensitiveKey },
+      });
+      expect(created.status).toBe(201);
+
+      const res = await api.get(`/api/v1/agents/${created.data.id}`);
+
+      expect(res.status).toBe(200);
+      const cfg = getConfig(res.data);
+      expect(cfg.api_key).not.toBe(sensitiveKey);
+      expect(String(cfg.api_key)).toContain('•');
+    });
+
+    it('non-sensitive keys are NOT masked', async () => {
+      const res = await createAgent({
+        name: 'Non-Sensitive Config Agent',
+        config: { model: 'gpt-4o', temperature: 0.7 },
+      });
+
+      expect(res.status).toBe(201);
+      const cfg = getConfig(res.data);
+      expect(cfg.model).toBe('gpt-4o');
+      expect(cfg.temperature).toBe(0.7);
+    });
+
+    it('PATCH response also masks sensitive keys', async () => {
+      const created = await createAgent({ name: 'Masking PATCH Agent' });
+      expect(created.status).toBe(201);
+
+      const sensitiveToken = 'tok-abcdef1234567890';
+      const res = await api.patch(`/api/v1/agents/${created.data.id}`, {
+        config: { model: 'gpt-4o', token: sensitiveToken },
+      });
+
+      expect(res.status).toBe(200);
+      const cfg = getConfig(res.data);
+      expect(cfg.token).not.toBe(sensitiveToken);
+      expect(String(cfg.token)).toContain('•');
+    });
+  });
 });

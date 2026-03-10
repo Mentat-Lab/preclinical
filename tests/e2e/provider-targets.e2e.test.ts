@@ -7,7 +7,9 @@ import { api, waitFor, getSeededScenarioIds } from '../setup/test-utils';
 
 const SHOULD_RUN = process.env.RUN_PROVIDER_E2E === '1';
 const SHOULD_RUN_VAPI = process.env.RUN_VAPI_PROVIDER_E2E === '1';
-const E2E_TIMEOUT_MS = 180_000;
+const SHOULD_RUN_BROWSER = process.env.RUN_BROWSER_PROVIDER_E2E === '1';
+const E2E_TIMEOUT_MS = 540_000;
+const BROWSER_E2E_TIMEOUT_MS = 540_000;
 const E2E_MAX_ATTEMPTS = Math.max(1, parseInt(process.env.E2E_MAX_ATTEMPTS || '3', 10) || 3);
 const TARGET_HOST = process.env.E2E_TARGET_HOST || 'host.docker.internal';
 const TARGET_HEALTH_HOST = process.env.E2E_TARGET_HEALTH_HOST || '127.0.0.1';
@@ -19,11 +21,16 @@ const TARGET_VAPI_PORT = parseInt(process.env.E2E_TARGET_VAPI_PORT || '9200', 10
 const TARGET_VAPI_BASE_URL = process.env.E2E_TARGET_VAPI_BASE_URL || `http://${TARGET_HOST}:${TARGET_VAPI_PORT}`;
 const TARGET_VAPI_HEALTH_URL =
   process.env.E2E_TARGET_VAPI_HEALTH_URL || `http://${TARGET_HEALTH_HOST}:${TARGET_VAPI_PORT}/health`;
+const TARGET_BROWSER_PORT = parseInt(process.env.E2E_TARGET_BROWSER_PORT || '9300', 10);
+const TARGET_BROWSER_URL = process.env.E2E_TARGET_BROWSER_URL || `http://${TARGET_HOST}:${TARGET_BROWSER_PORT}`;
+const TARGET_BROWSER_HEALTH_URL =
+  process.env.E2E_TARGET_BROWSER_HEALTH_URL || `http://${TARGET_HEALTH_HOST}:${TARGET_BROWSER_PORT}/health`;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
 const openaiTargetDir = path.join(repoRoot, 'target-agents/openai-api');
 const vapiTargetDir = path.join(repoRoot, 'target-agents/vapi');
+const browserTargetDir = path.join(repoRoot, 'target-agents/browser');
 const npmExecPath = process.env.npm_execpath;
 if (!npmExecPath) {
   throw new Error('npm_execpath is not set; run tests via npm so nested target-agent installs can run reliably.');
@@ -75,11 +82,13 @@ function startTarget(targetDir: string, env: Record<string, string>): ChildProce
 }
 
 async function runProviderFlow(params: {
-  provider: 'openai' | 'vapi';
+  provider: string;
   name: string;
   config: Record<string, unknown>;
   scenarioId: string;
+  timeoutMs?: number;
 }): Promise<void> {
+  const timeoutMs = params.timeoutMs || E2E_TIMEOUT_MS;
   let lastStatuses: string[] = [];
   let lastErrors: string[] = [];
 
@@ -107,7 +116,7 @@ async function runProviderFlow(params: {
     await waitFor(async () => {
       const run = await api.get<{ status: string }>(`/api/v1/tests/${runId}`);
       return run.status === 200 && ['completed', 'failed', 'canceled'].includes(run.data.status);
-    }, { timeout: E2E_TIMEOUT_MS, interval: 1000 });
+    }, { timeout: timeoutMs, interval: 1000 });
 
     const finalRun = await api.get<{ status: string }>(`/api/v1/tests/${runId}`);
     expect(finalRun.status).toBe(200);
@@ -144,6 +153,7 @@ async function runProviderFlow(params: {
 
 const describeIf = SHOULD_RUN ? describe : describe.skip;
 const itVapi = SHOULD_RUN_VAPI ? it : it.skip;
+const itBrowser = SHOULD_RUN_BROWSER ? it : it.skip;
 
 describeIf('E2E provider target integration', () => {
   let scenarioIds: string[];
@@ -177,6 +187,21 @@ describeIf('E2E provider target integration', () => {
 
     await waitForHealth(TARGET_OPENAI_HEALTH_URL);
     await waitForHealth(TARGET_VAPI_HEALTH_URL);
+
+    if (SHOULD_RUN_BROWSER) {
+      ensureTargetDepsInstalled(browserTargetDir);
+      const browserTarget = startTarget(browserTargetDir, {
+        TARGET_BROWSER_PORT: String(TARGET_BROWSER_PORT),
+      });
+      targetProcesses.push(browserTarget);
+      browserTarget.stdout.on('data', (buf) => {
+        process.stdout.write(`[target-browser] ${buf.toString()}`);
+      });
+      browserTarget.stderr.on('data', (buf) => {
+        process.stderr.write(`[target-browser] ${buf.toString()}`);
+      });
+      await waitForHealth(TARGET_BROWSER_HEALTH_URL);
+    }
   });
 
   afterAll(async () => {
@@ -218,4 +243,16 @@ describeIf('E2E provider target integration', () => {
       scenarioId: scenarioIds[1],
     });
   });
+
+  itBrowser('runs tester+grader against local browser target agent without scenario errors', async () => {
+    await runProviderFlow({
+      provider: 'browser',
+      name: `E2E Browser Target ${Date.now()}`,
+      config: {
+        url: TARGET_BROWSER_URL,
+      },
+      scenarioId: scenarioIds[0],
+      timeoutMs: BROWSER_E2E_TIMEOUT_MS,
+    });
+  }, BROWSER_E2E_TIMEOUT_MS + 30_000);
 });

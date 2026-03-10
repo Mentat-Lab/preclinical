@@ -6,7 +6,7 @@ If you discover a security vulnerability in Preclinical, please report it respon
 
 **Do NOT open a public GitHub issue for security vulnerabilities.**
 
-Instead, please email security@preclinical.dev with:
+Instead, please use [GitHub's private vulnerability reporting](https://github.com/Mentat-Lab/preclinical/security/advisories/new) or email security@mentatlab.dev with:
 - Description of the vulnerability
 - Steps to reproduce
 - Potential impact
