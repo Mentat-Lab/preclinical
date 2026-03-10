@@ -26,6 +26,11 @@ updates:
     labels:
       - dependencies
       - tests
+    groups:
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
 
   - package-ecosystem: docker
     directory: /
