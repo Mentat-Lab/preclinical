@@ -1,5 +1,5 @@
 # Build frontend
-FROM node:20-alpine AS frontend-builder
+FROM node:25-alpine AS frontend-builder
 WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json* ./
 RUN npm ci
@@ -7,7 +7,7 @@ COPY frontend/ .
 RUN npm run build
 
 # Build server
-FROM node:20-alpine AS server-builder
+FROM node:25-alpine AS server-builder
 WORKDIR /app
 COPY server/package.json server/package-lock.json* ./
 RUN npm ci
@@ -16,7 +16,7 @@ COPY server/src/ ./src/
 RUN npm run build
 
 # Production image
-FROM node:20-alpine
+FROM node:25-alpine
 WORKDIR /app
 ENV NODE_ENV=production
 COPY server/package.json server/package-lock.json* ./

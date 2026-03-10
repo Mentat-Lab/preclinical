@@ -137,7 +137,8 @@ app.post('/start-run', async (c) => {
         'test_run_started',
         ${sql.json({
           total_scenarios: scenarioIds.length,
-          scenario_run_ids: scenarioRunIds,
+          // Keep NOTIFY payload compact; large arrays can exceed Postgres NOTIFY size limits.
+          scenarios_launched: scenarioRunIds.length,
         })}
       )
     `;

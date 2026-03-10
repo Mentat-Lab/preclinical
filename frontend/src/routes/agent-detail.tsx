@@ -228,14 +228,15 @@ export default function AgentDetailPage() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {agentRuns.map((run) => (
-                    <tr key={run.id} className="hover:bg-muted/50 transition-colors group cursor-pointer">
+                    <tr
+                      key={run.id}
+                      className="hover:bg-muted/50 transition-colors group cursor-pointer"
+                      onClick={() => navigate(`/test/${run.id}`)}
+                    >
                       <td className="px-4 py-3 text-sm font-medium text-text-primary">
-                        <Link
-                          to={`/test/${run.id}`}
-                          className="group-hover:text-accent"
-                        >
+                        <span className="group-hover:text-accent">
                           {run.name || run.test_run_id || 'Test Run'}
-                        </Link>
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <StatusBadge status={run.status} />

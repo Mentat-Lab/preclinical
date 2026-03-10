@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { sql } from '../lib/db.js';
+import { sql, emitEvent } from '../lib/db.js';
 import { randomUUID } from 'crypto';
 import { generateScenario, generateScenarios } from '../shared/scenario-generator.js';
 import { log } from '../lib/logger.js';
@@ -154,6 +154,37 @@ app.get('/api/v1/tests/:id', async (c) => {
   `;
   if (!run) return c.json({ error: 'Test run not found' }, 404);
   return c.json(run);
+});
+
+app.delete('/api/v1/tests/:id', async (c) => {
+  const id = c.req.param('id');
+
+  const [run] = await sql`
+    SELECT * FROM test_runs
+    WHERE (id::text = ${id} OR test_run_id = ${id}) AND deleted_at IS NULL
+  `;
+  if (!run) return c.json({ error: 'Test run not found' }, 404);
+
+  const canceledAt = new Date().toISOString();
+
+  // If the run is active, cancel it and any active scenario runs before hiding it.
+  if (run.status === 'pending' || run.status === 'running' || run.status === 'grading' || run.status === 'scheduled') {
+    await sql`
+      UPDATE test_runs
+      SET status = 'canceled', canceled_at = COALESCE(canceled_at, ${canceledAt})
+      WHERE id = ${run.id}
+    `;
+
+    await sql`
+      UPDATE scenario_runs
+      SET status = 'canceled', canceled_at = COALESCE(canceled_at, ${canceledAt})
+      WHERE test_run_id = ${run.id} AND status IN ('pending', 'running', 'grading')
+    `;
+  }
+
+  await sql`UPDATE test_runs SET deleted_at = NOW() WHERE id = ${run.id}`;
+  await emitEvent(run.id, 'test_run_deleted', {});
+  return c.body(null, 204);
 });
 
 // ==================== SCENARIO RUNS ====================

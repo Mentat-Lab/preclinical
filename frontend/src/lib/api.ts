@@ -73,12 +73,7 @@ export async function cancelTestRun(id: string): Promise<{ status: string }> {
 }
 
 export async function deleteTestRun(id: string): Promise<void> {
-  // Soft-delete by canceling — the backend has no DELETE /tests/:id endpoint.
-  // We optimistically cancel and redirect; callers should handle gracefully.
-  await fetchJSON('/cancel-run', {
-    method: 'POST',
-    body: JSON.stringify({ test_run_id: id }),
-  });
+  return fetchJSON(`/api/v1/tests/${id}`, { method: 'DELETE' });
 }
 
 // ==================== SCENARIO RUNS ====================
