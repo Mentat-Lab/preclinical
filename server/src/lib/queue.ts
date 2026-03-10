@@ -46,7 +46,7 @@ export interface JobQueue {
 // PG-BOSS IMPLEMENTATION
 // =============================================================================
 
-import PgBoss from 'pg-boss';
+import { PgBoss, type Job } from 'pg-boss';
 
 const QUEUE_NAME = 'run-scenario';
 
@@ -57,19 +57,20 @@ class PgBossQueue implements JobQueue {
     this.boss = new PgBoss({
       connectionString,
       schema: 'pgboss',
-      retryLimit: 2,
-      retryDelay: 5,
-      expireInHours: 2,
     });
 
-    this.boss.on('error', (error) => {
+    this.boss.on('error', (error: Error) => {
       logger.error('Queue error', error);
     });
   }
 
   async start(): Promise<void> {
     await this.boss.start();
-    await this.boss.createQueue(QUEUE_NAME);
+    await this.boss.createQueue(QUEUE_NAME, {
+      retryLimit: 2,
+      retryDelay: 5,
+      expireInSeconds: 7200, // 2 hours
+    });
     logger.info('Started');
   }
 
@@ -79,7 +80,7 @@ class PgBossQueue implements JobQueue {
       for (const job of jobs) {
         const id = await this.boss.send(QUEUE_NAME, job, {
           retryLimit: 2,
-          expireInMinutes: 30,
+          expireInSeconds: 1800, // 30 minutes
         });
         if (!id) {
           throw new Error('pg-boss send returned no job id');
@@ -117,7 +118,7 @@ class PgBossQueue implements JobQueue {
       await this.boss.work<ScenarioJobData>(
         QUEUE_NAME,
         { batchSize: 1 },
-        async ([job]) => {
+        async ([job]: Job<ScenarioJobData>[]) => {
           await handler(job.data);
         },
       );
