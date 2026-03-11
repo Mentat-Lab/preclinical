@@ -6,6 +6,7 @@ import * as api from '@/lib/api';
 import {
   PROVIDER_NAMES,
   PROVIDER_FIELDS,
+  applyProviderDefaults,
   validateProviderConfig,
 } from '@/lib/provider-config';
 
@@ -34,7 +35,7 @@ export default function AgentEditPage() {
       if (typeof cfg === 'string') {
         try { cfg = JSON.parse(cfg); } catch { cfg = {}; }
       }
-      setConfig(cfg as Record<string, string>);
+      setConfig(applyProviderDefaults(agent.provider, cfg as Record<string, string>));
     }
   }, [agent]);
 
@@ -57,8 +58,11 @@ export default function AgentEditPage() {
       return;
     }
 
+    let normalizedConfig = config;
     if (agent?.provider) {
-      const configError = validateProviderConfig(agent.provider, config);
+      normalizedConfig = applyProviderDefaults(agent.provider, config);
+      setConfig(normalizedConfig);
+      const configError = validateProviderConfig(agent.provider, normalizedConfig);
       if (configError) {
         setFormError(configError);
         return;
@@ -67,16 +71,20 @@ export default function AgentEditPage() {
 
     // Only send config fields the user actually edited (to avoid sending masked values back)
     const cleanConfig: Record<string, string> = {};
-    for (const [k, v] of Object.entries(config)) {
+    for (const [k, v] of Object.entries(normalizedConfig)) {
       if (editedConfigKeys.has(k)) {
         cleanConfig[k] = v;
       }
+    }
+    if (agent?.provider === 'openai') {
+      cleanConfig.target_model = normalizedConfig.target_model;
+      cleanConfig.base_url = normalizedConfig.base_url;
     }
 
     updateMutation.mutate({
       name: name.trim(),
       description: description.trim() || undefined,
-      config: editedConfigKeys.size > 0 ? cleanConfig : undefined,
+      config: editedConfigKeys.size > 0 || agent?.provider === 'openai' ? cleanConfig : undefined,
     });
   };
 

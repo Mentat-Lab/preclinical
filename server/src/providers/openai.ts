@@ -28,7 +28,7 @@ const openaiProvider: Provider = {
       state: {
         apiKey,
         baseUrl: String(agentConfig.base_url || agentConfig.baseUrl || config.openaiBaseUrl || 'https://api.openai.com/v1'),
-        model: String(agentConfig.target_model || agentConfig.model || 'gpt-4o-mini'),
+        model: String(agentConfig.target_model || agentConfig.model || 'gpt-4o'),
         systemPrompt: String(agentConfig.system_prompt || agentConfig.systemPrompt || ''),
       } satisfies OpenAIState,
     };
