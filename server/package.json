@@ -16,7 +16,7 @@
     "@langchain/langgraph": "^1.2.1",
     "@langchain/openai": "^1.2.12",
     "@livekit/rtc-node": "^0.13.24",
-    "hono": "^4.6.0",
+    "hono": "^4.12.7",
     "livekit-server-sdk": "^2.15.0",
     "pg-boss": "^12.14.0",
     "postgres": "^3.4.0",
