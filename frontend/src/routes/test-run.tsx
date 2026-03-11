@@ -117,20 +117,18 @@ export default function TestRunPage() {
   });
 
   const runOutcome = run ? toRunOutcome(run) : 'pending';
-  const progress = run
-    ? (run.status === 'completed' || run.status === 'failed' || run.status === 'canceled')
-      ? 100
-      : (summary.total > 0 ? Math.round(((summary.pass + summary.fail + summary.err + summary.canceled) / summary.total) * 100) : 0)
-    : 0;
-
-  const progressColorClass =
-    runOutcome === 'pass'
-      ? 'bg-pass'
-      : runOutcome === 'fail'
-        ? 'bg-fail'
-        : runOutcome === 'canceled'
-          ? 'bg-text-secondary'
-          : 'bg-accent';
+  const expectedTotal = run?.total_scenarios || summary.total;
+  const implicitPending = Math.max(0, expectedTotal - summary.total);
+  const passCount = summary.pass;
+  const failCount = summary.fail + summary.err;
+  const neutralCount = summary.pending + summary.canceled + implicitPending;
+  const progressTotal = passCount + failCount + neutralCount;
+  const toPercent = (value: number) => (progressTotal > 0 ? Number(((value / progressTotal) * 100).toFixed(2)) : 0);
+  const progressSegments = [
+    { key: 'pass', count: passCount, width: toPercent(passCount), className: 'bg-pass' },
+    { key: 'fail', count: failCount, width: toPercent(failCount), className: 'bg-fail' },
+    { key: 'neutral', count: neutralCount, width: toPercent(neutralCount), className: 'bg-text-secondary/40' },
+  ].filter((segment) => segment.count > 0 && segment.width > 0);
 
   const runBadgeClass =
     runOutcome === 'pass'
@@ -265,11 +263,23 @@ export default function TestRunPage() {
               {runBadgeLabel}
             </span>
             <span className="text-2xl font-semibold text-text-primary">
-              {summary.pass} / {run.total_scenarios || summary.total} passed
+              {summary.pass} / {expectedTotal} passed
             </span>
         </div>
-        <div className="h-4 rounded-full bg-muted overflow-hidden">
-          <div className={cn('h-full transition-all duration-500', progressColorClass)} style={{ width: `${progress}%` }} />
+        <div
+          className="h-4 rounded-full bg-muted overflow-hidden flex"
+          data-testid="results-progress-bar"
+          role="img"
+          aria-label={`Pass: ${passCount}, Fail/Error: ${failCount}, Pending/Canceled: ${neutralCount}`}
+        >
+          {progressSegments.map((segment) => (
+            <div
+              key={segment.key}
+              data-testid={`progress-segment-${segment.key}`}
+              className={cn('h-full transition-all duration-500', segment.className)}
+              style={{ width: `${segment.width}%` }}
+            />
+          ))}
         </div>
       </div>
 
@@ -324,12 +334,26 @@ export default function TestRunPage() {
             ) : (
               filteredResults.map((result) => {
                 const status = getDisplayStatus(result);
+                const scenarioHref = `/test/${id}/scenario/${result.id}`;
                 return (
-                  <tr key={result.id} className="border-b last:border-b-0 border-border hover:bg-muted/30 transition-colors">
+                  <tr
+                    key={result.id}
+                    tabIndex={0}
+                    role="link"
+                    aria-label={`Open scenario run ${result.scenario_name || result.scenario_id}`}
+                    className="border-b last:border-b-0 border-border hover:bg-muted/30 focus-visible:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-inset transition-colors cursor-pointer"
+                    onClick={() => navigate(scenarioHref)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        navigate(scenarioHref);
+                      }
+                    }}
+                  >
                     <td className="px-5 py-4">
-                      <Link to={`/test/${id}/scenario/${result.id}`} className="text-sm font-medium text-text-primary hover:text-accent">
+                      <span className="text-sm font-medium text-text-primary">
                         {result.scenario_name || result.scenario_id}
-                      </Link>
+                      </span>
                     </td>
                     <td className="px-5 py-4">
                       <span className={cn('inline-flex items-center gap-2 text-sm font-medium', statusTextClass(status))}>
@@ -341,9 +365,9 @@ export default function TestRunPage() {
                       {formatDuration(result.duration_ms)}
                     </td>
                     <td className="px-5 py-4 text-right">
-                      <Link to={`/test/${id}/scenario/${result.id}`} className="inline-flex text-text-secondary hover:text-text-primary">
+                      <span className="inline-flex text-text-secondary">
                         <ChevronRight className="w-5 h-5" />
-                      </Link>
+                      </span>
                     </td>
                   </tr>
                 );

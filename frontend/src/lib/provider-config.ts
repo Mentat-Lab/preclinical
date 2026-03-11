@@ -66,9 +66,30 @@ export const PROVIDER_FIELDS: Record<AgentProvider, ProviderField[]> = {
 
 export const PROVIDER_DEFAULTS: Partial<Record<AgentProvider, Record<string, string>>> = {
   pipecat: { base_url: 'https://api.pipecat.daily.co', transport: 'livekit' },
-  openai: { base_url: 'https://api.openai.com/v1' },
+  openai: { target_model: 'gpt-4o', base_url: 'https://api.openai.com/v1' },
   vapi: { api_base: 'https://api.vapi.ai' },
 };
+
+export function applyProviderDefaults(
+  provider: AgentProvider,
+  config: Record<string, string>,
+): Record<string, string> {
+  const merged = {
+    ...(PROVIDER_DEFAULTS[provider] ?? {}),
+    ...config,
+  };
+
+  if (provider === 'openai') {
+    if (!merged.target_model?.trim()) {
+      merged.target_model = PROVIDER_DEFAULTS.openai?.target_model || 'gpt-4o';
+    }
+    if (!merged.base_url?.trim()) {
+      merged.base_url = PROVIDER_DEFAULTS.openai?.base_url || 'https://api.openai.com/v1';
+    }
+  }
+
+  return merged;
+}
 
 export const PROVIDER_HELP: Record<AgentProvider, { title: string; help: string }> = {
   vapi: {
@@ -117,7 +138,6 @@ export function validateProviderConfig(
       break;
     case 'openai':
       if (!config.api_key?.trim()) return 'API key is required';
-      if (!config.target_model?.trim()) return 'Model is required';
       break;
   }
   return null;

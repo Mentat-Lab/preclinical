@@ -9,6 +9,7 @@ import {
   PROVIDER_FIELDS,
   PROVIDER_DEFAULTS,
   PROVIDER_HELP,
+  applyProviderDefaults,
   type ProviderField,
   validateProviderConfig,
 } from '@/lib/provider-config';
@@ -42,19 +43,19 @@ export default function NewAgentPage() {
 
   const handleProviderChange = (newProvider: AgentProvider) => {
     setProvider(newProvider);
-    setConfig(PROVIDER_DEFAULTS[newProvider] ?? {});
+    setConfig(applyProviderDefaults(newProvider, PROVIDER_DEFAULTS[newProvider] ?? {}));
     setFormError(null);
     setShowPasswordFields({});
   };
 
   const createMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (payloadConfig: Record<string, string>) => {
       if (!provider) throw new Error('Please select a provider');
       return api.createAgent({
         provider,
         name: name.trim(),
         description: description.trim() || undefined,
-        config,
+        config: payloadConfig,
       });
     },
     onSuccess: (agent) => {
@@ -77,13 +78,15 @@ export default function NewAgentPage() {
       return;
     }
 
-    const configError = validateProviderConfig(provider, config);
+    const normalizedConfig = applyProviderDefaults(provider, config);
+    const configError = validateProviderConfig(provider, normalizedConfig);
     if (configError) {
       setFormError(configError);
       return;
     }
 
-    createMutation.mutate();
+    setConfig(normalizedConfig);
+    createMutation.mutate(normalizedConfig);
   };
 
   const fields: ProviderField[] = provider ? PROVIDER_FIELDS[provider] : [];
