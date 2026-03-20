@@ -154,3 +154,24 @@ export interface ProviderMetadata {
   }[];
 }
 
+export interface HealthCheck {
+  status: 'ok' | 'warning' | 'error';
+  detail: string;
+}
+
+export interface HealthResponse {
+  status: 'ok' | 'degraded' | 'error';
+  timestamp: string;
+  error?: string;
+  checks: {
+    database: HealthCheck;
+    tester_model: HealthCheck;
+    grader_model: HealthCheck;
+    browser_provider: HealthCheck;
+  };
+  setup: {
+    tester_model: string;
+    grader_model: string;
+    worker_concurrency: number;
+  };
+}

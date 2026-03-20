@@ -25,6 +25,14 @@ export interface ProviderField {
   options?: { label: string; value: string }[];
 }
 
+export interface ProviderReadiness {
+  stage: 'recommended' | 'advanced';
+  badge: string;
+  summary: string;
+  setupNotes: string;
+  selfServeLabel: string;
+}
+
 export const PROVIDER_FIELDS: Record<AgentProvider, ProviderField[]> = {
   vapi: [
     { key: 'assistant_id', label: 'Assistant ID', type: 'text', placeholder: 'asst_...', required: true },
@@ -68,6 +76,44 @@ export const PROVIDER_DEFAULTS: Partial<Record<AgentProvider, Record<string, str
   pipecat: { base_url: 'https://api.pipecat.daily.co', transport: 'livekit' },
   openai: { target_model: 'gpt-4o', base_url: 'https://api.openai.com/v1' },
   vapi: { api_base: 'https://api.vapi.ai' },
+};
+
+export const PROVIDER_READINESS: Record<AgentProvider, ProviderReadiness> = {
+  openai: {
+    stage: 'recommended',
+    badge: 'Recommended',
+    summary: 'Best path for self-serve pilots and API-backed assistants.',
+    setupNotes: 'Customers only need their API key, model name, and optional compatible base URL.',
+    selfServeLabel: 'Self-serve ready',
+  },
+  vapi: {
+    stage: 'recommended',
+    badge: 'Recommended',
+    summary: 'Good self-serve option when the customer already runs on Vapi.',
+    setupNotes: 'Requires a Vapi Assistant ID and API key from the customer dashboard.',
+    selfServeLabel: 'Self-serve ready',
+  },
+  browser: {
+    stage: 'recommended',
+    badge: 'Recommended',
+    summary: 'Works for web chatbots when the browser automation dependency is configured on the server.',
+    setupNotes: 'Customers provide a target URL. The platform also needs the server-side Browser Use API key.',
+    selfServeLabel: 'Self-serve after server setup',
+  },
+  livekit: {
+    stage: 'advanced',
+    badge: 'Advanced',
+    summary: 'Useful for real-time voice or WebRTC agents, but setup is more operational.',
+    setupNotes: 'Requires a LiveKit server URL, credentials, and transport-specific validation.',
+    selfServeLabel: 'Guided setup recommended',
+  },
+  pipecat: {
+    stage: 'advanced',
+    badge: 'Advanced',
+    summary: 'Supports Pipecat Cloud agents, but transport choices add more configuration risk.',
+    setupNotes: 'Requires Pipecat credentials plus agent naming and transport alignment.',
+    selfServeLabel: 'Guided setup recommended',
+  },
 };
 
 export function applyProviderDefaults(

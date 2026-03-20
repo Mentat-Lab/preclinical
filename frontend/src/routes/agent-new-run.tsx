@@ -103,7 +103,7 @@ export default function NewRunPage() {
           </div>
         ) : agent ? (
           <p className="text-sm text-text-secondary mt-1">
-            Configure a test run for {agent.name}
+            Configure and launch a test run for {agent.name} without using the API directly.
           </p>
         ) : null}
       </header>
@@ -131,6 +131,13 @@ export default function NewRunPage() {
               disabled={createMutation.isPending}
               className={inputCls}
             />
+          </div>
+
+          <div className="rounded-lg border border-border bg-muted/30 p-4">
+            <p className="text-sm font-medium text-text-primary mb-1">Customer flow</p>
+            <p className="text-sm text-text-secondary">
+              Select what to run, start the test, then review and export the results from the run details page.
+            </p>
           </div>
 
           {/* Scenario Selection */}
