@@ -58,6 +58,30 @@ Configurable via env: `DEFAULT_MAX_TURNS=6`, `MIN_MAX_TURNS=5`, `MAX_MAX_TURNS=7
 - `services/browseruse/` — Local BrowserUse wrapper (optional, used via `docker compose --profile browseruse up`)
 - `docs-site/` — MkDocs Material documentation site
 
+## Browser Provider
+
+The `browser` provider uses BrowserUse to automate web-based chat testing (e.g. chatgpt.com, claude.ai, gemini.google.com).
+
+### Local vs Cloud
+- **Local (default)**: `docker compose --profile browseruse up` starts a local BrowserUse worker. No API key needed. `BROWSER_USE_API_BASE` defaults to `http://browseruse:9000/api/v2`.
+- **Cloud**: Set both `BROWSER_USE_API_KEY` and `BROWSER_USE_API_BASE` in `.env` to use BrowserUse Cloud instead.
+
+### Browser Profiles
+Site-specific interaction instructions live in `server/src/shared/browser-profiles/`. Named by domain (e.g. `chatgpt.com.json`). Falls back to `_default.json`.
+
+Key fields: `browser_setup_instructions`, `browser_chat_instructions`, `browser_overlay_hint`, `requires_auth`, `browser_login_instructions`.
+
+### Creating Browser Agents
+```bash
+curl -X POST http://localhost:3000/api/v1/agents -H 'Content-Type: application/json' \
+  -d '{"provider":"browser","name":"ChatGPT","config":{"url":"https://chatgpt.com"}}'
+```
+
+### Known Limitations
+- Consumer AI sites (ChatGPT, Claude, Gemini) use Cloudflare/bot detection that blocks headless browsers
+- Sites requiring auth need credentials passed in agent config (`email`, `password` fields)
+- `BROWSERUSE_MODEL` env var overrides the LLM model used by the local BrowserUse worker (defaults to `TESTER_MODEL`)
+
 ## Deployment
 
 ```bash

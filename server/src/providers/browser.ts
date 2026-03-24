@@ -20,9 +20,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const sharedDir = join(__dirname, '..', 'shared');
 
-const BROWSER_USE_API_BASE = process.env.BROWSER_USE_API_BASE || 'https://api.browser-use.com/api/v2';
+const BROWSER_USE_API_BASE = process.env.BROWSER_USE_API_BASE || 'http://localhost:9000/api/v2';
 const BROWSER_POLL_INTERVAL_MS = 3_000;
-const BROWSER_TASK_TIMEOUT_MS = 150_000;
+const BROWSER_TASK_TIMEOUT_MS = parseInt(process.env.BROWSER_TASK_TIMEOUT_MS || '1800000', 10); // 30min default for browser tasks
 
 // =============================================================================
 // TYPES
@@ -119,10 +119,16 @@ async function loadBrowserProfile(
 // BROWSERUSE API HELPERS
 // =============================================================================
 
+function apiHeaders(apiKey: string): Record<string, string> {
+  const h: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (apiKey) h['X-Browser-Use-API-Key'] = apiKey;
+  return h;
+}
+
 async function createSession(apiKey: string): Promise<{ id: string; liveUrl: string }> {
   const response = await fetch(`${BROWSER_USE_API_BASE}/sessions`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Browser-Use-API-Key': apiKey },
+    headers: apiHeaders(apiKey),
     body: JSON.stringify({}),
   });
 
@@ -138,7 +144,7 @@ async function pollTask(apiKey: string, taskId: string): Promise<Record<string, 
   const start = Date.now();
   while (Date.now() - start < BROWSER_TASK_TIMEOUT_MS) {
     const response = await fetch(`${BROWSER_USE_API_BASE}/tasks/${taskId}`, {
-      headers: { 'X-Browser-Use-API-Key': apiKey, 'Content-Type': 'application/json' },
+      headers: apiHeaders(apiKey),
     });
 
     if (!response.ok) {
@@ -158,7 +164,7 @@ async function closeSession(apiKey: string, sessionId: string): Promise<void> {
   try {
     await fetch(`${BROWSER_USE_API_BASE}/sessions/${sessionId}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'X-Browser-Use-API-Key': apiKey },
+      headers: apiHeaders(apiKey),
       body: JSON.stringify({ action: 'stop' }),
     });
   } catch (err) {
@@ -206,8 +212,7 @@ const browserProvider: Provider = {
   name: 'browser',
 
   async connect(agentConfig): Promise<ProviderSession> {
-    const apiKey = config.browserUseApiKey;
-    if (!apiKey) throw new Error('Missing BROWSER_USE_API_KEY environment variable');
+    const apiKey = config.browserUseApiKey; // optional — not needed for local worker
 
     const targetUrl = String(agentConfig.url || agentConfig.endpoint || '');
     if (!targetUrl) throw new Error('Agent missing url in config for browser provider');
@@ -224,7 +229,7 @@ const browserProvider: Provider = {
 
   async sendMessage(session, message, context): Promise<string> {
     const state = session.state as BrowserState;
-    const headers = { 'X-Browser-Use-API-Key': state.apiKey, 'Content-Type': 'application/json' };
+    const headers = apiHeaders(state.apiKey);
 
     // Create session on first turn
     if (context.turn === 1) {
@@ -292,7 +297,8 @@ const browserProvider: Provider = {
     }
 
     if (result.status !== 'finished' || !result.isSuccess) {
-      throw new Error(`BrowserUse task failed: status=${result.status}`);
+      const output = String(result.output || '').slice(0, 500);
+      throw new Error(`BrowserUse task failed: status=${result.status}, output=${output}`);
     }
 
     // Extract response

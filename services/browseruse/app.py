@@ -3,6 +3,11 @@ Local BrowserUse API wrapper.
 
 Exposes the same REST API as BrowserUse Cloud (sessions + tasks)
 so the existing browser provider can point here instead.
+
+Supports two modes:
+  - Self-contained: Launches headless Chromium inside Docker (default)
+  - CDP: Connects to a real Chrome on the host via --remote-debugging-port
+    Set CDP_URL=http://host.docker.internal:9222 to enable.
 """
 
 import asyncio
@@ -15,9 +20,8 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from browser_use import Agent
+from browser_use import Agent, ChatOpenAI
 from browser_use.browser.session import BrowserSession
-from langchain_openai import ChatOpenAI
 
 # ---------------------------------------------------------------------------
 # Config
@@ -26,7 +30,7 @@ from langchain_openai import ChatOpenAI
 LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", None)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-CHROME_PATH = os.getenv("CHROME_PATH", None)
+CDP_URL = os.getenv("CDP_URL", None)  # e.g. http://host.docker.internal:9222
 
 # ---------------------------------------------------------------------------
 # State
@@ -80,7 +84,27 @@ def get_llm():
         kwargs["base_url"] = LLM_BASE_URL
     if OPENAI_API_KEY:
         kwargs["api_key"] = OPENAI_API_KEY
+    # add_schema_to_system_prompt avoids response_format which some gateways reject
+    kwargs["add_schema_to_system_prompt"] = True
     return ChatOpenAI(**kwargs)
+
+
+def create_browser_session() -> BrowserSession:
+    """Create a BrowserSession — via CDP if configured, otherwise self-contained."""
+    if CDP_URL:
+        # Connect to real Chrome on the host.
+        # keep_alive=True so the browser tab persists between multi-turn messages.
+        return BrowserSession(
+            cdp_url=CDP_URL,
+            keep_alive=True,
+        )
+    else:
+        # Launch headless Chromium inside Docker
+        # IN_DOCKER=true env auto-disables sandbox and applies Docker args
+        return BrowserSession(
+            headless=True,
+            keep_alive=True,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -90,10 +114,7 @@ def get_llm():
 @app.post("/api/v2/sessions")
 async def create_session():
     session_id = str(uuid.uuid4())
-    browser_session = BrowserSession(
-        headless=True,
-        executable_path=CHROME_PATH,
-    )
+    browser_session = create_browser_session()
     sessions[session_id] = browser_session
     return {"id": session_id, "live_url": ""}
 
@@ -125,17 +146,16 @@ async def _run_agent(task_id: str, browser_session: BrowserSession, body: Create
         agent = Agent(
             task=body.task,
             llm=llm,
-            browser=browser_session,
-            max_actions_per_step=body.maxSteps,
-            use_vision=True,
+            browser_session=browser_session,
         )
-        result = await agent.run()
+        result = await agent.run(max_steps=body.maxSteps)
 
         # Extract the final result
         output = ""
         parsed: dict[str, Any] = {}
 
         final_text = result.final_result() if result else ""
+        print(f"[task {task_id}] final_result={repr(final_text)[:200]}, is_done={result.is_done() if result else None}, is_successful={result.is_successful() if result else None}")
 
         if final_text:
             # Try to parse as JSON (structured output)
@@ -155,7 +175,18 @@ async def _run_agent(task_id: str, browser_session: BrowserSession, body: Create
                                 break
                     if output:
                         break
+                # Also try last done action text
+                if not output:
+                    for item in reversed(result.history):
+                        if item.result:
+                            for r in item.result:
+                                if r.is_done and hasattr(r, 'text'):
+                                    output = r.text or ""
+                                    break
+                        if output:
+                            break
             parsed = {"bot_response": output, "response_received": bool(output)}
+            print(f"[task {task_id}] fallback output={repr(output)[:200]}")
 
         tasks[task_id] = {
             "id": task_id,
@@ -187,4 +218,4 @@ async def patch_session(session_id: str, body: PatchSessionRequest):
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "cdp_mode": bool(CDP_URL)}

@@ -1,15 +1,15 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
-# Install Chromium + system deps needed by cdp-use
+# System deps for Chromium (browser-use 0.12.x auto-downloads Chromium via cdp-use)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    chromium fonts-liberation libasound2 libatk-bridge2.0-0 \
+    fonts-liberation libasound2 libatk-bridge2.0-0 \
     libatk1.0-0 libcups2 libdbus-1-3 libdrm2 libgbm1 libgtk-3-0 \
     libnspr4 libnss3 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 \
-    libxss1 libxtst6 xdg-utils \
+    libxss1 libxtst6 xdg-utils libx11-xcb1 libxcb1 libxext6 libxshmfence1 \
+    wget ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Tell browser-use / cdp-use where Chromium lives
-ENV CHROME_PATH=/usr/bin/chromium
+ENV IN_DOCKER=true
 
 WORKDIR /app
 
