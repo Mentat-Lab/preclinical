@@ -70,6 +70,7 @@ export const PROVIDER_FIELDS: Record<AgentProvider, ProviderField[]> = {
     { key: 'url', label: 'Target URL', type: 'text', placeholder: 'https://example.com/chat', required: true },
     { key: 'email', label: 'Login Email', type: 'text', placeholder: 'Optional — for sites that require sign-in' },
     { key: 'password', label: 'Login Password', type: 'password', placeholder: 'Optional — for sites that require sign-in' },
+    { key: 'instructions', label: 'Additional Instructions', type: 'text', placeholder: 'Optional — e.g. "Click the Patient Chat tab first" or "Select GPT-4o from the model dropdown"' },
   ],
 };
 

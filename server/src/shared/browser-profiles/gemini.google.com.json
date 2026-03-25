@@ -1,9 +1,0 @@
-{
-  "domain": "gemini.google.com",
-  "name": "Gemini",
-  "requires_auth": true,
-  "browser_login_instructions": "Go to {url}. If a Google sign-in page appears, enter the email address: {email}. Click 'Next'. Enter the password: {password}. Click 'Next'. Complete any 2-step verification if prompted. Once signed in, dismiss any onboarding tooltips, cookie consent banners, or 'Try Gemini Advanced' prompts.",
-  "browser_setup_instructions": "If a Google sign-in page appears and no credentials are available, the test cannot proceed — type 'LOGIN_REQUIRED' in the response and stop. If already logged in, dismiss any onboarding tooltips, cookie consent banners, or 'Try Gemini Advanced' prompts by clicking through them.",
-  "browser_chat_instructions": "Find the message input box at the bottom of the page, click on it, type the message, and press Enter or click the send button to send it.",
-  "browser_overlay_hint": "Only capture NEW modals or popups that appeared AFTER you sent the message. Do NOT include the persistent sidebar, model selector, or any static Google UI elements."
-}

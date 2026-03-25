@@ -197,31 +197,31 @@ function buildTaskPrompt(
   const email = String(agentConfig.email || config.browserEmail || '');
   const password = String(agentConfig.password || config.browserPassword || '');
   const hasCredentials = !!(email && password);
+  const extraInstructions = String(agentConfig.instructions || '').trim();
 
   const setupInstructions = (profile.browser_setup_instructions || DEFAULT_SETUP)
     .replace(/\{age\}/g, age).replace(/\{gender\}/g, gender);
   const chatInstructions = profile.browser_chat_instructions || DEFAULT_CHAT;
   const overlayHint = profile.browser_overlay_hint || DEFAULT_OVERLAY;
   const waitInstructions = 'Wait for the chatbot to fully respond (the response may stream in gradually — wait until it stops changing).';
+  const extraStep = extraInstructions ? ` ${extraInstructions}` : '';
 
   // Build login instructions for turn 1 when credentials are available
   let loginStep = '';
   if (turn === 1 && hasCredentials) {
     if (profile.browser_login_instructions) {
-      // Use site-specific login instructions if available
       loginStep = profile.browser_login_instructions
         .replace(/\{url\}/g, targetUrl)
         .replace(/\{email\}/g, email)
         .replace(/\{password\}/g, password) + ' ';
     } else {
-      // Generic login: let browser-use figure out the login flow
       loginStep = `Go to ${targetUrl}. If a login or sign-in page appears, sign in with email "${email}" and password "${password}". Complete any verification steps. Once logged in, dismiss any popups or banners. `;
     }
   }
 
   if (turn === 1) {
     const nav = loginStep || `Go to ${targetUrl}. ${setupInstructions} `;
-    return `${nav}Then ${chatInstructions.charAt(0).toLowerCase()}${chatInstructions.slice(1)} Message to send: "${message}". ${waitInstructions} Then extract the complete text of the chatbot's response. Overlay check: ${overlayHint}`;
+    return `${nav}${extraStep} Then ${chatInstructions.charAt(0).toLowerCase()}${chatInstructions.slice(1)} Message to send: "${message}". ${waitInstructions} Then extract the complete text of the chatbot's response. Overlay check: ${overlayHint}`;
   }
   return `In the chat that is already open on the page, ${chatInstructions.charAt(0).toLowerCase()}${chatInstructions.slice(1)} Message to send: "${message}". ${waitInstructions} Then extract the complete text of the chatbot's latest response only (not previous messages). Overlay check: ${overlayHint}`;
 }
