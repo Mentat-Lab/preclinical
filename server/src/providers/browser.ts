@@ -22,7 +22,7 @@ const sharedDir = join(__dirname, '..', 'shared');
 
 const BROWSER_USE_API_BASE = process.env.BROWSER_USE_API_BASE || 'http://localhost:9000/api/v2';
 const BROWSER_POLL_INTERVAL_MS = 3_000;
-const BROWSER_TASK_TIMEOUT_MS = parseInt(process.env.BROWSER_TASK_TIMEOUT_MS || '1800000', 10); // 30min default for browser tasks
+const BROWSER_TASK_TIMEOUT_MS = parseInt(process.env.BROWSER_TASK_TIMEOUT_MS || '3600000', 10); // 1 hour default per browser turn
 
 // =============================================================================
 // TYPES

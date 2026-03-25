@@ -80,7 +80,7 @@ class PgBossQueue implements JobQueue {
       for (const job of jobs) {
         const id = await this.boss.send(QUEUE_NAME, job, {
           retryLimit: 2,
-          expireInSeconds: 1800, // 30 minutes
+          expireInSeconds: 14400, // 4 hours — browser scenarios can take 30+ min per turn
         });
         if (!id) {
           throw new Error('pg-boss send returned no job id');
