@@ -206,11 +206,17 @@ function buildTaskPrompt(
 
   // Build login instructions for turn 1 when credentials are available
   let loginStep = '';
-  if (turn === 1 && profile.requires_auth && hasCredentials && profile.browser_login_instructions) {
-    loginStep = profile.browser_login_instructions
-      .replace(/\{url\}/g, targetUrl)
-      .replace(/\{email\}/g, email)
-      .replace(/\{password\}/g, password) + ' ';
+  if (turn === 1 && hasCredentials) {
+    if (profile.browser_login_instructions) {
+      // Use site-specific login instructions if available
+      loginStep = profile.browser_login_instructions
+        .replace(/\{url\}/g, targetUrl)
+        .replace(/\{email\}/g, email)
+        .replace(/\{password\}/g, password) + ' ';
+    } else {
+      // Generic login: let browser-use figure out the login flow
+      loginStep = `Go to ${targetUrl}. If a login or sign-in page appears, sign in with email "${email}" and password "${password}". Complete any verification steps. Once logged in, dismiss any popups or banners. `;
+    }
   }
 
   if (turn === 1) {

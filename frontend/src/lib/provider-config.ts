@@ -68,7 +68,8 @@ export const PROVIDER_FIELDS: Record<AgentProvider, ProviderField[]> = {
   ],
   browser: [
     { key: 'url', label: 'Target URL', type: 'text', placeholder: 'https://example.com/chat', required: true },
-    { key: 'session_context', label: 'Session Context', type: 'text', placeholder: 'Optional additional instructions' },
+    { key: 'email', label: 'Login Email', type: 'text', placeholder: 'Optional — for sites that require sign-in' },
+    { key: 'password', label: 'Login Password', type: 'password', placeholder: 'Optional — for sites that require sign-in' },
   ],
 };
 
@@ -97,7 +98,7 @@ export const PROVIDER_READINESS: Record<AgentProvider, ProviderReadiness> = {
     stage: 'recommended',
     badge: 'Recommended',
     summary: 'Works for web chatbots when the browser automation dependency is configured on the server.',
-    setupNotes: 'Customers provide a target URL. The platform also needs the server-side Browser Use API key.',
+    setupNotes: 'Provide a target URL. If the site requires login, add credentials. No server-side API key needed with the local BrowserUse worker.',
     selfServeLabel: 'Self-serve after server setup',
   },
   livekit: {
@@ -156,7 +157,7 @@ export const PROVIDER_HELP: Record<AgentProvider, { title: string; help: string 
   },
   browser: {
     title: 'Browser Agent Setup',
-    help: 'Provide the URL of the web-based chat agent. AI will automatically navigate and interact with the chat interface.',
+    help: 'Provide the URL of the web-based chat agent. If the site requires login, add your credentials — they will be used to sign in automatically before testing.',
   },
 };
 
