@@ -215,7 +215,8 @@ async def patch_session(session_id: str, body: PatchSessionRequest):
     if body.action == "stop" and session_id in sessions:
         browser_session = sessions.pop(session_id)
         try:
-            await browser_session.close()
+            # Force close to clean up tabs in CDP mode
+            await browser_session.close(force=True)
         except Exception:
             pass
     return {"status": "stopped"}
