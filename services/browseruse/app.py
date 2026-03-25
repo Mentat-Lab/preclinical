@@ -89,6 +89,9 @@ def get_llm():
     return ChatOpenAI(**kwargs)
 
 
+BROWSER_DATA_DIR = os.getenv("BROWSER_DATA_DIR", "/data/browser-profiles")
+
+
 def create_browser_session() -> BrowserSession:
     """Create a BrowserSession — via CDP if configured, otherwise self-contained."""
     if CDP_URL:
@@ -99,11 +102,13 @@ def create_browser_session() -> BrowserSession:
             keep_alive=True,
         )
     else:
-        # Launch headless Chromium inside Docker
-        # IN_DOCKER=true env auto-disables sandbox and applies Docker args
+        # Launch headless Chromium inside Docker.
+        # IN_DOCKER=true env auto-disables sandbox and applies Docker args.
+        # Persistent user_data_dir keeps login cookies across runs.
         return BrowserSession(
             headless=True,
             keep_alive=True,
+            user_data_dir=BROWSER_DATA_DIR,
         )
 
 

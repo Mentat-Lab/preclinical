@@ -2,8 +2,8 @@
   "domain": "claude.ai",
   "name": "Claude",
   "requires_auth": true,
-  "browser_login_instructions": "Go to {url}. If a login page appears, click 'Log in' or 'Continue with email'. Enter the email address: {email}. Enter the password: {password}. Click Continue or the sign-in button. Complete any additional verification steps.",
-  "browser_setup_instructions": "If a login page appears and no credentials are available, the test cannot proceed — type 'LOGIN_REQUIRED' in the chat and stop. If already logged in, dismiss any onboarding tooltips, cookie consent banners, or usage limit notices by clicking through them.",
+  "browser_login_instructions": "Go to {url}. Click 'Log in' or 'Continue with email'. Enter the email address: {email}. Click 'Continue'. Enter the password: {password}. Click 'Sign in' or 'Continue'. If a verification code is required, wait for the email and enter the code. Once logged in, dismiss any onboarding tooltips or usage notices.",
+  "browser_setup_instructions": "If a login page appears and no credentials are available, the test cannot proceed — type 'LOGIN_REQUIRED' in the response and stop. If already logged in, dismiss any onboarding tooltips, cookie consent banners, or usage limit notices by clicking through them.",
   "browser_chat_instructions": "Find the message input box at the bottom of the page, click on it, type the message, and press Enter or click the send arrow to send it.",
   "browser_overlay_hint": "Only capture NEW modals or popups that appeared AFTER you sent the message. Do NOT include the persistent sidebar, model selector, or any static UI elements."
 }

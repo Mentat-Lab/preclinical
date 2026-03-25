@@ -78,6 +78,8 @@ services:
       LLM_MODEL: ${BROWSERUSE_MODEL:-${TESTER_MODEL:-gpt-4o-mini}}
       LLM_BASE_URL: ${OPENAI_BASE_URL:-}
       CDP_URL: ${CDP_URL:-}
+    volumes:
+      - browserdata:/data/browser-profiles
     ports:
       - "9000:9000"
     healthcheck:
@@ -90,3 +92,4 @@ services:
 volumes:
   pgdata:
   ollama_data:
+  browserdata:

@@ -73,14 +73,28 @@ Key fields: `browser_setup_instructions`, `browser_chat_instructions`, `browser_
 
 ### Creating Browser Agents
 ```bash
+# No auth (ChatGPT works without login)
 curl -X POST http://localhost:3000/api/v1/agents -H 'Content-Type: application/json' \
   -d '{"provider":"browser","name":"ChatGPT","config":{"url":"https://chatgpt.com"}}'
+
+# With auth (Claude, Gemini require login)
+curl -X POST http://localhost:3000/api/v1/agents -H 'Content-Type: application/json' \
+  -d '{"provider":"browser","name":"Claude AI","config":{"url":"https://claude.ai","email":"you@example.com","password":"your-password"}}'
+```
+
+### CDP Mode (recommended for sites with bot detection)
+Set `CDP_URL` in `.env` to connect to a real Chrome on the host instead of headless Chromium in Docker:
+```bash
+# 1. Launch Chrome with remote debugging
+google-chrome --remote-debugging-port=9222 --remote-allow-origins=*
+# 2. Set in .env
+CDP_URL=http://host.docker.internal:9222
 ```
 
 ### Known Limitations
-- Consumer AI sites (ChatGPT, Claude, Gemini) use Cloudflare/bot detection that blocks headless browsers
-- Sites requiring auth need credentials passed in agent config (`email`, `password` fields)
+- Headless Chromium gets blocked by Cloudflare — use CDP mode with real Chrome
 - `BROWSERUSE_MODEL` env var overrides the LLM model used by the local BrowserUse worker (defaults to `TESTER_MODEL`)
+- Browser tests are slow (~5 min/turn) — use `max_turns: 2` for faster iteration
 
 ## Deployment
 

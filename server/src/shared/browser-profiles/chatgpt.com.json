@@ -2,7 +2,8 @@
   "domain": "chatgpt.com",
   "name": "ChatGPT",
   "requires_auth": false,
-  "browser_setup_instructions": "If a login wall or sign-up modal appears and credentials are NOT available, look for a 'Stay logged out' or 'Try without account' or close button to dismiss it. If credentials ARE available (email/password provided in the task), click 'Log in' and complete sign-in. Dismiss any onboarding tooltips, cookie banners, or 'Stay logged in?' prompts by clicking through them. If a GPT model-selector is visible, leave the default model selected.",
+  "browser_login_instructions": "Go to {url}. Click 'Log in'. Enter the email address: {email}. Click 'Continue'. Enter the password: {password}. Click 'Continue'. Once logged in, dismiss any onboarding tooltips or cookie banners.",
+  "browser_setup_instructions": "If a login wall or sign-up modal appears and credentials are NOT available, look for a 'Stay logged out' or 'Try without account' or close button to dismiss it. If credentials ARE available, use them to log in. Dismiss any onboarding tooltips, cookie banners, or 'Stay logged in?' prompts by clicking through them. If a GPT model-selector is visible, leave the default model selected.",
   "browser_chat_instructions": "Find the message input box at the bottom of the page, click on it, type the message, and press Enter to send it.",
   "browser_overlay_hint": "Only capture NEW modals or popups that appeared AFTER you sent the message. Do NOT include the persistent sidebar, model selector, or any static UI elements."
 }

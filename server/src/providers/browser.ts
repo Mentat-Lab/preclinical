@@ -186,11 +186,16 @@ function buildTaskPrompt(
   targetUrl: string,
   turn: number,
   persona: Record<string, unknown> | null,
+  agentConfig: Record<string, unknown>,
 ): string {
   const p = persona || {};
   let age = String(p.age_range || '35');
   if (age.includes('-')) age = age.split('-')[0];
   const gender = String(p.gender || p.sex || 'male');
+
+  const email = String(agentConfig.email || '');
+  const password = String(agentConfig.password || '');
+  const hasCredentials = !!(email && password);
 
   const setupInstructions = (profile.browser_setup_instructions || DEFAULT_SETUP)
     .replace(/\{age\}/g, age).replace(/\{gender\}/g, gender);
@@ -198,8 +203,18 @@ function buildTaskPrompt(
   const overlayHint = profile.browser_overlay_hint || DEFAULT_OVERLAY;
   const waitInstructions = 'Wait for the chatbot to fully respond (the response may stream in gradually — wait until it stops changing).';
 
+  // Build login instructions for turn 1 when credentials are available
+  let loginStep = '';
+  if (turn === 1 && profile.requires_auth && hasCredentials && profile.browser_login_instructions) {
+    loginStep = profile.browser_login_instructions
+      .replace(/\{url\}/g, targetUrl)
+      .replace(/\{email\}/g, email)
+      .replace(/\{password\}/g, password) + ' ';
+  }
+
   if (turn === 1) {
-    return `Go to ${targetUrl}. ${setupInstructions} Then ${chatInstructions.charAt(0).toLowerCase()}${chatInstructions.slice(1)} Message to send: "${message}". ${waitInstructions} Then extract the complete text of the chatbot's response. Overlay check: ${overlayHint}`;
+    const nav = loginStep || `Go to ${targetUrl}. ${setupInstructions} `;
+    return `${nav}Then ${chatInstructions.charAt(0).toLowerCase()}${chatInstructions.slice(1)} Message to send: "${message}". ${waitInstructions} Then extract the complete text of the chatbot's response. Overlay check: ${overlayHint}`;
   }
   return `In the chat that is already open on the page, ${chatInstructions.charAt(0).toLowerCase()}${chatInstructions.slice(1)} Message to send: "${message}". ${waitInstructions} Then extract the complete text of the chatbot's latest response only (not previous messages). Overlay check: ${overlayHint}`;
 }
@@ -247,7 +262,7 @@ const browserProvider: Provider = {
     }
 
     const taskPrompt = buildTaskPrompt(
-      state.profile, message, state.targetUrl, context.turn, context.persona || null,
+      state.profile, message, state.targetUrl, context.turn, context.persona || null, state.agentConfig,
     );
 
     async function createAndPollTask(activeSessionId: string): Promise<Record<string, unknown>> {
