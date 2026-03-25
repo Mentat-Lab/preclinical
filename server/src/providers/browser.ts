@@ -193,8 +193,9 @@ function buildTaskPrompt(
   if (age.includes('-')) age = age.split('-')[0];
   const gender = String(p.gender || p.sex || 'male');
 
-  const email = String(agentConfig.email || '');
-  const password = String(agentConfig.password || '');
+  // Agent-level creds override global BROWSER_EMAIL/BROWSER_PASSWORD
+  const email = String(agentConfig.email || config.browserEmail || '');
+  const password = String(agentConfig.password || config.browserPassword || '');
   const hasCredentials = !!(email && password);
 
   const setupInstructions = (profile.browser_setup_instructions || DEFAULT_SETUP)

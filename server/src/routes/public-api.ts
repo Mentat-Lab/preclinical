@@ -127,6 +127,44 @@ app.delete('/api/v1/agents/:id', async (c) => {
   return c.body(null, 204);
 });
 
+// ==================== BROWSER PROFILES ====================
+
+app.get('/api/v1/browser-profile', async (c) => {
+  const url = c.req.query('url');
+  if (!url) return c.json({ error: 'url query param required' }, 400);
+
+  let domain = '';
+  try {
+    domain = new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return c.json({ error: 'Invalid URL' }, 400);
+  }
+
+  const { readFile } = await import('fs/promises');
+  const { join, dirname } = await import('path');
+  const { fileURLToPath } = await import('url');
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = dirname(__filename);
+  const basePath = join(__dirname, '..', 'shared', 'browser-profiles');
+
+  for (const candidate of [join(basePath, `${domain}.json`), join(basePath, '_default.json')]) {
+    try {
+      const raw = await readFile(candidate, 'utf-8');
+      const profile = JSON.parse(raw);
+      return c.json({
+        domain,
+        profile_found: candidate.includes('_default') ? false : true,
+        requires_auth: profile.requires_auth || false,
+        name: profile.name || domain,
+      });
+    } catch {
+      continue;
+    }
+  }
+
+  return c.json({ domain, profile_found: false, requires_auth: false, name: domain });
+});
+
 // ==================== TESTS (runs) ====================
 
 app.get('/api/v1/tests', async (c) => {
