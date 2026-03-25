@@ -106,12 +106,27 @@ function BrowserIcon({ className }: IconProps) {
   );
 }
 
+function ElevenLabsIcon({ className }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={cn('h-6 w-6', className)}
+    >
+      <rect x="9" y="4" width="2.5" height="16" rx="1.25" fill="currentColor" />
+      <rect x="13" y="4" width="2.5" height="16" rx="1.25" fill="currentColor" />
+    </svg>
+  );
+}
+
 const providerComponents: Record<AgentProvider, React.FC<{ className?: string }>> = {
   vapi: VapiIcon,
   livekit: LiveKitIcon,
   pipecat: PipecatIcon,
   openai: OpenAIIcon,
   browser: BrowserIcon,
+  elevenlabs: ElevenLabsIcon,
 };
 
 export function ProviderIcon({ provider, className, size = 16 }: ProviderIconProps) {

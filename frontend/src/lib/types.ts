@@ -124,7 +124,7 @@ export interface Scenario {
   updated_at?: string;
 }
 
-export type AgentProvider = 'vapi' | 'livekit' | 'pipecat' | 'openai' | 'browser';
+export type AgentProvider = 'vapi' | 'livekit' | 'pipecat' | 'openai' | 'browser' | 'elevenlabs';
 
 export interface Agent {
   id: string;

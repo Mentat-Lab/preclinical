@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
 const inputCls =
   'w-full px-3 py-2 text-sm rounded-md border border-border bg-background text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50';
 
-const providerCards: AgentProvider[] = ['vapi', 'livekit', 'pipecat', 'openai', 'browser'];
+const providerCards: AgentProvider[] = ['vapi', 'livekit', 'pipecat', 'openai', 'browser', 'elevenlabs'];
 
 const providerCardNames: Record<AgentProvider, string> = {
   vapi: 'Vapi',
@@ -29,6 +29,7 @@ const providerCardNames: Record<AgentProvider, string> = {
   pipecat: 'Pipecat',
   openai: 'OpenAI',
   browser: 'Browser',
+  elevenlabs: 'ElevenLabs',
 };
 
 export default function NewAgentPage() {

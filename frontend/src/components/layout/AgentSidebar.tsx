@@ -12,6 +12,7 @@ const providerLabels: Record<AgentProvider, string> = {
   pipecat: 'Pipecat',
   openai: 'OpenAI',
   browser: 'Browser',
+  elevenlabs: 'ElevenLabs',
 };
 
 const SIDEBAR_COLLAPSED_KEY = 'preclinical.sidebar.collapsed';

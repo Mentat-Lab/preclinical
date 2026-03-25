@@ -6,11 +6,13 @@ export const PROVIDER_NAMES: Record<AgentProvider, string> = {
   pipecat: 'Pipecat',
   openai: 'OpenAI Compatible API',
   browser: 'Browser',
+  elevenlabs: 'ElevenLabs',
 };
 
 export const ALL_PROVIDERS: AgentProvider[] = [
   'vapi',
   'openai',
+  'elevenlabs',
   'livekit',
   'pipecat',
   'browser',
@@ -72,12 +74,18 @@ export const PROVIDER_FIELDS: Record<AgentProvider, ProviderField[]> = {
     { key: 'password', label: 'Login Password', type: 'password', placeholder: 'Optional — for sites that require sign-in' },
     { key: 'instructions', label: 'Additional Instructions', type: 'text', placeholder: 'Optional — e.g. "Click the Patient Chat tab first" or "Select GPT-4o from the model dropdown"' },
   ],
+  elevenlabs: [
+    { key: 'agent_id', label: 'Agent ID', type: 'text', placeholder: 'agent_...', required: true },
+    { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'xi_...', required: true },
+    { key: 'api_base', label: 'API Base URL', type: 'text', placeholder: 'https://api.elevenlabs.io' },
+  ],
 };
 
 export const PROVIDER_DEFAULTS: Partial<Record<AgentProvider, Record<string, string>>> = {
   pipecat: { base_url: 'https://api.pipecat.daily.co', transport: 'livekit' },
   openai: { target_model: 'gpt-4o', base_url: 'https://api.openai.com/v1' },
   vapi: { api_base: 'https://api.vapi.ai' },
+  elevenlabs: { api_base: 'https://api.elevenlabs.io' },
 };
 
 export const PROVIDER_READINESS: Record<AgentProvider, ProviderReadiness> = {
@@ -115,6 +123,13 @@ export const PROVIDER_READINESS: Record<AgentProvider, ProviderReadiness> = {
     summary: 'Supports Pipecat Cloud agents, but transport choices add more configuration risk.',
     setupNotes: 'Requires Pipecat credentials plus agent naming and transport alignment.',
     selfServeLabel: 'Guided setup recommended',
+  },
+  elevenlabs: {
+    stage: 'recommended',
+    badge: 'Recommended',
+    summary: 'Good self-serve option for ElevenLabs Conversational AI voice agents.',
+    setupNotes: 'Requires an Agent ID and API key from the ElevenLabs dashboard.',
+    selfServeLabel: 'Self-serve ready',
   },
 };
 
@@ -160,6 +175,10 @@ export const PROVIDER_HELP: Record<AgentProvider, { title: string; help: string 
     title: 'Browser Agent Setup',
     help: 'Provide the URL of the web-based chat agent. If the site requires login, add your credentials — they will be used to sign in automatically before testing.',
   },
+  elevenlabs: {
+    title: 'ElevenLabs Setup',
+    help: 'Find your Agent ID and API Key at elevenlabs.io in the Conversational AI section. The Agent ID is shown on the agent detail page.',
+  },
 };
 
 export function validateProviderConfig(
@@ -186,6 +205,10 @@ export function validateProviderConfig(
       break;
     case 'openai':
       if (!config.api_key?.trim()) return 'API key is required';
+      break;
+    case 'elevenlabs':
+      if (!config.agent_id?.trim()) return 'ElevenLabs Agent ID is required';
+      if (!config.api_key?.trim()) return 'ElevenLabs API key is required';
       break;
   }
   return null;
