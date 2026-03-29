@@ -10,7 +10,7 @@
     "test:ui": "vitest --ui"
   },
   "devDependencies": {
-    "@vitest/ui": "^4.1.0",
+    "@vitest/ui": "^4.1.2",
     "dotenv": "^17.3.1",
     "vitest": "^4.1.0"
   },
