@@ -4,6 +4,7 @@ import type {
   Scenario,
   Agent,
   AgentProvider,
+  HealthResponse,
 } from './types';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -190,6 +191,6 @@ export async function deleteAgent(id: string): Promise<void> {
 
 // ==================== HEALTH ====================
 
-export async function getHealth(): Promise<{ status: string }> {
+export async function getHealth(): Promise<HealthResponse> {
   return fetchJSON('/health');
 }

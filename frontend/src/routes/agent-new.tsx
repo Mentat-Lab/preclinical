@@ -9,6 +9,7 @@ import {
   PROVIDER_FIELDS,
   PROVIDER_DEFAULTS,
   PROVIDER_HELP,
+  PROVIDER_READINESS,
   applyProviderDefaults,
   type ProviderField,
   validateProviderConfig,
@@ -20,7 +21,7 @@ import { cn } from '@/lib/utils';
 const inputCls =
   'w-full px-3 py-2 text-sm rounded-md border border-border bg-background text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50';
 
-const providerCards: AgentProvider[] = ['vapi', 'livekit', 'pipecat', 'openai', 'browser'];
+const providerCards: AgentProvider[] = ['vapi', 'livekit', 'pipecat', 'openai', 'browser', 'elevenlabs'];
 
 const providerCardNames: Record<AgentProvider, string> = {
   vapi: 'Vapi',
@@ -28,6 +29,7 @@ const providerCardNames: Record<AgentProvider, string> = {
   pipecat: 'Pipecat',
   openai: 'OpenAI',
   browser: 'Browser',
+  elevenlabs: 'ElevenLabs',
 };
 
 export default function NewAgentPage() {
@@ -150,6 +152,7 @@ export default function NewAgentPage() {
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 {providerCards.map((p) => {
                   const selected = provider === p;
+                  const readiness = PROVIDER_READINESS[p];
                   return (
                     <button
                       key={p}
@@ -173,6 +176,16 @@ export default function NewAgentPage() {
                       <span className={cn('text-sm font-medium', selected ? 'text-primary' : 'text-text-primary')}>
                         {providerCardNames[p] || PROVIDER_NAMES[p]}
                       </span>
+                      <span
+                        className={cn(
+                          'rounded-full px-2 py-0.5 text-[11px] font-medium',
+                          readiness.stage === 'recommended'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-amber-100 text-amber-800',
+                        )}
+                      >
+                        {readiness.badge}
+                      </span>
                       {selected && (
                         <span className="absolute top-2 right-2 text-primary">
                           <Check className="h-4 w-4" />
@@ -189,8 +202,21 @@ export default function NewAgentPage() {
               <div className="flex items-start gap-3 rounded-lg bg-primary/5 border border-primary/20 p-4">
                 <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-text-primary">{help.title}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-medium text-text-primary">{help.title}</p>
+                    <span
+                      className={cn(
+                        'rounded-full px-2 py-0.5 text-[11px] font-medium',
+                        PROVIDER_READINESS[provider].stage === 'recommended'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-amber-100 text-amber-800',
+                      )}
+                    >
+                      {PROVIDER_READINESS[provider].selfServeLabel}
+                    </span>
+                  </div>
                   <p className="text-sm text-text-secondary mt-0.5">{help.help}</p>
+                  <p className="text-xs text-text-secondary mt-2">{PROVIDER_READINESS[provider].setupNotes}</p>
                 </div>
               </div>
             )}

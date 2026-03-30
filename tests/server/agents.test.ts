@@ -85,7 +85,6 @@ describe('Agents API', () => {
 
     it.each([
       ['retell'],
-      ['elevenlabs'],
       ['bland'],
     ] as const)('rejects unsupported provider "%s"', async (provider) => {
       const res = await createAgent({ provider, name: `${provider} Agent` });

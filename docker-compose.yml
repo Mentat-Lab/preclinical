@@ -10,7 +10,7 @@ services:
       - ./server/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
       - ./server/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
     ports:
-      - "5432:5432"
+      - "${DB_PUBLISH_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d preclinical"]
       interval: 5s
@@ -35,13 +35,15 @@ services:
       MIN_MAX_TURNS: ${MIN_MAX_TURNS:-5}
       MAX_MAX_TURNS: ${MAX_MAX_TURNS:-7}
       BROWSER_USE_API_KEY: ${BROWSER_USE_API_KEY:-}
-      BROWSER_USE_API_BASE: ${BROWSER_USE_API_BASE:-https://api.browser-use.com/api/v2}
+      BROWSER_USE_API_BASE: ${BROWSER_USE_API_BASE:-http://browseruse:9000/api/v2}
+      BROWSER_EMAIL: ${BROWSER_EMAIL:-}
+      BROWSER_PASSWORD: ${BROWSER_PASSWORD:-}
       PLANNING_TIMEOUT_MS: ${PLANNING_TIMEOUT_MS:-60000}
       TURN_TIMEOUT_MS: ${TURN_TIMEOUT_MS:-30000}
       COVERAGE_TIMEOUT_MS: ${COVERAGE_TIMEOUT_MS:-60000}
       PORT: 8000
     ports:
-      - "3000:8000"
+      - "${APP_PUBLISH_PORT:-3000}:8000"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8000/health || exit 1"]
       interval: 10s
@@ -67,12 +69,19 @@ services:
       start_period: 30s
 
   # Local BrowserUse wrapper (optional — for testing browser provider without cloud API)
+  # CDP mode: set CDP_URL=http://host.docker.internal:9222 to connect to real Chrome on host
   browseruse:
     build: ./services/browseruse
     profiles: [browseruse]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
-      LLM_MODEL: ${TESTER_MODEL:-gpt-4o-mini}
+      LLM_MODEL: ${BROWSERUSE_MODEL:-${TESTER_MODEL:-gpt-4o-mini}}
+      LLM_BASE_URL: ${OPENAI_BASE_URL:-}
+      CDP_URL: ${CDP_URL:-}
+    volumes:
+      - browserdata:/data/browser-profiles
     ports:
       - "9000:9000"
     healthcheck:
@@ -85,3 +94,4 @@ services:
 volumes:
   pgdata:
   ollama_data:
+  browserdata:

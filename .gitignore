@@ -315,5 +315,6 @@ tests/.auth/
 # Reports and exports
 reports/
 exports/
+results/
 *.pdf
 !docs/*.pdf

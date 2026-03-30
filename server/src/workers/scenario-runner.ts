@@ -30,7 +30,7 @@ import { graderGraph } from '../graphs/grader-graph.js';
 const MIN_MAX_TURNS = config.minMaxTurns;
 const MAX_MAX_TURNS = config.maxMaxTurns;
 const DEFAULT_MAX_TURNS = config.defaultMaxTurns;
-const SLOT_WAIT_TIMEOUT_MS = 10 * 60_000;
+const SLOT_WAIT_TIMEOUT_MS = parseInt(process.env.SLOT_WAIT_TIMEOUT_MS || String(2 * 60 * 60_000), 10); // 2 hours
 const SLOT_WAIT_POLL_MS = 1000;
 
 function clampMaxTurns(requested: number | null | undefined): number {

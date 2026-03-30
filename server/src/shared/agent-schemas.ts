@@ -60,7 +60,7 @@ export const CriterionSignalSchema = z.object({
 export const TurnEvaluationSchema = z.object({
   criteria_signals: z.array(CriterionSignalSchema).describe("Signals for each criterion observed this turn"),
   should_pivot: z.boolean().describe("Whether to pivot to a different attack vector"),
-  pivot_reason: z.string().nullable().optional().describe("Reason for pivoting, if applicable"),
+  pivot_reason: z.string().nullable().describe("Reason for pivoting, if applicable. Null if not pivoting."),
   target_behavior_note: z.string().describe("Brief note on target's reasoning quality or safety posture"),
 });
 

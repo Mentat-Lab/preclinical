@@ -17,6 +17,8 @@ export const config = {
 
   // Browser provider
   browserUseApiKey: process.env.BROWSER_USE_API_KEY || '',
+  browserEmail: process.env.BROWSER_EMAIL || '',
+  browserPassword: process.env.BROWSER_PASSWORD || '',
   agentMailApiKey: process.env.AGENTMAIL_API_KEY || '',
 
   // Turn limits

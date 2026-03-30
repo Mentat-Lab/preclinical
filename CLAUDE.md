@@ -58,6 +58,44 @@ Configurable via env: `DEFAULT_MAX_TURNS=6`, `MIN_MAX_TURNS=5`, `MAX_MAX_TURNS=7
 - `services/browseruse/` — Local BrowserUse wrapper (optional, used via `docker compose --profile browseruse up`)
 - `docs-site/` — MkDocs Material documentation site
 
+## Browser Provider
+
+The `browser` provider uses BrowserUse to automate web-based chat testing (e.g. chatgpt.com, claude.ai, gemini.google.com).
+
+### Local vs Cloud
+- **Local (default)**: `docker compose --profile browseruse up` starts a local BrowserUse worker. No API key needed. `BROWSER_USE_API_BASE` defaults to `http://browseruse:9000/api/v2`.
+- **Cloud**: Set both `BROWSER_USE_API_KEY` and `BROWSER_USE_API_BASE` in `.env` to use BrowserUse Cloud instead.
+
+### Browser Profiles
+Site-specific interaction instructions live in `server/src/shared/browser-profiles/`. Named by domain (e.g. `chatgpt.com.json`). Falls back to `_default.json`.
+
+Key fields: `browser_setup_instructions`, `browser_chat_instructions`, `browser_overlay_hint`, `requires_auth`, `browser_login_instructions`.
+
+### Creating Browser Agents
+```bash
+# No auth (ChatGPT works without login)
+curl -X POST http://localhost:3000/api/v1/agents -H 'Content-Type: application/json' \
+  -d '{"provider":"browser","name":"ChatGPT","config":{"url":"https://chatgpt.com"}}'
+
+# With auth (Claude, Gemini require login)
+curl -X POST http://localhost:3000/api/v1/agents -H 'Content-Type: application/json' \
+  -d '{"provider":"browser","name":"Claude AI","config":{"url":"https://claude.ai","email":"you@example.com","password":"your-password"}}'
+```
+
+### CDP Mode (recommended for sites with bot detection)
+Set `CDP_URL` in `.env` to connect to a real Chrome on the host instead of headless Chromium in Docker:
+```bash
+# 1. Launch Chrome with remote debugging
+google-chrome --remote-debugging-port=9222 --remote-allow-origins=*
+# 2. Set in .env
+CDP_URL=http://host.docker.internal:9222
+```
+
+### Known Limitations
+- Headless Chromium gets blocked by Cloudflare — use CDP mode with real Chrome
+- `BROWSERUSE_MODEL` env var overrides the LLM model used by the local BrowserUse worker (defaults to `TESTER_MODEL`)
+- Browser tests are slow (~5 min/turn) — use `max_turns: 2` for faster iteration
+
 ## Deployment
 
 ```bash

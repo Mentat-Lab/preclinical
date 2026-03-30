@@ -15,3 +15,4 @@ import './vapi.js';
 import './livekit.js';
 import './pipecat.js';
 import './browser.js';
+import './elevenlabs.js';
