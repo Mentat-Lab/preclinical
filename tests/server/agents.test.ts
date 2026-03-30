@@ -77,6 +77,7 @@ describe('Agents API', () => {
       ['livekit'],
       ['pipecat'],
       ['browser'],
+      ['elevenlabs'],
     ] as const)('accepts provider "%s"', async (provider) => {
       const res = await createAgent({ provider, name: `${provider} Agent` });
       expect(res.status).toBe(201);
@@ -85,7 +86,6 @@ describe('Agents API', () => {
 
     it.each([
       ['retell'],
-      ['elevenlabs'],
       ['bland'],
     ] as const)('rejects unsupported provider "%s"', async (provider) => {
       const res = await createAgent({ provider, name: `${provider} Agent` });
