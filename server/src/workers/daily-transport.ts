@@ -20,6 +20,7 @@ import { createInterface, Interface } from 'readline';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { log } from '../lib/logger.js';
+import { MessageQueue } from '../lib/message-queue.js';
 
 const logger = log.child({ component: 'daily-transport' });
 
@@ -32,46 +33,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export interface DailySession {
   process: ChildProcess;
   readline: Interface;
-  messageQueue: DailyMessageQueue;
+  messageQueue: MessageQueue;
   roomUrl: string;
   connected: boolean;
-}
-
-// =============================================================================
-// MESSAGE QUEUE (same pattern as livekit-transport)
-// =============================================================================
-
-class DailyMessageQueue {
-  private waiters: Array<{
-    resolve: (msg: string) => void;
-    reject: (err: Error) => void;
-    timer: ReturnType<typeof setTimeout>;
-  }> = [];
-  private buffer: string[] = [];
-
-  push(message: string): void {
-    if (this.waiters.length > 0) {
-      const waiter = this.waiters.shift()!;
-      clearTimeout(waiter.timer);
-      waiter.resolve(message);
-    } else {
-      this.buffer.push(message);
-    }
-  }
-
-  async nextMessage(timeoutMs: number = 30_000): Promise<string> {
-    if (this.buffer.length > 0) {
-      return this.buffer.shift()!;
-    }
-    return new Promise<string>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        const idx = this.waiters.findIndex((w) => w.timer === timer);
-        if (idx >= 0) this.waiters.splice(idx, 1);
-        reject(new Error(`Timed out waiting for agent response after ${timeoutMs}ms`));
-      }, timeoutMs);
-      this.waiters.push({ resolve, reject, timer });
-    });
-  }
 }
 
 // =============================================================================
@@ -246,7 +210,7 @@ export async function connectDaily(
   roomUrl: string,
   token?: string,
 ): Promise<DailySession> {
-  const messageQueue = new DailyMessageQueue();
+  const messageQueue = new MessageQueue();
   const pythonPaths = findPythonPaths();
 
   let proc: ChildProcess | null = null;

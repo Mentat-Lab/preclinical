@@ -4,16 +4,6 @@ import { Plus, Loader2, PanelLeftClose, PanelLeftOpen, BookOpen } from 'lucide-r
 import { cn } from '@/lib/utils';
 import { useAgents } from '@/hooks/use-queries';
 import { ProviderIcon } from '@/components/ProviderIcon';
-import type { Agent, AgentProvider } from '@/lib/types';
-
-const providerLabels: Record<AgentProvider, string> = {
-  vapi: 'Vapi',
-  livekit: 'LiveKit',
-  pipecat: 'Pipecat',
-  openai: 'OpenAI',
-  browser: 'Browser',
-  elevenlabs: 'ElevenLabs',
-};
 
 const SIDEBAR_COLLAPSED_KEY = 'preclinical.sidebar.collapsed';
 
@@ -146,7 +136,7 @@ export function AgentSidebar() {
                         : 'text-text-primary hover:bg-border/30',
                     )}
                   >
-                    <ProviderIcon provider={agent.provider} className="w-4 h-4" size={16} />
+                    <ProviderIcon provider={agent.provider} className="w-4 h-4" />
                     {!isCollapsed && <span className="truncate">{agent.name}</span>}
                   </Link>
                 </li>

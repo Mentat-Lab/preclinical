@@ -18,5 +18,9 @@
   "pipecat": {
     "path": "pipecat/text-livekit",
     "description": "Pipecat text target agent (LiveKit transport)"
+  },
+  "elevenlabs": {
+    "path": "openai-api",
+    "description": "ElevenLabs conversational AI target (uses OpenAI-compatible endpoint)"
   }
 }

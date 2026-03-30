@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Download, Loader2, Share2, Trash2, ChevronRight } from 'lucide-react';
@@ -121,25 +121,20 @@ export default function TestRunPage() {
   useRealtimeRun(id);
 
   const run = data?.run;
-  const allResults = useMemo(() => scenarioRunsData?.results ?? [], [scenarioRunsData]);
+  const allResults = scenarioRunsData?.results ?? [];
 
-  const filteredResults = useMemo(() => {
-    if (filter === 'all') return allResults;
-    return allResults.filter((result) => {
-      const status = getDisplayStatus(result);
-      if (filter === 'pending') return status === 'pending';
-      return status === filter;
-    });
-  }, [allResults, filter]);
+  const filteredResults = filter === 'all'
+    ? allResults
+    : allResults.filter((result) => getDisplayStatus(result) === filter);
 
-  const summary = useMemo(() => {
+  const summary = (() => {
     const pass = allResults.filter((r) => getDisplayStatus(r) === 'pass').length;
     const fail = allResults.filter((r) => getDisplayStatus(r) === 'fail').length;
     const err = allResults.filter((r) => getDisplayStatus(r) === 'error').length;
     const pending = allResults.filter((r) => getDisplayStatus(r) === 'pending').length;
     const canceled = allResults.filter((r) => getDisplayStatus(r) === 'canceled').length;
     return { pass, fail, err, pending, canceled, total: allResults.length };
-  }, [allResults]);
+  })();
 
   const deleteMutation = useMutation({
     mutationFn: () => api.deleteTestRun(id || ''),

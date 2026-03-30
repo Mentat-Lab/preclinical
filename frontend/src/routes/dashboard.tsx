@@ -66,8 +66,8 @@ export default function DashboardPage() {
   const { data: health, isLoading: healthLoading } = useHealth();
 
   const loading = runsLoading || agentsLoading;
-  const runs = useMemo(() => runsData?.runs ?? [], [runsData]);
-  const metrics = useMemo(() => calculateMetrics(runs), [runs]);
+  const runs = runsData?.runs ?? [];
+  const metrics = calculateMetrics(runs);
 
   const recommendedProviders = useMemo(
     () => Object.entries(PROVIDER_READINESS).filter(([, value]) => value.stage === 'recommended'),

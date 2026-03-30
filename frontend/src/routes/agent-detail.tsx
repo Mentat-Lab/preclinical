@@ -131,7 +131,7 @@ export default function AgentDetailPage() {
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-semibold text-text-primary">{agent.name}</h1>
               <span className="inline-flex items-center gap-1.5 text-xs font-medium text-text-secondary bg-muted border border-border px-2 py-1 rounded capitalize">
-                <ProviderIcon provider={agent.provider} className="w-4 h-4" size={16} />
+                <ProviderIcon provider={agent.provider} className="w-4 h-4" />
                 {PROVIDER_NAMES[agent.provider] ?? agent.provider}
               </span>
             </div>

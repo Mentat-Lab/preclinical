@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useScenarios } from '@/hooks/use-queries';
 import type { Scenario } from '@/lib/types';
@@ -55,19 +55,19 @@ export default function ScenariosPage() {
   const [search, setSearch] = useState('');
 
   const { data, isLoading, error } = useScenarios();
-  const scenarios = useMemo(() => data?.scenarios ?? [], [data]);
+  const scenarios = data?.scenarios ?? [];
 
-  const filtered = useMemo(() => {
-    if (!search.trim()) return scenarios;
-    const q = search.toLowerCase();
-    return scenarios.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        (s.scenario_type ?? '').toLowerCase().includes(q) ||
-        (s.category ?? '').toLowerCase().includes(q) ||
-        (s.tags ?? []).some((t) => t.toLowerCase().includes(q))
-    );
-  }, [scenarios, search]);
+  const filtered = search.trim()
+    ? scenarios.filter((s) => {
+        const q = search.toLowerCase();
+        return (
+          s.name.toLowerCase().includes(q) ||
+          (s.scenario_type ?? '').toLowerCase().includes(q) ||
+          (s.category ?? '').toLowerCase().includes(q) ||
+          (s.tags ?? []).some((t) => t.toLowerCase().includes(q))
+        );
+      })
+    : scenarios;
 
   return (
     <div className="flex-1 min-h-screen bg-background">

@@ -19,7 +19,6 @@ export const config = {
   browserUseApiKey: process.env.BROWSER_USE_API_KEY || '',
   browserEmail: process.env.BROWSER_EMAIL || '',
   browserPassword: process.env.BROWSER_PASSWORD || '',
-  agentMailApiKey: process.env.AGENTMAIL_API_KEY || '',
 
   // Turn limits
   defaultMaxTurns: parseInt(process.env.DEFAULT_MAX_TURNS || '6', 10),
