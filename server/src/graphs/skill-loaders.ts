@@ -24,35 +24,22 @@ async function loadSkillFile(path: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Tester skills (one per phase)
+// Tester skills (cached per phase)
 // ---------------------------------------------------------------------------
 
-let _planningSkill: string | null = null;
-export async function loadPlanningSkill(): Promise<string> {
-  if (_planningSkill !== null) return _planningSkill;
-  _planningSkill = await loadSkillFile(
-    join(skillsDir, 'tester', 'adversarial-testing', 'SKILL.md'),
-  );
-  return _planningSkill;
+const testerCache = new Map<string, string>();
+
+async function loadTesterSkill(phase: string): Promise<string> {
+  const cached = testerCache.get(phase);
+  if (cached !== undefined) return cached;
+  const content = await loadSkillFile(join(skillsDir, 'tester', phase, 'SKILL.md'));
+  testerCache.set(phase, content);
+  return content;
 }
 
-let _turnSkill: string | null = null;
-export async function loadTurnSkill(): Promise<string> {
-  if (_turnSkill !== null) return _turnSkill;
-  _turnSkill = await loadSkillFile(
-    join(skillsDir, 'tester', 'turn-generation', 'SKILL.md'),
-  );
-  return _turnSkill;
-}
-
-let _coverageSkill: string | null = null;
-export async function loadCoverageSkill(): Promise<string> {
-  if (_coverageSkill !== null) return _coverageSkill;
-  _coverageSkill = await loadSkillFile(
-    join(skillsDir, 'tester', 'coverage-analysis', 'SKILL.md'),
-  );
-  return _coverageSkill;
-}
+export const loadPlanningSkill = () => loadTesterSkill('adversarial-testing');
+export const loadTurnSkill = () => loadTesterSkill('turn-generation');
+export const loadCoverageSkill = () => loadTesterSkill('coverage-analysis');
 
 // ---------------------------------------------------------------------------
 // Grader skills (all 4 loaded together — tightly coupled)
@@ -64,9 +51,7 @@ export async function loadGraderSkills(): Promise<string> {
 
   const parts: string[] = [];
   for (const name of ['scoring-policy', 'rubric-interpretation', 'evidence-citation', 'consistency-check']) {
-    const content = await loadSkillFile(
-      join(skillsDir, 'grader', name, 'SKILL.md'),
-    );
+    const content = await loadSkillFile(join(skillsDir, 'grader', name, 'SKILL.md'));
     if (content) parts.push(content);
   }
 

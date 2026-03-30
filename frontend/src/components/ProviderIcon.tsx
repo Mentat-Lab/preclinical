@@ -4,7 +4,6 @@ import type { AgentProvider } from '@/lib/types';
 interface ProviderIconProps {
   provider: AgentProvider;
   className?: string;
-  size?: number;
 }
 
 interface IconProps {
@@ -129,17 +128,8 @@ const providerComponents: Record<AgentProvider, React.FC<{ className?: string }>
   elevenlabs: ElevenLabsIcon,
 };
 
-export function ProviderIcon({ provider, className, size = 16 }: ProviderIconProps) {
+export function ProviderIcon({ provider, className }: ProviderIconProps) {
   const Component = providerComponents[provider];
-  if (!Component) {
-    return (
-      <span
-        className={cn('flex items-center justify-center rounded bg-muted text-[10px] font-bold text-text-secondary', className)}
-        style={{ width: size, height: size }}
-      >
-        {provider.charAt(0).toUpperCase()}
-      </span>
-    );
-  }
+  if (!Component) return null;
   return <Component className={cn('shrink-0', className)} />;
 }

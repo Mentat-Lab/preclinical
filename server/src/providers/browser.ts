@@ -63,6 +63,12 @@ const BROWSERUSE_STRUCTURED_OUTPUT = JSON.stringify({
 // BROWSER PROFILE LOADER
 // =============================================================================
 
+const PROFILE_KEYS: (keyof BrowserProfile)[] = [
+  'browser_setup_instructions', 'browser_chat_instructions', 'browser_overlay_hint',
+  'browser_signup_instructions', 'browser_login_instructions', 'browser_verify_instructions',
+  'email_subject_hint',
+];
+
 async function loadBrowserProfile(
   targetUrl: string,
   agentConfig: Record<string, unknown>,
@@ -70,12 +76,7 @@ async function loadBrowserProfile(
   const basePath = join(sharedDir, 'browser-profiles');
 
   let domain = '';
-  try {
-    const parsed = new URL(targetUrl);
-    domain = parsed.hostname.replace(/^www\./, '');
-  } catch {
-    // skip domain-based lookup
-  }
+  try { domain = new URL(targetUrl).hostname.replace(/^www\./, ''); } catch { /* skip */ }
 
   const candidates = domain
     ? [join(basePath, `${domain}.json`), join(basePath, '_default.json')]
@@ -83,36 +84,22 @@ async function loadBrowserProfile(
 
   for (const filePath of candidates) {
     try {
-      const raw = await readFile(filePath, 'utf-8');
-      const profile = JSON.parse(raw);
+      const profile = JSON.parse(await readFile(filePath, 'utf-8'));
       logger.info('Loaded profile', { filePath });
       return {
-        browser_setup_instructions: profile.browser_setup_instructions || '',
-        browser_chat_instructions: profile.browser_chat_instructions || '',
-        browser_overlay_hint: profile.browser_overlay_hint || '',
-        requires_auth: profile.requires_auth || false,
-        email_verification: profile.email_verification || false,
-        email_subject_hint: profile.email_subject_hint || '',
-        browser_signup_instructions: profile.browser_signup_instructions || '',
-        browser_login_instructions: profile.browser_login_instructions || '',
-        browser_verify_instructions: profile.browser_verify_instructions || '',
-      };
-    } catch {
-      // File not found, try next
-    }
+        ...Object.fromEntries(PROFILE_KEYS.map(k => [k, profile[k] || ''])),
+        requires_auth: !!profile.requires_auth,
+        email_verification: !!profile.email_verification,
+      } as BrowserProfile;
+    } catch { /* file not found, try next */ }
   }
 
+  // Fallback: build from agent config
   return {
-    browser_setup_instructions: String(agentConfig.browser_setup_instructions || ''),
-    browser_chat_instructions: String(agentConfig.browser_chat_instructions || ''),
-    browser_overlay_hint: String(agentConfig.browser_overlay_hint || ''),
+    ...Object.fromEntries(PROFILE_KEYS.map(k => [k, String(agentConfig[k] || '')])),
     requires_auth: agentConfig.requires_auth === 'true' || agentConfig.requires_auth === true,
     email_verification: agentConfig.email_verification === 'true' || agentConfig.email_verification === true,
-    email_subject_hint: String(agentConfig.email_subject_hint || ''),
-    browser_signup_instructions: String(agentConfig.browser_signup_instructions || ''),
-    browser_login_instructions: String(agentConfig.browser_login_instructions || ''),
-    browser_verify_instructions: String(agentConfig.browser_verify_instructions || ''),
-  };
+  } as BrowserProfile;
 }
 
 // =============================================================================

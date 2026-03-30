@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useScenarioRun, useScenarioRuns, useTestRun } from '@/hooks/use-queries';
 import { useRealtimeRun } from '@/lib/sse';
@@ -141,8 +141,8 @@ export default function ScenarioRunPage() {
 
   useRealtimeRun(testRunId, scenarioRunId);
 
-  const scenarioRuns = useMemo(() => scenarioRunsData?.results ?? [], [scenarioRunsData]);
-  const navigation = useMemo(() => {
+  const scenarioRuns = scenarioRunsData?.results ?? [];
+  const navigation = (() => {
     const ids = scenarioRuns.map((run) => run.id);
     const currentIndex = ids.findIndex((id) => id === resolvedScenarioRunId);
     if (currentIndex === -1) {
@@ -154,7 +154,7 @@ export default function ScenarioRunPage() {
       currentIndex,
       totalCount: ids.length,
     };
-  }, [resolvedScenarioRunId, scenarioRuns]);
+  })();
 
   if (isLoading) {
     return (

@@ -23,15 +23,6 @@ const inputCls =
 
 const providerCards: AgentProvider[] = ['vapi', 'livekit', 'pipecat', 'openai', 'browser', 'elevenlabs'];
 
-const providerCardNames: Record<AgentProvider, string> = {
-  vapi: 'Vapi',
-  livekit: 'LiveKit',
-  pipecat: 'Pipecat',
-  openai: 'OpenAI',
-  browser: 'Browser',
-  elevenlabs: 'ElevenLabs',
-};
-
 export default function NewAgentPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -174,7 +165,7 @@ export default function NewAgentPage() {
                         <ProviderIcon provider={p} className="h-7 w-7" />
                       </div>
                       <span className={cn('text-sm font-medium', selected ? 'text-primary' : 'text-text-primary')}>
-                        {providerCardNames[p] || PROVIDER_NAMES[p]}
+                        {PROVIDER_NAMES[p]}
                       </span>
                       <span
                         className={cn(

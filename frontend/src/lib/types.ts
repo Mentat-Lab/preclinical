@@ -138,21 +138,6 @@ export interface Agent {
   deleted_at?: string | null;
 }
 
-export interface ProviderMetadata {
-  id: AgentProvider;
-  name: string;
-  description: string;
-  capabilities?: ('text' | 'voice' | 'webrtc' | 'telephony')[];
-  fields: {
-    key: string;
-    label: string;
-    type: 'text' | 'password' | 'select' | 'number';
-    placeholder?: string;
-    required?: boolean;
-    advanced?: boolean;
-    options?: { label: string; value: string }[];
-  }[];
-}
 
 export interface HealthCheck {
   status: 'ok' | 'warning' | 'error';

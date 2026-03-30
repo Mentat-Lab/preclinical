@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 import { sql, emitEvent } from '../lib/db.js';
-import { getQueue } from '../lib/queue.js';
 
 const app = new Hono();
 

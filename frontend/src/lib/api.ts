@@ -120,10 +120,6 @@ export async function updateScenario(id: string, params: Partial<Omit<Scenario, 
   return normalizeScenario(scenario);
 }
 
-export async function deleteScenario(id: string): Promise<void> {
-  return fetchJSON(`/api/v1/scenarios/${id}`, { method: 'DELETE' });
-}
-
 export async function generateScenario(params: {
   text: string;
   category?: string;
