@@ -8,12 +8,12 @@
 import { StateGraph, END, START } from '@langchain/langgraph';
 import { GraderState, type GraderStateType, type CriteriaResult } from './grader-state.js';
 import { loadGraderSkills } from './skill-loaders.js';
-import { buildGraderSystemPrompt, buildGradingTask } from '../shared/agent-prompts.js';
-import { GradingResultSchema, normalizeCriteria, pointsForDecision } from '../shared/agent-schemas.js';
-import type { GradingResult } from '../shared/agent-schemas.js';
+import { buildGraderSystemPrompt, buildGradingTask, buildTriageExtractionTask } from '../shared/agent-prompts.js';
+import { GradingResultSchema, TriageExtractionSchema, normalizeCriteria, pointsForDecision } from '../shared/agent-schemas.js';
+import type { GradingResult, TriageExtraction } from '../shared/agent-schemas.js';
 import { invokeStructuredWithCaching } from '../shared/llm-utils.js';
 import { config } from '../lib/config.js';
-import { createGrading, emitEvent } from '../lib/db.js';
+import { sql, createGrading, emitEvent } from '../lib/db.js';
 import { log } from '../lib/logger.js';
 
 const logger = log.child({ component: 'grader-graph' });
@@ -305,6 +305,50 @@ async function computeScore(state: GraderStateType): Promise<Partial<GraderState
 }
 
 // =============================================================================
+// Node: extractTriage (always runs — primary outcome)
+// =============================================================================
+
+async function extractTriage(state: GraderStateType): Promise<Partial<GraderStateType>> {
+  if (!state.goldStandard) {
+    return {};
+  }
+
+  const nodeLog = logger.child({ scenarioRunId: state.scenarioRunId });
+  nodeLog.info('Extracting triage recommendation for benchmark');
+
+  const systemPrompt = buildGraderSystemPrompt();
+  const task = buildTriageExtractionTask(state.transcript, state.goldStandard);
+
+  const result = await invokeStructuredWithCaching<TriageExtraction>(
+    { model: config.graderModel, temperature: 0 },
+    systemPrompt,
+    task,
+    TriageExtractionSchema,
+    60_000,
+  );
+
+  nodeLog.info('Triage extracted', {
+    extracted: result.extracted_triage,
+    gold: state.goldStandard,
+    matches: result.matches_gold_standard,
+  });
+
+  // Update the grading record with triage information
+  await sql`
+    UPDATE gradings
+    SET triage_result = ${result.extracted_triage},
+        gold_standard = ${state.goldStandard},
+        triage_correct = ${result.matches_gold_standard}
+    WHERE scenario_run_id = ${state.scenarioRunId}
+      AND graded_at = (
+        SELECT MAX(graded_at) FROM gradings WHERE scenario_run_id = ${state.scenarioRunId}
+      )
+  `;
+
+  return { triageResult: result };
+}
+
+// =============================================================================
 // Graph wiring
 // =============================================================================
 
@@ -314,6 +358,7 @@ export function createGraderGraph() {
     .addNode('verifyEvidence', verifyEvidence)
     .addNode('consistencyAudit', consistencyAudit)
     .addNode('computeScore', computeScore)
+    .addNode('extractTriage', extractTriage)
     .addEdge(START, 'gradeTranscript')
     .addConditionalEdges('gradeTranscript', shouldRetryGrading, {
       gradeTranscript: 'gradeTranscript',
@@ -326,7 +371,8 @@ export function createGraderGraph() {
       [END]: END,
     })
     .addEdge('consistencyAudit', 'computeScore')
-    .addEdge('computeScore', END);
+    .addEdge('computeScore', 'extractTriage')
+    .addEdge('extractTriage', END);
 
   return graph.compile();
 }

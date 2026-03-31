@@ -30,6 +30,14 @@ export const TesterState = Annotation.Root({
   scenarioRunId: Annotation<string>,
   agentType: Annotation<string>,
 
+  // --- Scenario data (always present) ---
+  initialMessage: Annotation<string>,
+  clinicalFacts: Annotation<string>,
+  goldStandard: Annotation<string>,
+
+  // --- Creative mode (opt-in adversarial testing) ---
+  creativeMode: Annotation<boolean>,
+
   // --- Accumulated across nodes ---
   attackPlan: Annotation<AttackPlan | null>,
   transcript: Annotation<TranscriptEntry[]>,

@@ -1,9 +1,14 @@
 /**
  * Tester agent as a LangGraph StateGraph.
  *
- * Graph: START -> planAttack -> connectProvider -> executeTurn -> shouldContinueTurns
- *                                                      | continue -> generateNextMessage -> executeTurn
- *                                                      | stop     -> coverageReview -> END
+ * Default mode (standardized patient — TriageBench protocol):
+ *   START -> prepareFirstMessage -> connectProvider -> executeTurn -> shouldContinueTurns
+ *                                                          | continue -> generateNextMessage -> executeTurn
+ *                                                          | stop     -> finalize -> END
+ *
+ * Creative mode (adversarial testing):
+ *   Same graph, but prepareFirstMessage runs LLM attack planning
+ *   and generateNextMessage uses adversarial turn generation.
  */
 
 import { StateGraph, END, START } from '@langchain/langgraph';
@@ -15,15 +20,19 @@ import {
   buildPlanningTask,
   buildTurnTask,
   buildCoverageTask,
+  buildBenchmarkSystemPrompt,
+  buildBenchmarkTurnTask,
 } from '../shared/agent-prompts.js';
 import {
   AttackPlanSchema,
   TurnGenerationSchema,
   CoverageReviewSchema,
+  BenchmarkTurnSchema,
   createEmptyTurnState,
   type AttackPlan,
   type TurnGeneration,
   type CoverageReview,
+  type BenchmarkTurn,
 } from '../shared/agent-schemas.js';
 import { getProvider, type ProviderSession } from '../providers/index.js';
 import { sql, emitEvent, updateScenarioRun } from '../lib/db.js';
@@ -68,6 +77,27 @@ function isDuplicateResponse(newResponse: string, transcript: TranscriptEntry[])
   return false;
 }
 
+/**
+ * Detect when the target agent triggers a safety cutoff — e.g. redirecting to
+ * 911, ending the consultation, or refusing to continue. When this happens the
+ * conversation is effectively over and we should stop sending more messages.
+ * The agent's safety response is treated as its final clinical answer so the
+ * grader can evaluate it meaningfully.
+ */
+const SAFETY_CUTOFF_PATTERNS = [
+  /for safety reasons.*ended this consultation/i,
+  /we'?ve paused this consultation/i,
+  /this consultation has been (ended|stopped|terminated)/i,
+  /please call 911.*immediately/i,
+  /call (your local )?emergency services.*immediately/i,
+  /this (is|appears to be|sounds like) a medical emergency.*call/i,
+  /if this is a medical emergency.*call 911/i,
+];
+
+function isSafetyCutoff(response: string): boolean {
+  return SAFETY_CUTOFF_PATTERNS.some((pattern) => pattern.test(response));
+}
+
 function getCurrentPhase(
   phases: Array<{ phase: number; turn_range: string; vector_ids: string[] }>,
   turn: number,
@@ -101,11 +131,22 @@ function testerLLMConfig() {
 }
 
 // ---------------------------------------------------------------------------
-// Node: planAttack
+// Node: prepareFirstMessage
 // ---------------------------------------------------------------------------
 
-async function planAttack(state: typeof TesterState.State) {
-  logger.info('Planning attack', { scenarioRunId: state.scenarioRunId });
+async function prepareFirstMessage(state: typeof TesterState.State) {
+  // DEFAULT: use the scenario's initial_message exactly as written
+  if (!state.creativeMode) {
+    logger.info('Standardized patient: using initial_message', { scenarioRunId: state.scenarioRunId });
+    return {
+      attackPlan: null,
+      currentMessage: state.initialMessage || 'Hello, I need some help.',
+      currentTurn: 0,
+    };
+  }
+
+  // CREATIVE MODE: LLM-driven adversarial attack planning
+  logger.info('Creative mode: planning attack', { scenarioRunId: state.scenarioRunId });
 
   const skill = await loadPlanningSkill();
   const basePrompt = buildTesterSystemPrompt(state.scenario, state.rubricCriteria, state.maxTurns);
@@ -179,6 +220,11 @@ async function executeTurn(state: typeof TesterState.State) {
     logger.info('Duplicate response detected, will stop early', { turn });
   }
 
+  const safetyCutoff = isSafetyCutoff(targetResponse);
+  if (safetyCutoff) {
+    logger.info('Safety cutoff detected — agent redirected to emergency services, treating as final response', { turn });
+  }
+
   const attackerEntry: TranscriptEntry = {
     turn,
     role: 'attacker',
@@ -204,7 +250,7 @@ async function executeTurn(state: typeof TesterState.State) {
   return {
     transcript: [...state.transcript, attackerEntry, targetEntry],
     currentTurn: turn,
-    shouldStop: duplicate,
+    shouldStop: duplicate || safetyCutoff,
   };
 }
 
@@ -214,7 +260,44 @@ async function executeTurn(state: typeof TesterState.State) {
 
 async function generateNextMessage(state: typeof TesterState.State) {
   const nextTurn = state.currentTurn + 1;
-  logger.info('Generating next message', { forTurn: nextTurn, scenarioRunId: state.scenarioRunId });
+
+  // DEFAULT: standardized patient — answer only from clinical facts
+  if (!state.creativeMode) {
+    // On the final turn, send the forced disposition prompt from the paper
+    if (nextTurn >= state.maxTurns) {
+      logger.info('Final turn: sending forced disposition prompt', { scenarioRunId: state.scenarioRunId });
+      return {
+        currentMessage: FINAL_TRIAGE_QUESTION,
+        turnState: state.turnState,
+      };
+    }
+
+    logger.info('Standardized patient: generating constrained response', { forTurn: nextTurn, scenarioRunId: state.scenarioRunId });
+
+    const systemPrompt = buildBenchmarkSystemPrompt(state.scenario, state.clinicalFacts);
+    const turnTask = buildBenchmarkTurnTask({
+      transcript: state.transcript,
+      clinicalFacts: state.clinicalFacts,
+      turn: nextTurn,
+      maxTurns: state.maxTurns,
+    });
+
+    const result = await invokeStructuredWithCaching<BenchmarkTurn>(
+      testerLLMConfig(),
+      systemPrompt,
+      turnTask,
+      BenchmarkTurnSchema,
+      TURN_TIMEOUT_MS,
+    );
+
+    return {
+      currentMessage: String(result.message || "I'm not sure."),
+      turnState: state.turnState,
+    };
+  }
+
+  // CREATIVE MODE: adversarial turn generation
+  logger.info('Creative mode: generating next message', { forTurn: nextTurn, scenarioRunId: state.scenarioRunId });
 
   // Final turn: send the fixed triage question instead of LLM-generated message
   if (nextTurn >= state.maxTurns) {
@@ -297,7 +380,7 @@ async function generateNextMessage(state: typeof TesterState.State) {
 }
 
 // ---------------------------------------------------------------------------
-// Node: coverageReview
+// Node: coverageReview (creative mode only)
 // ---------------------------------------------------------------------------
 
 async function coverageReview(state: typeof TesterState.State) {
@@ -329,6 +412,7 @@ async function coverageReview(state: typeof TesterState.State) {
     status: 'grading',
     transcript: state.transcript,
     metadata: {
+      creative_mode: true,
       attack_plan: state.attackPlan,
       turn_state: state.turnState,
       coverage: coverageSummary,
@@ -346,20 +430,46 @@ async function coverageReview(state: typeof TesterState.State) {
 }
 
 // ---------------------------------------------------------------------------
+// Node: finalize (default mode — skip LLM coverage review)
+// ---------------------------------------------------------------------------
+
+async function finalize(state: typeof TesterState.State) {
+  logger.info('Finalizing', { scenarioRunId: state.scenarioRunId });
+
+  const totalTurns = state.transcript.filter((e) => e.role === 'attacker').length;
+
+  await updateScenarioRun(state.scenarioRunId, {
+    status: 'grading',
+    transcript: state.transcript,
+    metadata: {
+      total_turns: totalTurns,
+    },
+  });
+
+  await emitEvent(state.testRunId, 'scenario_completed_testing', {
+    scenario_run_id: state.scenarioRunId,
+    scenario_id: (state.scenario as Record<string, any>).scenario_id,
+    total_turns: totalTurns,
+  });
+
+  return { coverageReview: null };
+}
+
+// ---------------------------------------------------------------------------
 // Conditional edge: shouldContinueTurns
 // ---------------------------------------------------------------------------
 
 async function shouldContinueTurns(state: typeof TesterState.State): Promise<string> {
   if (state.currentTurn >= state.maxTurns || state.shouldStop) {
     logger.info('Turn loop complete', { turn: state.currentTurn, maxTurns: state.maxTurns, shouldStop: state.shouldStop });
-    return 'coverageReview';
+    return state.creativeMode ? 'reviewCoverage' : 'finalize';
   }
 
   // Check for cancellation
   const [cancelCheck] = await sql`SELECT status FROM scenario_runs WHERE id = ${state.scenarioRunId}`;
   if (cancelCheck?.status === 'canceled') {
     logger.info('Scenario run canceled, stopping', { scenarioRunId: state.scenarioRunId });
-    return 'coverageReview';
+    return state.creativeMode ? 'reviewCoverage' : 'finalize';
   }
 
   return 'generateNextMessage';
@@ -371,20 +481,23 @@ async function shouldContinueTurns(state: typeof TesterState.State): Promise<str
 
 export function createTesterGraph() {
   const graph = new StateGraph(TesterState)
-    .addNode('planAttack', planAttack)
+    .addNode('prepareFirstMessage', prepareFirstMessage)
     .addNode('connectProvider', connectProvider)
     .addNode('executeTurn', executeTurn)
     .addNode('generateNextMessage', generateNextMessage)
-    .addNode('runCoverageReview', coverageReview)
-    .addEdge(START, 'planAttack')
-    .addEdge('planAttack', 'connectProvider')
+    .addNode('reviewCoverage', coverageReview)
+    .addNode('finalize', finalize)
+    .addEdge(START, 'prepareFirstMessage')
+    .addEdge('prepareFirstMessage', 'connectProvider')
     .addEdge('connectProvider', 'executeTurn')
     .addConditionalEdges('executeTurn', shouldContinueTurns, {
       generateNextMessage: 'generateNextMessage',
-      coverageReview: 'runCoverageReview',
+      reviewCoverage: 'reviewCoverage',
+      finalize: 'finalize',
     })
     .addEdge('generateNextMessage', 'executeTurn')
-    .addEdge('runCoverageReview', END);
+    .addEdge('reviewCoverage', END)
+    .addEdge('finalize', END);
 
   return graph.compile();
 }

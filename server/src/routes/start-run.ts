@@ -30,6 +30,8 @@ app.post('/start-run', async (c) => {
     max_scenarios,
     scenario_ids: providedScenarioIds,
     tags: filterTags,
+    benchmark_mode,
+    creative_mode,
   } = body;
 
   if (!agent_id) {
@@ -91,6 +93,23 @@ app.post('/start-run', async (c) => {
     return c.json({ error: 'No active scenarios available' }, 400);
   }
 
+  // Validate benchmark mode scenarios have required fields
+  if (benchmark_mode) {
+    const invalidScenarios = await sql`
+      SELECT scenario_id, name FROM scenarios
+      WHERE scenario_id = ANY(${scenarioIds})
+        AND (content->>'initial_message' IS NULL
+          OR content->>'clinical_facts' IS NULL
+          OR content->>'gold_standard' IS NULL)
+    `;
+    if (invalidScenarios.length > 0) {
+      return c.json({
+        error: 'Benchmark mode requires initial_message, clinical_facts, and gold_standard in scenario content',
+        invalid_scenarios: invalidScenarios.map((r: any) => ({ id: r.scenario_id, name: r.name })),
+      }, 400);
+    }
+  }
+
   // Create test suite
   const suiteId = test_suite_id || randomUUID();
 
@@ -124,8 +143,8 @@ app.post('/start-run', async (c) => {
     }
 
     await tx`
-      INSERT INTO test_runs (id, test_run_id, test_suite_id, agent_id, agent_type, agent_name, name, status, total_scenarios, max_turns, concurrency_limit, started_at, created_at)
-      VALUES (${runId}, ${testRunHumanId}, ${suiteId}, ${agent_id}, ${resolvedAgentType}, ${agent.name}, ${name || null}, 'running', ${scenarioIds.length}, ${max_turns || null}, ${effectiveConcurrency}, ${now}, ${now})
+      INSERT INTO test_runs (id, test_run_id, test_suite_id, agent_id, agent_type, agent_name, name, status, total_scenarios, max_turns, concurrency_limit, benchmark_mode, creative_mode, started_at, created_at)
+      VALUES (${runId}, ${testRunHumanId}, ${suiteId}, ${agent_id}, ${resolvedAgentType}, ${agent.name}, ${name || null}, 'running', ${scenarioIds.length}, ${max_turns || null}, ${effectiveConcurrency}, ${!!benchmark_mode}, ${!!creative_mode}, ${now}, ${now})
     `;
 
     await tx`INSERT INTO scenario_runs ${sql(rows)}`;
@@ -152,6 +171,8 @@ app.post('/start-run', async (c) => {
     agent_id,
     agent_type: resolvedAgentType,
     max_turns: max_turns ?? null,
+    benchmark_mode: !!benchmark_mode,
+    creative_mode: !!creative_mode,
   }));
 
   let jobIds: string[] = [];

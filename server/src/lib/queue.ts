@@ -21,6 +21,8 @@ export interface ScenarioJobData {
   agent_id: string;
   agent_type: string;
   max_turns?: number | null;
+  benchmark_mode?: boolean;
+  creative_mode?: boolean;
 }
 
 export type JobHandler = (data: ScenarioJobData) => Promise<void>;

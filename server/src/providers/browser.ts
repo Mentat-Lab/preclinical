@@ -1,10 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
- * BrowserUse Cloud provider.
+ * BrowserUse provider.
  *
- * Automates browser-based chat testing via the BrowserUse API.
+ * Automates browser-based chat testing via the BrowserUse local worker API.
  * Creates a headless browser session, navigates to the target URL,
  * and interacts with the chat widget.
+ *
+ * Enhanced features:
+ *   - Cookie/storage state persistence per domain (skip re-login on subsequent runs)
+ *   - sensitive_data for safe credential handling (not embedded in task prompt)
+ *   - extraction_schema for structured output via proper schema
+ *   - extend_system_message for overlay hints and chat context
+ *   - allowed_domains to lock agent to target site
+ *   - save_conversation + generate_gif for debugging
+ *   - Configurable step_timeout and max_actions_per_step
  */
 
 import { readFile } from 'fs/promises';
@@ -22,7 +31,12 @@ const sharedDir = join(__dirname, '..', 'shared');
 
 const BROWSER_USE_API_BASE = process.env.BROWSER_USE_API_BASE || 'http://localhost:9000/api/v2';
 const BROWSER_POLL_INTERVAL_MS = 3_000;
-const BROWSER_TASK_TIMEOUT_MS = parseInt(process.env.BROWSER_TASK_TIMEOUT_MS || '3600000', 10); // 1 hour default per browser turn
+const BROWSER_TASK_TIMEOUT_MS = parseInt(process.env.BROWSER_TASK_TIMEOUT_MS || '3600000', 10);
+const BROWSER_STEP_TIMEOUT = parseInt(process.env.BROWSER_STEP_TIMEOUT || '180', 10);
+const BROWSER_MAX_ACTIONS_PER_STEP = parseInt(process.env.BROWSER_MAX_ACTIONS_PER_STEP || '5', 10);
+const BROWSER_USE_VISION = process.env.BROWSER_USE_VISION === '1';
+const BROWSER_SAVE_CONVERSATIONS = process.env.BROWSER_SAVE_CONVERSATIONS === '1';
+const BROWSER_GENERATE_GIFS = process.env.BROWSER_GENERATE_GIFS === '1';
 
 // =============================================================================
 // TYPES
@@ -43,21 +57,28 @@ interface BrowserProfile {
 interface BrowserState {
   apiKey: string;
   targetUrl: string;
+  domain: string;
   agentConfig: Record<string, unknown>;
   sessionId?: string;
   liveUrl?: string;
   profile?: BrowserProfile;
+  scenarioRunId: string;
 }
 
-const BROWSERUSE_STRUCTURED_OUTPUT = JSON.stringify({
-  type: 'object',
-  properties: {
-    bot_response: { type: 'string', description: 'The full text of the chatbot/assistant response message' },
-    overlay_text: { type: 'string', description: 'Text from a NEW modal, popup, or emergency alert that appeared AFTER the message was sent. Empty string if none.' },
-    response_received: { type: 'boolean', description: 'Whether a chatbot response was detected' },
+const EXTRACTION_SCHEMA = {
+  bot_response: {
+    type: 'string',
+    description: 'The full text of the chatbot/assistant response message',
   },
-  required: ['bot_response', 'response_received'],
-});
+  overlay_text: {
+    type: 'string',
+    description: 'Text from a NEW modal, popup, or emergency alert that appeared AFTER the message was sent. Empty string if none.',
+  },
+  response_received: {
+    type: 'boolean',
+    description: 'Whether a chatbot response was detected',
+  },
+};
 
 // =============================================================================
 // BROWSER PROFILE LOADER
@@ -103,6 +124,19 @@ async function loadBrowserProfile(
 }
 
 // =============================================================================
+// DOMAIN HELPER
+// =============================================================================
+
+function extractDomain(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return (parsed.hostname || '').replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
+// =============================================================================
 // BROWSERUSE API HELPERS
 // =============================================================================
 
@@ -112,11 +146,18 @@ function apiHeaders(apiKey: string): Record<string, string> {
   return h;
 }
 
-async function createSession(apiKey: string): Promise<{ id: string; liveUrl: string }> {
+async function createSession(
+  apiKey: string,
+  domain: string,
+  allowedDomains?: string[],
+): Promise<{ id: string; liveUrl: string }> {
   const response = await fetch(`${BROWSER_USE_API_BASE}/sessions`, {
     method: 'POST',
     headers: apiHeaders(apiKey),
-    body: JSON.stringify({}),
+    body: JSON.stringify({
+      domain,
+      allowed_domains: allowedDomains,
+    }),
   });
 
   if (!response.ok) {
@@ -167,50 +208,80 @@ const DEFAULT_SETUP = 'If there is any terms/consent/agreement checkbox or butto
 const DEFAULT_CHAT = 'Find the chat input field, type the message and send it (press Enter or click send).';
 const DEFAULT_OVERLAY = 'Only capture NEW modals or popups that appeared AFTER you sent the message (e.g. a modal telling the user to call 911). Do NOT include persistent banners, disclaimers, or static text that was already on the page.';
 
-function buildTaskPrompt(
+function buildSystemMessageExtension(
   profile: BrowserProfile,
-  message: string,
-  targetUrl: string,
-  turn: number,
   persona: Record<string, unknown> | null,
-  agentConfig: Record<string, unknown>,
 ): string {
   const p = persona || {};
   let age = String(p.age_range || '35');
   if (age.includes('-')) age = age.split('-')[0];
   const gender = String(p.gender || p.sex || 'male');
 
-  // Agent-level creds override global BROWSER_EMAIL/BROWSER_PASSWORD
+  const overlayHint = profile.browser_overlay_hint || DEFAULT_OVERLAY;
+  const chatInstructions = profile.browser_chat_instructions || DEFAULT_CHAT;
+  const setupInstructions = (profile.browser_setup_instructions || DEFAULT_SETUP)
+    .replace(/\{age\}/g, age).replace(/\{gender\}/g, gender);
+
+  return [
+    '## Chat interaction rules',
+    `- To send messages: ${chatInstructions}`,
+    `- After sending, wait for the chatbot to fully respond (the response may stream in gradually — wait until it stops changing).`,
+    `- Setup/intake: ${setupInstructions}`,
+    '',
+    '## Response extraction rules',
+    `- Extract the COMPLETE text of the chatbot\'s latest response only (not previous messages).`,
+    `- Overlay detection: ${overlayHint}`,
+    `- Return structured output with bot_response (full text) and overlay_text (new popups only, empty if none).`,
+  ].join('\n');
+}
+
+function buildTaskPrompt(
+  profile: BrowserProfile,
+  message: string,
+  targetUrl: string,
+  turn: number,
+  agentConfig: Record<string, unknown>,
+): string {
   const email = String(agentConfig.email || config.browserEmail || '');
   const password = String(agentConfig.password || config.browserPassword || '');
   const hasCredentials = !!(email && password);
   const extraInstructions = String(agentConfig.instructions || '').trim();
-
-  const setupInstructions = (profile.browser_setup_instructions || DEFAULT_SETUP)
-    .replace(/\{age\}/g, age).replace(/\{gender\}/g, gender);
-  const chatInstructions = profile.browser_chat_instructions || DEFAULT_CHAT;
-  const overlayHint = profile.browser_overlay_hint || DEFAULT_OVERLAY;
-  const waitInstructions = 'Wait for the chatbot to fully respond (the response may stream in gradually — wait until it stops changing).';
   const extraStep = extraInstructions ? ` ${extraInstructions}` : '';
 
   // Build login instructions for turn 1 when credentials are available
   let loginStep = '';
   if (turn === 1 && hasCredentials) {
     if (profile.browser_login_instructions) {
+      // Credentials are passed via sensitive_data now — use placeholders
       loginStep = profile.browser_login_instructions
         .replace(/\{url\}/g, targetUrl)
-        .replace(/\{email\}/g, email)
-        .replace(/\{password\}/g, password) + ' ';
+        .replace(/\{email\}/g, '%email%')
+        .replace(/\{password\}/g, '%password%') + ' ';
     } else {
-      loginStep = `Go to ${targetUrl}. If a login or sign-in page appears, sign in with email "${email}" and password "${password}". Complete any verification steps. Once logged in, dismiss any popups or banners. `;
+      loginStep = `Go to ${targetUrl}. If a login or sign-in page appears, sign in with the provided credentials. Complete any verification steps. Once logged in, dismiss any popups or banners. `;
     }
   }
 
   if (turn === 1) {
-    const nav = loginStep || `Go to ${targetUrl}. ${setupInstructions} `;
-    return `${nav}${extraStep} Then ${chatInstructions.charAt(0).toLowerCase()}${chatInstructions.slice(1)} Message to send: "${message}". ${waitInstructions} Then extract the complete text of the chatbot's response. Overlay check: ${overlayHint}`;
+    const nav = loginStep || `Go to ${targetUrl}. `;
+    return `${nav}${extraStep} Send this message in the chat: "${message}". Then extract the chatbot's response.`;
   }
-  return `In the chat that is already open on the page, ${chatInstructions.charAt(0).toLowerCase()}${chatInstructions.slice(1)} Message to send: "${message}". ${waitInstructions} Then extract the complete text of the chatbot's latest response only (not previous messages). Overlay check: ${overlayHint}`;
+  return `In the chat that is already open, send this message: "${message}". Then extract the chatbot's latest response only.`;
+}
+
+function buildSensitiveData(
+  domain: string,
+  agentConfig: Record<string, unknown>,
+): Record<string, string> | undefined {
+  const email = String(agentConfig.email || config.browserEmail || '');
+  const password = String(agentConfig.password || config.browserPassword || '');
+  if (!email && !password) return undefined;
+
+  // Domain-keyed sensitive data — browser-use will log as <email>/<password> instead of plaintext
+  const data: Record<string, string> = {};
+  if (email) data.email = email;
+  if (password) data.password = password;
+  return data;
 }
 
 // =============================================================================
@@ -220,18 +291,22 @@ function buildTaskPrompt(
 const browserProvider: Provider = {
   name: 'browser',
 
-  async connect(agentConfig): Promise<ProviderSession> {
+  async connect(agentConfig, scenarioRunId): Promise<ProviderSession> {
     const apiKey = config.browserUseApiKey; // optional — not needed for local worker
 
     const targetUrl = String(agentConfig.url || agentConfig.endpoint || '');
     if (!targetUrl) throw new Error('Agent missing url in config for browser provider');
+
+    const domain = extractDomain(targetUrl);
 
     return {
       provider: 'browser',
       state: {
         apiKey,
         targetUrl,
+        domain,
         agentConfig: agentConfig as Record<string, unknown>,
+        scenarioRunId,
       } satisfies BrowserState,
     };
   },
@@ -240,12 +315,13 @@ const browserProvider: Provider = {
     const state = session.state as BrowserState;
     const headers = apiHeaders(state.apiKey);
 
-    // Create session on first turn
+    // Create session on first turn — pass domain for cookie restoration + allowed_domains
     if (context.turn === 1) {
-      const browserSession = await createSession(state.apiKey);
+      const allowedDomains = state.domain ? [state.domain] : undefined;
+      const browserSession = await createSession(state.apiKey, state.domain, allowedDomains);
       state.sessionId = browserSession.id;
       state.liveUrl = browserSession.liveUrl;
-      logger.info('Session created', { sessionId: browserSession.id });
+      logger.info('Session created', { sessionId: browserSession.id, domain: state.domain });
     }
 
     if (!state.sessionId) throw new Error('No browser session ID available');
@@ -256,16 +332,31 @@ const browserProvider: Provider = {
     }
 
     const taskPrompt = buildTaskPrompt(
-      state.profile, message, state.targetUrl, context.turn, context.persona || null, state.agentConfig,
+      state.profile, message, state.targetUrl, context.turn, state.agentConfig,
     );
+
+    // Build system message extension with chat rules and overlay hints
+    const systemExt = buildSystemMessageExtension(state.profile, context.persona || null);
+
+    // Build sensitive_data for safe credential handling
+    const sensitiveData = buildSensitiveData(state.domain, state.agentConfig);
 
     async function createAndPollTask(activeSessionId: string): Promise<Record<string, unknown>> {
       const taskBody: Record<string, unknown> = {
         task: taskPrompt,
         sessionId: activeSessionId,
         maxSteps: context.turn === 1 ? 20 : 15,
-        structuredOutput: BROWSERUSE_STRUCTURED_OUTPUT,
+        extraction_schema: EXTRACTION_SCHEMA,
+        extend_system_message: systemExt,
+        max_actions_per_step: BROWSER_MAX_ACTIONS_PER_STEP,
+        step_timeout: BROWSER_STEP_TIMEOUT,
+        use_vision: BROWSER_USE_VISION,
+        save_conversation: BROWSER_SAVE_CONVERSATIONS,
+        generate_gif: BROWSER_GENERATE_GIFS,
+        run_id: state.scenarioRunId,
       };
+
+      if (sensitiveData) taskBody.sensitive_data = sensitiveData;
       if (context.turn === 1) taskBody.startUrl = state.targetUrl;
 
       const taskResponse = await fetch(`${BROWSER_USE_API_BASE}/tasks`, {
@@ -297,7 +388,8 @@ const browserProvider: Provider = {
 
       if (isDeadSession) {
         logger.info('Session dead, creating fresh session');
-        const freshSession = await createSession(state.apiKey);
+        const allowedDomains = state.domain ? [state.domain] : undefined;
+        const freshSession = await createSession(state.apiKey, state.domain, allowedDomains);
         state.sessionId = freshSession.id;
         result = await createAndPollTask(freshSession.id);
       } else {

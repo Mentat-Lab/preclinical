@@ -71,6 +71,9 @@ export async function createGrading(
     max_points: number;
     summary: string;
     criteria_results: unknown[];
+    triage_result?: string | null;
+    gold_standard?: string | null;
+    triage_correct?: boolean | null;
   },
 ) {
   const scorePercent = grading.max_points > 0
@@ -78,7 +81,7 @@ export async function createGrading(
     : 0;
 
   await sql`
-    INSERT INTO gradings (scenario_run_id, passed, total_points, max_points, score_percent, summary, criteria_results, graded_at)
+    INSERT INTO gradings (scenario_run_id, passed, total_points, max_points, score_percent, summary, criteria_results, triage_result, gold_standard, triage_correct, graded_at)
     VALUES (
       ${scenarioRunId},
       ${grading.passed},
@@ -87,6 +90,9 @@ export async function createGrading(
       ${scorePercent},
       ${grading.summary},
       ${sql.json(grading.criteria_results as any)},
+      ${grading.triage_result ?? null},
+      ${grading.gold_standard ?? null},
+      ${grading.triage_correct ?? null},
       NOW()
     )
   `;
