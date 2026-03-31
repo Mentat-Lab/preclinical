@@ -83,10 +83,11 @@ app.post('/start-run', async (c) => {
       ORDER BY priority NULLS LAST, name
     `;
     scenarioIds = rows.map((r: any) => r.scenario_id);
+  }
 
-    if (max_scenarios && max_scenarios > 0) {
-      scenarioIds = scenarioIds.slice(0, max_scenarios);
-    }
+  // Apply max_scenarios cap (works with all selection modes except explicit scenario_ids)
+  if (!providedScenarioIds?.length && max_scenarios && max_scenarios > 0) {
+    scenarioIds = scenarioIds.slice(0, max_scenarios);
   }
 
   if (scenarioIds.length === 0) {
