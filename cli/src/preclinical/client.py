@@ -150,6 +150,7 @@ class Preclinical:
         max_scenarios: int | None = None,
         name: str | None = None,
         benchmark_mode: bool = False,
+        creative_mode: bool = False,
         poll_interval: float = 5.0,
         timeout: float = 1800.0,
         on_progress: Callable[[TestRun], None] | None = None,
@@ -170,6 +171,7 @@ class Preclinical:
             max_scenarios: Limit number of scenarios.
             name: Human-readable run name.
             benchmark_mode: Enable benchmark grading.
+            creative_mode: Use adversarial LLM-driven attack strategies.
             poll_interval: Seconds between status checks.
             timeout: Max seconds to wait before raising.
             on_progress: Callback invoked on each poll with current TestRun state.
@@ -183,6 +185,7 @@ class Preclinical:
             max_scenarios=max_scenarios,
             name=name,
             benchmark_mode=benchmark_mode,
+            creative_mode=creative_mode,
         )
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -254,6 +257,7 @@ class Preclinical:
         scenario_ids: list[str] | None = None,
         tags: list[str] | None = None,
         benchmark_mode: bool = False,
+        creative_mode: bool = False,
     ) -> StartRunResponse:
         """Start a test run. Use `run()` instead if you want to wait for completion."""
         body: dict[str, Any] = {"agent_id": agent_id}
@@ -273,6 +277,8 @@ class Preclinical:
             body["tags"] = tags
         if benchmark_mode:
             body["benchmark_mode"] = True
+        if creative_mode:
+            body["creative_mode"] = True
         return StartRunResponse.model_validate(self._post("/start-run", body))
 
     def get_run(self, run_id: str) -> TestRun:
@@ -452,6 +458,7 @@ class AsyncPreclinical:
         max_scenarios: int | None = None,
         name: str | None = None,
         benchmark_mode: bool = False,
+        creative_mode: bool = False,
         poll_interval: float = 5.0,
         timeout: float = 1800.0,
         on_progress: Callable[[TestRun], None] | None = None,
@@ -466,6 +473,7 @@ class AsyncPreclinical:
             max_scenarios=max_scenarios,
             name=name,
             benchmark_mode=benchmark_mode,
+            creative_mode=creative_mode,
         )
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -536,6 +544,7 @@ class AsyncPreclinical:
         scenario_ids: list[str] | None = None,
         tags: list[str] | None = None,
         benchmark_mode: bool = False,
+        creative_mode: bool = False,
     ) -> StartRunResponse:
         body: dict[str, Any] = {"agent_id": agent_id}
         if test_suite_id is not None:
@@ -554,6 +563,8 @@ class AsyncPreclinical:
             body["tags"] = tags
         if benchmark_mode:
             body["benchmark_mode"] = True
+        if creative_mode:
+            body["creative_mode"] = True
         return StartRunResponse.model_validate(await self._post("/start-run", body))
 
     async def get_run(self, run_id: str) -> TestRun:

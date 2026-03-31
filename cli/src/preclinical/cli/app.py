@@ -78,6 +78,7 @@ def start_run(
     concurrency: Annotated[Optional[int], typer.Option("--concurrency", help="Concurrency limit")] = None,
     max_scenarios: Annotated[Optional[int], typer.Option("--max-scenarios", help="Max scenarios to run")] = None,
     benchmark: Annotated[bool, typer.Option("--benchmark", help="Enable benchmark mode")] = False,
+    creative: Annotated[bool, typer.Option("--creative", help="Use adversarial LLM-driven attack strategies")] = False,
     watch: Annotated[bool, typer.Option("--watch", "-w", help="Watch run progress via SSE")] = False,
     output_json: Annotated[bool, typer.Option("--json", help="Output raw JSON")] = False,
 ) -> None:
@@ -97,6 +98,7 @@ def start_run(
             concurrency_limit=concurrency,
             max_scenarios=max_scenarios,
             benchmark_mode=benchmark,
+            creative_mode=creative,
         )
     except PreclinicalAPIError as e:
         error_console.print(f"[red]Error:[/red] {e.message}")

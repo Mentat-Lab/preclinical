@@ -37,6 +37,7 @@ class TestRun(BaseModel):
     error_count: int = 0
     pass_rate: float = 0.0
     benchmark_mode: bool = False
+    creative_mode: bool = False
     max_turns: int | None = None
     concurrency_limit: int | None = None
     started_at: datetime | None = None
