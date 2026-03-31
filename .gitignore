@@ -282,6 +282,11 @@ temp/
 # Claude Code
 .claude/
 
+# Agent skills (installed via npx skills add)
+.agents/
+skills-lock.json
+preclinical-skills/
+
 # Cursor
 .cursor/
 
