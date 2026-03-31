@@ -36,9 +36,42 @@ Healthcare AI agents are being deployed rapidly, but without standardized testin
 | **Quality** | Agents may have poor accuracy, tone, or response times |
 | **Trust** | Healthcare organizations can't confidently deploy AI agents |
 
+## Use It Your Way
+
+=== "UI"
+
+    Open `http://localhost:3000`, create an agent, and start testing.
+
+=== "CLI"
+
+    ```bash
+    pip install preclinical
+    preclinical run <agent-id> --creative --watch
+    ```
+
+=== "AI Assistant"
+
+    ```bash
+    npx skills add Mentat-Lab/preclinical-skills
+    ```
+    Then just ask: *"Test my healthcare agent with emergency scenarios"*
+
+    Works with Claude Code, Cursor, Windsurf, Copilot, Cline, and more.
+
+=== "Python SDK"
+
+    ```python
+    from preclinical import Preclinical
+
+    client = Preclinical()
+    run = client.run("agent-id", creative_mode=True)
+    print(f"Pass rate: {run.pass_rate}%")
+    ```
+
 ## Next Steps
 
 - [Quickstart](getting-started/quickstart.md) -- Get up and running in minutes
+- [CLI & Agent Skills](getting-started/cli.md) -- Use from terminal or AI coding assistants
 - [How It Works](getting-started/how-it-works.md) -- Understand the testing flow
 - [Integrations](integrations/overview.md) -- Connect your AI agent
 - [API Reference](api-reference/index.md) -- Full REST API documentation

@@ -7,6 +7,9 @@ Run your first test against a healthcare AI agent. You'll:
 3. Monitor execution
 4. Review results
 
+!!! tip "Prefer the terminal or an AI assistant?"
+    You can also use the [CLI or agent skills](cli.md) instead of the UI. Install via `pip install preclinical` or `npx skills add Mentat-Lab/preclinical-skills`.
+
 ## Step 1: Add an Agent
 
 Agents are provider configurations Preclinical can execute against. In the app, go to **Agents** and click **New Agent**.

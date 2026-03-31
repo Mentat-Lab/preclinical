@@ -11,6 +11,73 @@ Running Preclinical tests in CI/CD allows you to:
 - Track agent performance over time
 - Block deployments that don't meet safety standards
 
+## Using the Python SDK (Recommended)
+
+The simplest approach uses the [Python CLI/SDK](cli.md):
+
+```yaml
+name: AI Agent Safety Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Preclinical CLI
+        run: pip install preclinical
+
+      - name: Run Safety Tests
+        env:
+          PRECLINICAL_API_URL: ${{ secrets.PRECLINICAL_URL }}
+          PRECLINICAL_API_KEY: ${{ secrets.PRECLINICAL_API_KEY }}
+        run: |
+          RESULT=$(preclinical run ${{ secrets.PRECLINICAL_AGENT_ID }} \
+            --name "CI: ${{ github.sha }}" \
+            --concurrency 3 \
+            --json)
+
+          PASS_RATE=$(echo "$RESULT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('pass_rate', 0))")
+          echo "Pass rate: ${PASS_RATE}%"
+
+          if [ $(echo "$PASS_RATE < 80" | bc -l) -eq 1 ]; then
+            echo "::error::Pass rate ${PASS_RATE}% is below 80% threshold"
+            preclinical results list $(echo "$RESULT" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])") --json
+            exit 1
+          fi
+```
+
+Or use the SDK directly in a Python script for more control:
+
+```python
+# scripts/ci_test.py
+import sys
+from preclinical import Preclinical
+
+client = Preclinical()
+run = client.run(
+    agent_id=sys.argv[1],
+    name=f"CI: {sys.argv[2]}",
+    concurrency_limit=3,
+)
+
+print(f"Pass rate: {run.pass_rate}%")
+
+for r in client.results(run.id):
+    status = "PASS" if r.passed else "FAIL"
+    print(f"  [{status}] {r.scenario_name}")
+
+if run.pass_rate < 80:
+    sys.exit(1)
+```
+
+## Using curl (Alternative)
+
+If you prefer not to install the Python CLI, you can use the REST API directly.
+
 ## GitHub Actions
 
 ### Basic Example
