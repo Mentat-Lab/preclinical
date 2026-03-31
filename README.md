@@ -297,6 +297,21 @@ See [`.env.example`](.env.example) for full configuration.
 | UI components | shadcn/ui + Tailwind CSS |
 | LLM integration | LangChain (OpenAI, Anthropic, Ollama) |
 
+## CLI & Agent Skills
+
+### Python CLI / SDK
+```bash
+pip install preclinical
+preclinical run <agent-id> --creative --watch
+```
+
+### Agent Skills (Claude Code, Cursor, Windsurf, Copilot, Cline, and more)
+```bash
+npx skills add Mentat-Lab/preclinical-skills
+```
+
+Run tests, create scenarios, diagnose failures, and generate reports — all from your AI coding assistant. See [preclinical-skills](https://github.com/Mentat-Lab/preclinical-skills) for details.
+
 ## Monorepo Structure
 ```text
 preclinical/
@@ -304,6 +319,7 @@ preclinical/
 ├── .env.example
 ├── server/               # Hono API, workers, provider integrations
 ├── frontend/             # Vite + React UI
+├── cli/                  # Python CLI and SDK (PyPI: preclinical)
 ├── tests/                # API and E2E tests
 ├── target-agents/        # Local provider mock/target agents
 ├── services/             # Optional supporting services (e.g., BrowserUse)
