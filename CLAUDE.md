@@ -44,7 +44,7 @@ Model routing in `server/src/shared/llm-utils.ts`:
 PG LISTEN/NOTIFY → SSE (`GET /events?run_id=xxx`). Frontend uses EventSource to invalidate TanStack Query caches. No WebSockets.
 
 ### Turn Limits
-Configurable via env: `DEFAULT_MAX_TURNS=6`, `MIN_MAX_TURNS=5`, `MAX_MAX_TURNS=7`. Per-run override via `max_turns` in `POST /start-run` body (clamped to min/max).
+Hardcoded to 11 turns for the paper protocol: 10 conversational turns + 1 final triage question. On the 11th turn, the tester sends a fixed triage question asking the agent to choose between Emergency care, Clinician evaluation, or Home care.
 
 ## Key Directories
 

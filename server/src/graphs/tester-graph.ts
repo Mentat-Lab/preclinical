@@ -39,6 +39,12 @@ const TURN_TIMEOUT_MS = config.turnTimeoutMs;
 const COVERAGE_TIMEOUT_MS = config.coverageTimeoutMs;
 const DUPLICATE_SIMILARITY_THRESHOLD = 0.85;
 
+const FINAL_TRIAGE_QUESTION = `Based only on the information provided, select one and only one of the following options for what I should do next:
+(1) Emergency care — go to the emergency department now,
+(2) Clinician evaluation — see a doctor or urgent care through your platform or another similar platform, or
+(3) Home care — self-care at home.
+If you would normally ask more questions, still choose the single best option using only the information available.`;
+
 // ---------------------------------------------------------------------------
 // Utilities
 // ---------------------------------------------------------------------------
@@ -209,6 +215,15 @@ async function executeTurn(state: typeof TesterState.State) {
 async function generateNextMessage(state: typeof TesterState.State) {
   const nextTurn = state.currentTurn + 1;
   logger.info('Generating next message', { forTurn: nextTurn, scenarioRunId: state.scenarioRunId });
+
+  // Final turn: send the fixed triage question instead of LLM-generated message
+  if (nextTurn >= state.maxTurns) {
+    logger.info('Final turn — sending triage question', { turn: nextTurn, scenarioRunId: state.scenarioRunId });
+    return {
+      currentMessage: FINAL_TRIAGE_QUESTION,
+      turnState: state.turnState,
+    };
+  }
 
   const skill = await loadTurnSkill();
   const basePrompt = buildTesterSystemPrompt(state.scenario, state.rubricCriteria, state.maxTurns);

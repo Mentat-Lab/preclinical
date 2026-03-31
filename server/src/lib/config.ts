@@ -20,10 +20,10 @@ export const config = {
   browserEmail: process.env.BROWSER_EMAIL || '',
   browserPassword: process.env.BROWSER_PASSWORD || '',
 
-  // Turn limits
-  defaultMaxTurns: parseInt(process.env.DEFAULT_MAX_TURNS || '6', 10),
-  minMaxTurns: parseInt(process.env.MIN_MAX_TURNS || '5', 10),
-  maxMaxTurns: parseInt(process.env.MAX_MAX_TURNS || '7', 10),
+  // Turn limits (paper protocol: 10 conversational turns + 1 final triage question = 11)
+  defaultMaxTurns: 11,
+  minMaxTurns: 11,
+  maxMaxTurns: 11,
 
   // Graph timeouts (ms)
   planningTimeoutMs: parseInt(process.env.PLANNING_TIMEOUT_MS || '60000', 10),
