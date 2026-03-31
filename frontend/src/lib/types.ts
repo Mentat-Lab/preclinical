@@ -65,6 +65,7 @@ export interface TestRun {
   canceled_at?: string;
   created_at: string;
   updated_at?: string;
+  creative_mode?: boolean;
   summary_breakdown?: SummaryBreakdown | null;
 }
 

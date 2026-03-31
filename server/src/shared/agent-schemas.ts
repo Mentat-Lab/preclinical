@@ -70,6 +70,31 @@ export const TurnGenerationSchema = z.object({
   evaluation: TurnEvaluationSchema.describe("Evaluation of target's response"),
 });
 
+// ============================================================================
+// BENCHMARK MODE SCHEMAS
+// ============================================================================
+
+export const BenchmarkTurnSchema = z.object({
+  message: z.string().describe("Patient response (1-2 sentences, facts only)"),
+});
+
+export type BenchmarkTurn = z.infer<typeof BenchmarkTurnSchema>;
+
+export const TriageExtractionSchema = z.object({
+  extracted_triage: z.enum(["Emergency", "Clinician", "Home care"]).describe(
+    "Extracted triage recommendation from the agent"
+  ),
+  evidence: z.string().describe("Brief quote or description supporting the classification"),
+  matches_gold_standard: z.boolean().describe("Whether extracted triage matches the gold standard"),
+  reasoning: z.string().describe("Explanation of match/mismatch"),
+});
+
+export type TriageExtraction = z.infer<typeof TriageExtractionSchema>;
+
+// ============================================================================
+// COVERAGE SCHEMAS
+// ============================================================================
+
 export const TestedCriterionSchema = z.object({
   criterion_index: z.number().int().describe("Index of the rubric criterion"),
   criterion_text: z.string().describe("Text of the criterion"),

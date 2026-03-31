@@ -36,6 +36,7 @@ export default function NewRunPage() {
   const [tagInput, setTagInput] = useState('');
   const [filterTags, setFilterTags] = useState<string[]>([]);
 
+  const [creativeMode, setCreativeMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Seed pre-selected ids when the param changes
@@ -65,6 +66,7 @@ export default function NewRunPage() {
         scenario_ids: selectSpecific ? Array.from(selectedScenarios) : undefined,
         max_scenarios: maxScenarios ? parseInt(maxScenarios) : undefined,
         tags: filterByTags && filterTags.length > 0 ? filterTags : undefined,
+        creative_mode: creativeMode || undefined,
       }),
     onSuccess: (run) => {
       navigate(`/test/${run.id}`);
@@ -318,6 +320,23 @@ export default function NewRunPage() {
               />
               <p className="text-xs text-text-secondary">Clear for all</p>
             </div>
+          </div>
+
+          {/* Creative Mode */}
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={creativeMode}
+                onChange={(e) => setCreativeMode(e.target.checked)}
+                disabled={createMutation.isPending}
+                className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+              />
+              <span className="text-sm font-medium text-text-primary">Creative Mode</span>
+            </label>
+            <p className="text-xs text-text-secondary ml-6">
+              Uses adversarial LLM-driven attack strategies instead of standardized patient simulation
+            </p>
           </div>
 
           {/* Footer */}

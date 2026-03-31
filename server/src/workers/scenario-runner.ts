@@ -144,6 +144,13 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
     const rubricCriteria = (scenario.rubric_criteria || []) as Array<Record<string, unknown>>;
     const maxTurns = clampMaxTurns(data.max_turns);
 
+    // Creative mode field
+    const creativeMode = !!data.creative_mode;
+    const scenarioContent = (scenario.content || {}) as Record<string, unknown>;
+    const initialMessage = String(scenarioContent.initial_message || '');
+    const clinicalFacts = String(scenarioContent.clinical_facts || '');
+    const goldStandard = String(scenarioContent.gold_standard || '');
+
     await emitEvent(test_run_id, 'scenario_started', {
       scenario_run_id,
       scenario_id,
@@ -172,6 +179,9 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
         testRunId: test_run_id,
         scenarioRunId: scenario_run_id,
         agentType: agent_type,
+        creativeMode,
+        initialMessage,
+        clinicalFacts,
         attackPlan: null,
         transcript: [],
         turnState: createEmptyTurnState(),
@@ -221,6 +231,9 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
       scenarioRunId: scenario_run_id,
       testRunId: test_run_id,
       scenarioId: scenario_id,
+      creativeMode,
+      goldStandard,
+      triageResult: null,
       rawGradingResult: null,
       criteriaResults: [],
       totalPoints: 0,

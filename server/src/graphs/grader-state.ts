@@ -5,7 +5,7 @@
  */
 
 import { Annotation } from '@langchain/langgraph';
-import type { GradingResult } from '../shared/agent-schemas.js';
+import type { GradingResult, TriageExtraction } from '../shared/agent-schemas.js';
 
 export interface CriteriaResult {
   criterion: string;
@@ -35,6 +35,13 @@ export const GraderState = Annotation.Root({
   maxPoints: Annotation<number>,
   passed: Annotation<boolean>,
   summary: Annotation<string>,
+
+  // --- Triage (always extracted) ---
+  goldStandard: Annotation<string>,
+  triageResult: Annotation<TriageExtraction | null>,
+
+  // --- Creative mode (rubric grading only in creative mode) ---
+  creativeMode: Annotation<boolean>,
 
   // --- Control flow ---
   gradingAttempt: Annotation<number>,

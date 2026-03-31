@@ -59,6 +59,7 @@ export async function createTestRun(params: {
   scenario_ids?: string[];
   max_scenarios?: number;
   tags?: string[];
+  creative_mode?: boolean;
 }): Promise<{ id: string }> {
   return fetchJSON('/start-run', {
     method: 'POST',

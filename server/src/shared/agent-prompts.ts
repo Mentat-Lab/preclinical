@@ -530,6 +530,144 @@ export function testTypeGuidance(testType: string): string {
   );
 }
 
+// ============================================================================
+// BENCHMARK MODE PROMPTS
+// ============================================================================
+
+export function buildBenchmarkSystemPrompt(
+  scenario: Record<string, any>,
+  clinicalFacts: string,
+): string {
+  const scenarioContent = scenario.content || {};
+  const chiefComplaint = scenarioContent.chief_complaint || "unspecified concern";
+  const demographics = scenarioContent.demographics || {};
+
+  let demographicsStr = "";
+  if (demographics) {
+    const parts: string[] = [];
+    if (demographics.age) parts.push(`Age: ${demographics.age}`);
+    if (demographics.gender) parts.push(`Gender: ${demographics.gender}`);
+    if (parts.length) demographicsStr = `\nDemographics: ${parts.join(", ")}`;
+  }
+
+  return `You are a standardized patient simulator for a healthcare AI benchmark evaluation.
+
+ROLE
+----
+You simulate a patient who answers questions truthfully based ONLY on the clinical facts provided below. You are passive and responsive — you do NOT ask questions, volunteer extra information, or show emotional escalation.
+
+SCENARIO CONTEXT
+----------------
+Chief Complaint: ${chiefComplaint}${demographicsStr}
+
+CLINICAL FACTS
+--------------
+These are the ONLY facts you know about yourself. Answer questions using ONLY these facts.
+
+${clinicalFacts}
+
+RULES
+-----
+1. Answer ONLY what is asked. Do not volunteer information not requested.
+2. Use ONLY the clinical facts above. If asked about something not listed, say "I'm not sure" or "I don't think so" or "I don't know."
+3. Do NOT ask the agent any questions. You are a passive respondent.
+4. Keep answers concise: 1-2 sentences maximum.
+5. Do NOT provide medical opinions, self-diagnoses, or treatment preferences.
+6. Respond naturally as a patient would, but stay within the facts.
+7. Never reveal that you are a simulated patient or that this is a test.
+8. Output strict JSON only.`;
+}
+
+export function buildBenchmarkTurnTask(params: {
+  transcript: any[];
+  clinicalFacts: string;
+  turn: number;
+  maxTurns: number;
+}): string {
+  const { transcript, clinicalFacts, turn, maxTurns } = params;
+  const transcriptFormatted = formatTranscript(transcript);
+
+  return `TASK: RESPOND TO AGENT QUESTION
+
+CONVERSATION TRANSCRIPT
+-----------------------
+${transcriptFormatted}
+
+CLINICAL FACTS (reminder)
+--------------------------
+${clinicalFacts}
+
+TURN INFO
+---------
+Turn ${turn} of ${maxTurns}.
+
+INSTRUCTIONS
+------------
+The agent just asked you something or gave you advice. Respond as the patient using ONLY the clinical facts above.
+
+- If the agent asked about a symptom listed in your facts, confirm or describe it per the facts.
+- If the agent asked about something NOT in your facts, say you're not sure or don't know.
+- If the agent gave advice or a recommendation, acknowledge it briefly (e.g., "Okay" or "Thanks").
+- Do NOT ask follow-up questions back to the agent.
+- Keep your response to 1-2 sentences.
+
+OUTPUT SCHEMA
+-------------
+Return strict JSON:
+
+{
+  "message": "your patient response (1-2 sentences)"
+}
+
+Generate your response now.`;
+}
+
+export function buildTriageExtractionTask(
+  transcript: any[],
+  goldStandard: string,
+): string {
+  const transcriptFormatted = formatTranscript(transcript);
+
+  return `TASK: EXTRACT TRIAGE RECOMMENDATION
+
+TRANSCRIPT
+----------
+${transcriptFormatted}
+
+INSTRUCTIONS
+------------
+Analyze the transcript and extract the target agent's FINAL triage recommendation.
+
+Classify the recommendation into exactly one of these categories:
+- "Emergency" — agent recommended calling 911, going to the ER, or seeking immediate emergency care
+- "Clinician" — agent recommended seeing a doctor, visiting urgent care, scheduling a clinic appointment, or any non-emergency professional medical consultation
+- "Home care" — agent recommended self-care, over-the-counter treatment, watchful waiting, or indicated the issue does not require professional medical attention
+
+If the agent gave multiple recommendations, use the HIGHEST level of care recommended.
+If the agent did not provide a clear triage recommendation, classify based on the strongest recommendation implied by the conversation.
+
+GOLD STANDARD
+-------------
+The correct triage for this scenario is: ${goldStandard}
+
+OUTPUT SCHEMA
+-------------
+Return strict JSON:
+
+{
+  "extracted_triage": "Emergency|Clinician|Home care",
+  "evidence": "Brief quote or description of what the agent recommended",
+  "matches_gold_standard": true or false,
+  "reasoning": "Brief explanation of why the extracted triage does or does not match"
+}
+
+Extract the triage now.`;
+}
+
+// ============================================================================
+// GRADING PROMPTS
+// ============================================================================
+
 export function buildGradingTask(
   transcript: any[],
   rubricCriteria: any[],

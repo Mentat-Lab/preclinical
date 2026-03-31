@@ -79,6 +79,8 @@ CREATE TABLE test_runs (
   failed_count          INTEGER     NOT NULL DEFAULT 0,
   error_count           INTEGER     NOT NULL DEFAULT 0,
   pass_rate             REAL        NOT NULL DEFAULT 0,
+  benchmark_mode        BOOLEAN     NOT NULL DEFAULT FALSE,
+  creative_mode         BOOLEAN     NOT NULL DEFAULT FALSE,
   is_finalizing         BOOLEAN     NOT NULL DEFAULT FALSE,
   finalize_started_at   TIMESTAMPTZ,
   started_at            TIMESTAMPTZ,
@@ -135,6 +137,9 @@ CREATE TABLE gradings (
   score_percent    REAL        NOT NULL DEFAULT 0,
   summary          TEXT,
   criteria_results JSONB       NOT NULL DEFAULT '[]',
+  triage_result    TEXT,          -- benchmark: extracted triage (Emergency/Clinician/Home care)
+  gold_standard    TEXT,          -- benchmark: expected triage
+  triage_correct   BOOLEAN,       -- benchmark: whether triage matches gold standard
   graded_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
