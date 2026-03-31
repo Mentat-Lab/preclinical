@@ -6,7 +6,7 @@ import { useScenarioRuns, useTestRun, queryKeys } from '@/hooks/use-queries';
 import { useRealtimeRun } from '@/lib/sse';
 import * as api from '@/lib/api';
 import { cn } from '@/lib/utils';
-import type { CriteriaResult, ScenarioRunResult, TestRun, TranscriptEntry } from '@/lib/types';
+import type { ScenarioRunResult, TestRun } from '@/lib/types';
 
 type StatusFilter = 'all' | 'pass' | 'fail' | 'error' | 'pending' | 'canceled';
 type DisplayStatus = 'pass' | 'fail' | 'error' | 'pending' | 'canceled';
@@ -74,38 +74,6 @@ function Skeleton({ className }: { className?: string }) {
   return <div className={cn('animate-pulse rounded bg-border', className)} />;
 }
 
-function parseJsonArray<T>(value: unknown): T[] {
-  if (Array.isArray(value)) return value as T[];
-  if (typeof value === 'string') {
-    try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed as T[] : [];
-    } catch {
-      return [];
-    }
-  }
-  return [];
-}
-
-function toCriteriaSummary(criteria: CriteriaResult[]): string {
-  return criteria
-    .map((item) => `${item.criterion || item.name || 'Criterion'}:${item.decision || (item.passed ? 'MET' : 'NOT MET')}`)
-    .join(' | ');
-}
-
-function toTranscriptSummary(transcript: TranscriptEntry[]): string {
-  return transcript
-    .map((entry) => `T${entry.turn}-${entry.role}:${entry.content}`)
-    .join(' || ');
-}
-
-function escapeCsv(value: unknown): string {
-  const stringValue = value == null ? '' : String(value);
-  if (/[",\n]/.test(stringValue)) {
-    return `"${stringValue.replace(/"/g, '""')}"`;
-  }
-  return stringValue;
-}
 
 export default function TestRunPage() {
   const { id } = useParams<{ id: string }>();
@@ -195,62 +163,13 @@ export default function TestRunPage() {
 
   const exportCsv = () => {
     if (!run) return;
-
-    const headers = [
-      'run_id',
-      'test_run_id',
-      'agent_id',
-      'agent_name',
-      'agent_type',
-      'scenario_run_id',
-      'scenario_id',
-      'scenario_name',
-      'status',
-      'passed',
-      'duration_ms',
-      'error_code',
-      'error_message',
-      'grade_summary',
-      'criteria_summary',
-      'transcript_turns',
-      'transcript',
-    ];
-
-    const rows = allResults.map((result) => {
-      const criteria = parseJsonArray<CriteriaResult>(result.criteria_results);
-      const transcript = parseJsonArray<TranscriptEntry>(result.transcript);
-
-      return [
-        run.id,
-        run.test_run_id,
-        run.agent_id,
-        run.agent_name || '',
-        run.agent_type,
-        result.id,
-        result.scenario_id,
-        result.scenario_name || '',
-        result.status,
-        result.passed == null ? '' : String(result.passed),
-        result.duration_ms ?? '',
-        result.error_code || '',
-        result.error_message || '',
-        result.grade_summary || '',
-        toCriteriaSummary(criteria),
-        transcript.length,
-        toTranscriptSummary(transcript),
-      ].map(escapeCsv).join(',');
-    });
-
-    const csv = [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
+    const apiBase = import.meta.env.VITE_API_URL || '';
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `test-run-${run.id}.csv`;
+    a.href = `${apiBase}/api/v1/tests/${id}/export-csv`;
+    a.download = '';
     document.body.appendChild(a);
     a.click();
     a.remove();
-    URL.revokeObjectURL(url);
   };
 
   const share = async () => {
