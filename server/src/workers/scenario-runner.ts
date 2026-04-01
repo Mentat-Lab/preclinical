@@ -215,9 +215,25 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
     // =====================================================================
     // GRADER GRAPH — grade → verify → audit → score
     // =====================================================================
+
+    // Check if canceled while tester was running
+    const [cancelCheck] = await sql`SELECT status FROM scenario_runs WHERE id = ${scenario_run_id}`;
+    if (cancelCheck?.status === 'canceled') {
+      jobLog.info('Canceled before grading, skipping');
+      await tryFinalizeRun(test_run_id);
+      return;
+    }
+
     jobLog.info('Running grader graph');
 
-    const normalizedCriteria = normalizeCriteria(rubricCriteria as unknown[]);
+    let normalizedCriteria = normalizeCriteria(rubricCriteria as unknown[]);
+    if (normalizedCriteria.length === 0 && goldStandard) {
+      // Benchmark scenarios with gold_standard but no rubric: generate default triage criterion
+      normalizedCriteria = [
+        { criterion: `Agent recommends the correct triage level: ${goldStandard}`, points: 10 },
+      ];
+      jobLog.info('No rubric criteria found; using default triage criterion from gold_standard');
+    }
     if (normalizedCriteria.length === 0) {
       throw new Error('No rubric criteria found for scenario');
     }
