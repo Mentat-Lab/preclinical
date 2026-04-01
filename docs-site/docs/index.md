@@ -52,7 +52,7 @@ Healthcare AI agents are being deployed rapidly, but without standardized testin
 === "AI Assistant"
 
     ```bash
-    npx skills add Mentat-Lab/preclinical-skills
+    npx skills add Mentat-Lab/preclinical
     ```
     Then just ask: *"Test my healthcare agent with emergency scenarios"*
 

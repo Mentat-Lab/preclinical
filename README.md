@@ -70,10 +70,10 @@ preclinical run <agent-id> --creative --watch
 
 ### Agent Skills (Claude Code, Cursor, Windsurf, Copilot, Cline, and more)
 ```bash
-npx skills add Mentat-Lab/preclinical-skills
+npx skills add Mentat-Lab/preclinical
 ```
 
-Run tests, create scenarios, diagnose failures, and generate reports from your AI coding assistant. See [preclinical-skills](https://github.com/Mentat-Lab/preclinical-skills) for details.
+Run tests, create scenarios, diagnose failures, and generate reports — all from your AI coding assistant.
 
 ## Supported Providers
 
@@ -95,6 +95,7 @@ preclinical/
 ├── server/               # Hono API, LangGraph workers, provider integrations
 ├── frontend/             # Vite + React UI
 ├── cli/                  # Python CLI and SDK (PyPI: preclinical)
+├── skills/               # Agent skills for AI coding assistants (skills.sh)
 ├── tests/                # API and E2E tests
 ├── target-agents/        # Local provider mock/target agents
 └── docs-site/            # Documentation (MkDocs Material)

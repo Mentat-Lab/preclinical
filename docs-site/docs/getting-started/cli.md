@@ -176,7 +176,7 @@ Agent skills let you use Preclinical directly from AI coding assistants — no c
 ### Install
 
 ```bash
-npx skills add Mentat-Lab/preclinical-skills
+npx skills add Mentat-Lab/preclinical
 ```
 
 Works with **Claude Code, Cursor, Windsurf, GitHub Copilot, Cline**, and [20+ other AI agents](https://skills.sh).
@@ -238,4 +238,4 @@ The skills handle CLI installation, agent selection, configuration, and result i
 
 Skills include reference docs on clinical categories, adversarial attack vectors, rubric design, and failure taxonomy — making the AI assistant an expert at healthcare safety testing.
 
-See the [preclinical-skills repo](https://github.com/Mentat-Lab/preclinical-skills) for full details.
+See the [`skills/` directory](https://github.com/Mentat-Lab/preclinical/tree/main/skills) for full details.
