@@ -228,9 +228,6 @@ class Preclinical:
     def cancel_run(self, test_run_id: str) -> dict[str, Any]:
         return self._post("/cancel-run", {"test_run_id": test_run_id})
 
-    def finalize_run(self, test_run_id: str) -> dict[str, Any]:
-        return self._post("/finalize-run", {"test_run_id": test_run_id})
-
     def delete_run(self, run_id: str) -> None:
         self._delete(f"/api/v1/tests/{run_id}")
 
@@ -470,9 +467,6 @@ class AsyncPreclinical:
 
     async def cancel_run(self, test_run_id: str) -> dict[str, Any]:
         return await self._post("/cancel-run", {"test_run_id": test_run_id})
-
-    async def finalize_run(self, test_run_id: str) -> dict[str, Any]:
-        return await self._post("/finalize-run", {"test_run_id": test_run_id})
 
     async def delete_run(self, run_id: str) -> None:
         await self._delete(f"/api/v1/tests/{run_id}")

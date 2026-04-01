@@ -105,13 +105,6 @@ class TestRuns:
         result = client.cancel_run("run-uuid-001")
         assert result["status"] == "canceled"
 
-    def test_finalize_run(self, client: Preclinical, mock_transport: MockTransport) -> None:
-        mock_transport.add_response("POST", "/finalize-run", 200, {
-            "status": "completed", "passed_count": 8, "failed_count": 1, "error_count": 1, "pass_rate": 80.0,
-        })
-        result = client.finalize_run("run-uuid-001")
-        assert result["status"] == "completed"
-
     def test_list_runs(self, client: Preclinical, mock_transport: MockTransport) -> None:
         mock_transport.add_response("GET", "/api/v1/tests", 200, {"runs": [SAMPLE_RUN], "total": 1})
         result = client.list_runs(limit=10)

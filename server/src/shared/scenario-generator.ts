@@ -217,7 +217,7 @@ async function insertScenario(
       ${sql.json(generated.rubric_criteria)},
       ${tags},
       ${true},
-      ${true}
+      ${false}
     )
     RETURNING *
   `;
