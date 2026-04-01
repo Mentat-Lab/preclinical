@@ -18,7 +18,7 @@ export function addSSEClient(runId: string, controller: ReadableStreamDefaultCon
   };
 }
 
-export function broadcastToRun(runId: string, data: Record<string, unknown>) {
+function broadcastToRun(runId: string, data: Record<string, unknown>) {
   const message = `data: ${JSON.stringify(data)}\n\n`;
   const encoder = new TextEncoder();
 

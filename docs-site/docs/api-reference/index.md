@@ -4,7 +4,7 @@ The Preclinical API enables programmatic access to test execution and results.
 
 ## Base URL
 
-Most endpoints are under `/api/v1`. Some operational endpoints (`/start-run`, `/cancel-run`, `/finalize-run`) are at the root.
+Most endpoints are under `/api/v1`. Some operational endpoints (`/start-run`, `/cancel-run`) are at the root.
 
 ```
 http://localhost:3000
@@ -27,7 +27,6 @@ The self-hosted version has no authentication by default. All endpoints are open
 | `GET` | `/api/v1/tests` | [List all tests](list-tests.md) |
 | `GET` | `/api/v1/tests/{id}` | [Get test status and summary](get-test.md) |
 | `POST` | `/cancel-run` | [Cancel an in-progress test](cancel-test.md) |
-| `POST` | `/finalize-run` | [Finalize a test run](finalize-run.md) |
 
 ### Scenario Runs
 

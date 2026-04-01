@@ -242,6 +242,7 @@ class TestRunCommand:
             concurrency_limit=3,
             max_scenarios=None,
             benchmark_mode=False,
+            creative_mode=False,
         )
 
     @patch("preclinical.cli.app.get_client")

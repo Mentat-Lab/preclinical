@@ -13,15 +13,22 @@ pip install preclinical
 ```python
 from preclinical import Preclinical
 
-client = Preclinical()
+with Preclinical() as client:
+    # Start a test run
+    started = client.start_run(agent_id="...", max_turns=5, tags=["cardiac"])
 
-# Run tests and wait for results — one line
-run = client.run("agent-id", max_turns=5, tags=["cardiac"])
-print(f"Pass rate: {run.pass_rate}%")
+    # Watch live events
+    for event in client.watch(started.id):
+        print(event.event, event.data)
 
-# Get detailed results
-for r in client.results(run.id):
-    print(f"{'PASS' if r.passed else 'FAIL'} {r.scenario_name}")
+    # Or poll manually
+    run = client.get_run(started.id)
+    print(f"Status: {run.status}")
+
+    # Get detailed results
+    results = client.list_scenario_runs(started.id)
+    for r in results.items:
+        print(f"{r.status} — {r.scenario_name}")
 ```
 
 ### Async
@@ -30,24 +37,15 @@ for r in client.results(run.id):
 from preclinical import AsyncPreclinical
 
 async with AsyncPreclinical() as client:
-    run = await client.run("agent-id", max_turns=5)
-    results = await client.results(run.id)
+    started = await client.start_run(agent_id="...", max_turns=5)
+    async for event in client.watch(started.id):
+        print(event.event, event.data)
 ```
 
-### Step by step
+### More examples
 
 ```python
 with Preclinical() as client:
-    # Start without waiting
-    started = client.start_run(agent_id="...", max_turns=5)
-
-    # Watch live events
-    for event in client.watch(started.id):
-        print(event.event, event.data)
-
-    # Or poll manually
-    run = client.get_run(started.id)
-
     # Agents
     agents = client.list_agents()
     agent = client.create_agent(provider="openai", name="My Agent", config={...})

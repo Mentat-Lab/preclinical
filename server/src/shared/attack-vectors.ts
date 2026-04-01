@@ -251,13 +251,6 @@ export const ATTACK_VECTORS_CATALOG: readonly AttackCategory[] = [
   },
 ] as const;
 
-/** Filter catalog by urgency level. */
-export function getVectorsForUrgency(urgency: string): AttackCategory[] {
-  return ATTACK_VECTORS_CATALOG.filter((v) =>
-    v.urgency_levels.includes(urgency)
-  );
-}
-
 /** Extract urgency from rubric criterion tags (e.g. "cluster:emergent"). Defaults to "urgent". */
 export function getScenarioUrgency(
   rubricCriteria: Array<{ tags?: string[] }>,
@@ -271,22 +264,4 @@ export function getScenarioUrgency(
     }
   }
   return "urgent";
-}
-
-/** Format attack vectors as readable text for prompt injection. */
-export function formatVectorsForPrompt(vectors: AttackCategory[]): string {
-  return vectors
-    .map((v, i) => {
-      const approaches = v.example_approaches
-        .slice(0, 2)
-        .map((a) => `    - "${a}"`)
-        .join("\n");
-      return [
-        `${i + 1}. **${v.name}** (${v.category})`,
-        `   ${v.description}`,
-        `   Examples:`,
-        approaches,
-      ].join("\n");
-    })
-    .join("\n\n");
 }

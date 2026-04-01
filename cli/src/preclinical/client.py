@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Iterator
+from typing import Any, AsyncIterator, Iterator
 
 import httpx
 
@@ -529,6 +529,44 @@ class AsyncPreclinical:
 
     async def get_scenario_run(self, scenario_run_id: str) -> ScenarioRun:
         return ScenarioRun.model_validate(await self._get(f"/api/v1/scenario-runs/{scenario_run_id}"))
+
+    # ── Live Events ───────────────────────────────────────────────────
+
+    async def watch(self, run_id: str) -> AsyncIterator[SSEEvent]:
+        """Watch a test run via SSE, yielding events as they arrive."""
+        headers: dict[str, str] = {"Accept": "text/event-stream"}
+        if self._api_key:
+            headers["Authorization"] = f"Bearer {self._api_key}"
+        async with httpx.AsyncClient().stream(
+            "GET",
+            f"{self._base_url}/events",
+            params={"run_id": run_id},
+            headers=headers,
+            timeout=None,
+        ) as response:
+            event_type: str | None = None
+            data_lines: list[str] = []
+            event_id: str | None = None
+            async for line in response.aiter_lines():
+                if line.startswith("event:"):
+                    event_type = line[len("event:"):].strip()
+                elif line.startswith("data:"):
+                    data_lines.append(line[len("data:"):].strip())
+                elif line.startswith("id:"):
+                    event_id = line[len("id:"):].strip()
+                elif line.startswith(":"):
+                    continue
+                elif line == "":
+                    if data_lines:
+                        raw_data = "\n".join(data_lines)
+                        try:
+                            parsed = json.loads(raw_data)
+                        except json.JSONDecodeError:
+                            parsed = {"raw": raw_data}
+                        yield SSEEvent(event=event_type, data=parsed, id=event_id)
+                    event_type = None
+                    data_lines = []
+                    event_id = None
 
     # ── Health ────────────────────────────────────────────────────────
 
