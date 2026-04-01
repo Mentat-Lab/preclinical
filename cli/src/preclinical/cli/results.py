@@ -17,12 +17,6 @@ from preclinical.exceptions import PreclinicalAPIError
 app = typer.Typer(name="results", help="View scenario run results.")
 
 
-def _get_client() -> "Preclinical":
-    from preclinical.cli.app import get_client
-
-    return get_client()
-
-
 @app.command("list")
 def list_results(
     run_id: Annotated[str, typer.Argument(help="Test run ID to list results for")],
@@ -31,7 +25,8 @@ def list_results(
     output_json: Annotated[bool, typer.Option("--json", help="Output raw JSON")] = False,
 ) -> None:
     """List scenario run results for a test run."""
-    client = _get_client()
+    from preclinical.cli.app import get_client
+    client = get_client()
     try:
         result = client.list_scenario_runs(test_run_id=run_id, limit=limit, offset=offset)
     except PreclinicalAPIError as e:
@@ -50,7 +45,8 @@ def get_result(
     output_json: Annotated[bool, typer.Option("--json", help="Output raw JSON")] = False,
 ) -> None:
     """Get detailed results for a single scenario run."""
-    client = _get_client()
+    from preclinical.cli.app import get_client
+    client = get_client()
     try:
         sr = client.get_scenario_run(scenario_run_id)
     except PreclinicalAPIError as e:

@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
-import time
-from typing import Any, Callable, Iterator
+from typing import Any, Iterator
 
 import httpx
 
@@ -98,11 +96,6 @@ class Preclinical:
 
         client = Preclinical()
 
-        # One-liner: run tests and get results
-        run = client.run("agent-id", max_turns=5)
-        print(f"Pass rate: {run.pass_rate}%")
-
-        # Or step by step
         started = client.start_run(agent_id="...")
         for event in client.watch(started.id):
             print(event)
@@ -136,71 +129,6 @@ class Preclinical:
 
     def _delete(self, path: str) -> Any:
         return _handle_response(self._client.delete(path))
-
-    # ── The main thing: run tests ────────────────────────────────────
-
-    def run(
-        self,
-        agent_id: str,
-        *,
-        max_turns: int | None = None,
-        tags: list[str] | None = None,
-        scenario_ids: list[str] | None = None,
-        concurrency_limit: int | None = None,
-        max_scenarios: int | None = None,
-        name: str | None = None,
-        benchmark_mode: bool = False,
-        creative_mode: bool = False,
-        poll_interval: float = 5.0,
-        timeout: float = 1800.0,
-        on_progress: Callable[[TestRun], None] | None = None,
-    ) -> TestRun:
-        """Start a test run, wait for it to complete, and return the result.
-
-        This is the simplest way to run tests::
-
-            run = client.run("agent-id", max_turns=5)
-            print(f"Pass rate: {run.pass_rate}%")
-
-        Args:
-            agent_id: Agent to test.
-            max_turns: Max conversation turns per scenario.
-            tags: Filter scenarios by tags.
-            scenario_ids: Run specific scenarios only.
-            concurrency_limit: Max parallel scenarios.
-            max_scenarios: Limit number of scenarios.
-            name: Human-readable run name.
-            benchmark_mode: Enable benchmark grading.
-            creative_mode: Use adversarial LLM-driven attack strategies.
-            poll_interval: Seconds between status checks.
-            timeout: Max seconds to wait before raising.
-            on_progress: Callback invoked on each poll with current TestRun state.
-        """
-        started = self.start_run(
-            agent_id=agent_id,
-            max_turns=max_turns,
-            tags=tags,
-            scenario_ids=scenario_ids,
-            concurrency_limit=concurrency_limit,
-            max_scenarios=max_scenarios,
-            name=name,
-            benchmark_mode=benchmark_mode,
-            creative_mode=creative_mode,
-        )
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            time.sleep(poll_interval)
-            test = self.get_run(started.id)
-            if on_progress:
-                on_progress(test)
-            if test.status in ("completed", "failed", "canceled"):
-                return test
-
-        raise PreclinicalAPIError(status_code=408, message="Run timed out")
-
-    def results(self, run_id: str) -> list[ScenarioRun]:
-        """Get all scenario run results for a test run. Shortcut for list_scenario_runs."""
-        return self.list_scenario_runs(run_id).results
 
     # ── Agents ────────────────────────────────────────────────────────
 
@@ -259,7 +187,7 @@ class Preclinical:
         benchmark_mode: bool = False,
         creative_mode: bool = False,
     ) -> StartRunResponse:
-        """Start a test run. Use `run()` instead if you want to wait for completion."""
+        """Start a test run."""
         body: dict[str, Any] = {"agent_id": agent_id}
         if test_suite_id is not None:
             body["test_suite_id"] = test_suite_id
@@ -395,9 +323,6 @@ class Preclinical:
         self.close()
 
 
-# Backward compat alias
-PreclinicalClient = Preclinical
-
 
 # ---------------------------------------------------------------------------
 # Async client
@@ -412,8 +337,9 @@ class AsyncPreclinical:
         from preclinical import AsyncPreclinical
 
         async with AsyncPreclinical() as client:
-            run = await client.run("agent-id", max_turns=5)
-            print(f"Pass rate: {run.pass_rate}%")
+            started = await client.start_run(agent_id="...")
+            run = await client.get_run(started.id)
+            print(f"Status: {run.status}")
     """
 
     def __init__(
@@ -444,50 +370,6 @@ class AsyncPreclinical:
 
     async def _delete(self, path: str) -> Any:
         return _handle_response(await self._client.delete(path))
-
-    # ── The main thing: run tests ────────────────────────────────────
-
-    async def run(
-        self,
-        agent_id: str,
-        *,
-        max_turns: int | None = None,
-        tags: list[str] | None = None,
-        scenario_ids: list[str] | None = None,
-        concurrency_limit: int | None = None,
-        max_scenarios: int | None = None,
-        name: str | None = None,
-        benchmark_mode: bool = False,
-        creative_mode: bool = False,
-        poll_interval: float = 5.0,
-        timeout: float = 1800.0,
-        on_progress: Callable[[TestRun], None] | None = None,
-    ) -> TestRun:
-        """Start a test run, wait for completion, return the result."""
-        started = await self.start_run(
-            agent_id=agent_id,
-            max_turns=max_turns,
-            tags=tags,
-            scenario_ids=scenario_ids,
-            concurrency_limit=concurrency_limit,
-            max_scenarios=max_scenarios,
-            name=name,
-            benchmark_mode=benchmark_mode,
-            creative_mode=creative_mode,
-        )
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            await asyncio.sleep(poll_interval)
-            test = await self.get_run(started.id)
-            if on_progress:
-                on_progress(test)
-            if test.status in ("completed", "failed", "canceled"):
-                return test
-
-        raise PreclinicalAPIError(status_code=408, message="Run timed out")
-
-    async def results(self, run_id: str) -> list[ScenarioRun]:
-        return (await self.list_scenario_runs(run_id)).results
 
     # ── Agents ────────────────────────────────────────────────────────
 

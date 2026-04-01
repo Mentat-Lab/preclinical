@@ -26,6 +26,9 @@ pg-boss job → testerGraph.invoke() → graderGraph.invoke() → finalize
 ```
 - **Tester graph** (`server/src/graphs/tester-graph.ts`): planAttack → connectProvider → executeTurn ⇄ generateNextMessage → coverageReview
 - **Grader graph** (`server/src/graphs/grader-graph.ts`): gradeTranscript → verifyEvidence → consistencyAudit → computeScore
+  - Conditional retry edge: retries grading up to 2 attempts on failure
+  - `verifyEvidence`: programmatic check that cited turn numbers exist
+  - `consistencyAudit`: regex-based override (MET with failure-pattern rationale → PARTIALLY MET)
 - State definitions in `server/src/graphs/tester-state.ts` and `grader-state.ts` (LangGraph `Annotation.Root`)
 - Per-phase skill injection via `server/src/graphs/skill-loaders.ts`
 
@@ -104,3 +107,9 @@ docker compose --profile ollama up -d       # with Ollama
 docker compose --profile browseruse up -d   # with local BrowserUse
 docker compose build                        # rebuild images
 ```
+
+## Coding Style
+
+- Frontend: PascalCase components, `useX` hooks, Tailwind
+- Server: TypeScript ESM
+- Match neighboring style. No repo-wide formatter.

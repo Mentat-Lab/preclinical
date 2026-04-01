@@ -7,7 +7,7 @@ from typing import Annotated, Optional
 import typer
 
 import preclinical
-from preclinical.cli.formatters import console, error_console, print_health, print_json
+from preclinical.cli.formatters import console, error_console, print_health, print_json, print_sse_event
 from preclinical.client import Preclinical
 from preclinical.exceptions import PreclinicalAPIError
 
@@ -117,18 +117,7 @@ def start_run(
         console.print(f"\n[dim]Watching run {result.id}... (Ctrl+C to stop)[/dim]\n")
         try:
             for event in client.watch(result.id):
-                event_type = event.event or event.data.get("type", "unknown")
-                console.print(f"  [cyan]{event_type}[/cyan]", end="")
-                data = event.data
-                interesting = {k: v for k, v in data.items() if k in (
-                    "status", "passed", "scenario_name", "pass_rate",
-                    "passed_count", "failed_count", "error_count",
-                )}
-                if interesting:
-                    parts = [f"{k}={v}" for k, v in interesting.items()]
-                    console.print(f"  {', '.join(parts)}")
-                else:
-                    console.print()
+                print_sse_event(event)
         except KeyboardInterrupt:
             console.print(f"\n[dim]Stopped watching.[/dim]")
 

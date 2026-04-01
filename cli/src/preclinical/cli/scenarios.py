@@ -19,19 +19,14 @@ from preclinical.exceptions import PreclinicalAPIError
 app = typer.Typer(name="scenarios", help="Manage test scenarios.")
 
 
-def _get_client() -> "Preclinical":
-    from preclinical.cli.app import get_client
-
-    return get_client()
-
-
 @app.command("list")
 def list_scenarios(
     tag: Annotated[Optional[str], typer.Option("--tag", "-t", help="Filter by tag")] = None,
     output_json: Annotated[bool, typer.Option("--json", help="Output raw JSON")] = False,
 ) -> None:
     """List active, approved scenarios."""
-    client = _get_client()
+    from preclinical.cli.app import get_client
+    client = get_client()
     try:
         result = client.list_scenarios(tag=tag)
     except PreclinicalAPIError as e:
@@ -50,7 +45,8 @@ def get_scenario(
     output_json: Annotated[bool, typer.Option("--json", help="Output raw JSON")] = False,
 ) -> None:
     """Get details of a specific scenario."""
-    client = _get_client()
+    from preclinical.cli.app import get_client
+    client = get_client()
     try:
         scenario = client.get_scenario(scenario_id)
     except PreclinicalAPIError as e:
@@ -72,7 +68,8 @@ def generate_scenario(
     output_json: Annotated[bool, typer.Option("--json", help="Output raw JSON")] = False,
 ) -> None:
     """Generate a single scenario from clinical text."""
-    client = _get_client()
+    from preclinical.cli.app import get_client
+    client = get_client()
     tags_list = [t.strip() for t in tags.split(",")] if tags else None
 
     try:
@@ -117,7 +114,8 @@ def generate_batch(
         error_console.print("[red]Error:[/red] Provide either --file or --text")
         raise typer.Exit(1)
 
-    client = _get_client()
+    from preclinical.cli.app import get_client
+    client = get_client()
     tags_list = [t.strip() for t in tags.split(",")] if tags else None
 
     try:
@@ -149,7 +147,8 @@ def update_scenario(
     output_json: Annotated[bool, typer.Option("--json", help="Output raw JSON")] = False,
 ) -> None:
     """Update a scenario."""
-    client = _get_client()
+    from preclinical.cli.app import get_client
+    client = get_client()
     kwargs: dict = {}
     if name is not None:
         kwargs["name"] = name
@@ -192,7 +191,8 @@ def delete_scenario(
         if not confirm:
             raise typer.Abort()
 
-    client = _get_client()
+    from preclinical.cli.app import get_client
+    client = get_client()
     try:
         client.delete_scenario(scenario_id)
     except PreclinicalAPIError as e:

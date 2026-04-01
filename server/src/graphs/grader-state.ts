@@ -40,9 +40,6 @@ export const GraderState = Annotation.Root({
   goldStandard: Annotation<string>,
   triageResult: Annotation<TriageExtraction | null>,
 
-  // --- Creative mode (rubric grading only in creative mode) ---
-  creativeMode: Annotation<boolean>,
-
   // --- Control flow ---
   gradingAttempt: Annotation<number>,
   error: Annotation<string | null>,

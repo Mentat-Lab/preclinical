@@ -28,9 +28,9 @@ All configuration is done via environment variables in your root `.env` file. Se
 | `PORT` | `8000` | API server port (Docker Compose maps this to 3000 externally) |
 | `NODE_ENV` | `development` | Environment mode |
 | `WORKER_CONCURRENCY` | `5` | Parallel scenario execution limit |
-| `DEFAULT_MAX_TURNS` | `6` | Default number of conversation turns per scenario |
+| `DEFAULT_MAX_TURNS` | `11` | Default number of conversation turns per scenario |
 | `MIN_MAX_TURNS` | `5` | Minimum allowed value for max_turns |
-| `MAX_MAX_TURNS` | `7` | Maximum allowed value for max_turns |
+| `MAX_MAX_TURNS` | `15` | Maximum allowed value for max_turns |
 
 ## Provider Keys
 

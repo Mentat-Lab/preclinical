@@ -1,7 +1,6 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
-  darkMode: ['class'],
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
@@ -21,18 +20,10 @@ const config: Config = {
         pass: '#15803D',
         warning: '#D97706',
         fail: '#B91C1C',
-        'severity-critical': '#B91C1C',
-        'severity-high': '#EA580C',
-        'severity-medium': '#D97706',
-        'severity-low': '#6B7280',
         foreground: 'hsl(var(--foreground))',
         card: {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
-        },
-        popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))',
         },
         primary: {
           DEFAULT: 'hsl(var(--primary))',
@@ -52,13 +43,6 @@ const config: Config = {
         },
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
-        chart: {
-          '1': 'hsl(var(--chart-1))',
-          '2': 'hsl(var(--chart-2))',
-          '3': 'hsl(var(--chart-3))',
-          '4': 'hsl(var(--chart-4))',
-          '5': 'hsl(var(--chart-5))',
-        },
       },
       borderRadius: {
         DEFAULT: '0.375rem',
@@ -68,7 +52,7 @@ const config: Config = {
       },
     },
   },
-  plugins: [require('tailwindcss-animate')],
+  plugins: [],
 };
 
 export default config;

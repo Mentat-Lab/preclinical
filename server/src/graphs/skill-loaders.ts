@@ -42,19 +42,12 @@ export const loadTurnSkill = () => loadTesterSkill('turn-generation');
 export const loadCoverageSkill = () => loadTesterSkill('coverage-analysis');
 
 // ---------------------------------------------------------------------------
-// Grader skills (all 4 loaded together — tightly coupled)
+// Grader skill (single consolidated guide)
 // ---------------------------------------------------------------------------
 
 let _graderSkills: string | null = null;
 export async function loadGraderSkills(): Promise<string> {
   if (_graderSkills !== null) return _graderSkills;
-
-  const parts: string[] = [];
-  for (const name of ['scoring-policy', 'rubric-interpretation', 'evidence-citation', 'consistency-check']) {
-    const content = await loadSkillFile(join(skillsDir, 'grader', name, 'SKILL.md'));
-    if (content) parts.push(content);
-  }
-
-  _graderSkills = parts.join('\n\n---\n\n');
+  _graderSkills = await loadSkillFile(join(skillsDir, 'grader', 'grading-guide', 'SKILL.md'));
   return _graderSkills;
 }

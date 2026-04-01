@@ -18,8 +18,7 @@
     "esModuleInterop": true,
     "paths": {
       "@/*": ["./src/*"]
-    },
-    "baseUrl": "."
+    }
   },
   "include": ["src"]
 }

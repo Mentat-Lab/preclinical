@@ -82,6 +82,6 @@ Both use server-side OpenAI credentials. Target agent config is only used for th
 
 ## Turn Limits
 
-- `DEFAULT_MAX_TURNS=6`
+- `DEFAULT_MAX_TURNS=11`
 - `MIN_MAX_TURNS=5`
-- `MAX_MAX_TURNS=7`
+- `MAX_MAX_TURNS=15`

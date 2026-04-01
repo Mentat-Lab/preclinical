@@ -9,62 +9,35 @@ Open-source platform for testing healthcare AI agents with adversarial multi-tur
 
 </div>
 
-## Overview
-Preclinical is an open-source healthcare AI safety testing platform. It simulates realistic adversarial patient interactions against your agent, stores transcripts, and grades outcomes against safety rubrics.
+Preclinical simulates realistic adversarial patient interactions against your healthcare AI agent, captures transcripts, and grades outcomes against safety rubrics. Self-hosted with Docker Compose.
 
 [![How Preclinical Works](docs-site/docs/images/Preclinical.gif)](docs-site/docs/images/Preclinical.gif)
 
-Key capabilities:
-- Adversarial multi-turn scenario execution
-- Transcript capture and scenario-level grading
-- Local self-hosted runtime with Docker
-- Provider support: `openai`, `vapi`, `livekit`, `pipecat`, `browser`
-
-## What It Does
-Each test run:
-1. Generates an attack plan with a simulated patient persona
-2. Runs a multi-turn conversation against your agent (text, voice, or browser)
-3. Grades the transcript on safety criteria (triage accuracy, harmful advice, hallucinations, etc.)
-
 ## Quick Start
-This is the fastest validated path to get up and running.
 
 ### Prerequisites
 - Docker Desktop (or Docker Engine + Docker Compose)
-- An `OPENAI_API_KEY` (or Anthropic/Ollama — see [Environment Variables](#environment-variables))
+- An `OPENAI_API_KEY` (or Anthropic/Ollama -- see `.env.example`)
 
-### Clone the repository
+### Setup
 ```bash
 git clone https://github.com/Mentat-Lab/preclinical.git
 cd preclinical
-```
-
-### Create `.env`
-```bash
 cp .env.example .env
 # Edit .env and set OPENAI_API_KEY=sk-...
-```
 
-### Start
-```bash
 docker compose up --build -d
 ```
 
-### Verify startup
+Verify startup:
 ```bash
 docker compose ps
 curl -sS http://localhost:3000/health
 ```
 
-Expected:
-- `app` and `db` are healthy
-- health returns JSON containing `"status":"ok"`
-
 Open `http://localhost:3000` to access the UI.
 
-> First run note: Docker builds the app image from source. Initial build is slower; subsequent starts are faster.
-
-## Docker Commands
+### Docker Commands
 ```bash
 docker compose up -d              # start
 docker compose up -d --build app  # rebuild after code changes
@@ -74,232 +47,22 @@ docker compose down               # stop
 
 ## Runtime Modes
 
-### Default (OpenAI)
-Requires `OPENAI_API_KEY` in `.env`.
+**Default (OpenAI)** -- requires `OPENAI_API_KEY` in `.env`.
 
-### Ollama (fully local, no cloud key required)
+**Ollama (fully local, no cloud key)**:
 ```bash
 docker compose --profile ollama up -d
 ```
-Set in `.env`:
-```bash
-TESTER_MODEL=ollama:llama3.2
-GRADER_MODEL=ollama:llama3.2
-OLLAMA_BASE_URL=http://ollama:11434/v1
-```
+Set `TESTER_MODEL=ollama:llama3.2`, `GRADER_MODEL=ollama:llama3.2`, and `OLLAMA_BASE_URL=http://ollama:11434/v1` in `.env`.
 
-### BrowserUse local wrapper (optional)
+**BrowserUse (optional)**:
 ```bash
 docker compose --profile browseruse up -d
 ```
 
-## API Keys
-### Required
-- `OPENAI_API_KEY`
+## CLI & SDK
 
-### Optional (by provider)
-- `VAPI_API_KEY` (+ assistant config)
-- `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`
-- `PIPECAT_API_KEY` and related Pipecat config
-- `BROWSER_USE_API_KEY` (BrowserUse cloud mode)
-
-### Where to get keys
-- OpenAI: https://platform.openai.com/api-keys
-- Vapi: https://dashboard.vapi.ai
-- LiveKit: https://cloud.livekit.io
-- Pipecat: https://www.pipecat.ai/
-
-## Updating
-```bash
-git pull
-docker compose down
-docker compose up --build -d
-```
-
-## Philosophy
-- Safety-first testing before real patient exposure
-- Self-hosted by default for control and transparency
-- Provider-agnostic integration model
-- Reproducible scenarios and auditable grading
-
-## Architecture
-```
-┌─────────────────────────────────────────────────────────┐
-│                 Frontend  (Vite + React)                │
-│                                                         │
-│  ┌──────────────────────────┐  ┌──────────────────────┐ │
-│  │  Agents / Runs / UI      │  │  Live run updates    │ │
-│  │  TanStack Query          │  │  EventSource (SSE)   │ │
-│  └──────────────────────────┘  └──────────────────────┘ │
-└───────────────────────┬────────────────────▲────────────┘
-                        │ HTTP REST          │ SSE /events
-                        ▼                    │
-┌─────────────────────────────────────────────────────────┐
-│                 API Server  (Hono / Node)               │
-│                                                         │
-│  ┌──────────────────────────┐  ┌──────────────────────┐ │
-│  │  REST endpoints          │  │  PG LISTEN/NOTIFY    │ │
-│  │  POST /start-run         │  │  → SSE broadcast     │ │
-│  │  GET  /runs  /agents     │  └──────────────────────┘ │
-│  └──────────────────────────┘                           │
-└───────────────────────┬─────────────────────────────────┘
-                        │ pg-boss job enqueue
-                        ▼
-┌────────────────────────────────────┐  ┌────────────────────────┐
-│     Scenario Runner  (Worker)      │  │   Target Agent         │
-│                                    │  │   (under test)         │
-│  ┌──────────────────────────────┐  │  │                        │
-│  │  testerGraph  (LangGraph)    │  │  │  openai   (HTTP)       │
-│  │  planAttack                  │◄─┼─►│  vapi     (REST)       │
-│  │  → connectProvider           │  │  │  livekit  (WebRTC)     │
-│  │  → executeTurns              │  │  │  pipecat  (Daily/LK)   │
-│  └──────────────────┬───────────┘  │  │  browser  (headless)   │
-│                     │ transcript   │  └────────────────────────┘
-│                     ▼             │
-│  ┌──────────────────────────────┐  │
-│  │  graderGraph  (LangGraph)    │  │
-│  │  grade → verifyEvidence      │  │
-│  │  → consistencyAudit          │  │
-│  │  → computeScore              │  │
-│  └──────────────────────────────┘  │
-└───────────────────────┬────────────┘
-                        │ read / write
-                        ▼
-┌─────────────────────────────────────────────────────────┐
-│                    PostgreSQL 16                        │
-│                                                         │
-│  ┌────────────────────────────────┐  ┌───────────────┐ │
-│  │  runs · agents · scenarios     │  │  pg-boss      │ │
-│  │  transcripts · scores          │  │  PG NOTIFY    │ │
-│  └────────────────────────────────┘  └───────────────┘ │
-└─────────────────────────────────────────────────────────┘
-```
-
-## Supported Providers
-| Provider | Transport | Use case |
-|---|---|---|
-| `openai` | HTTP (OpenAI-compatible) | Chat API agents |
-| `livekit` | WebRTC (text streams) | LiveKit voice/text agents |
-| `pipecat` | LiveKit or Daily | Pipecat framework agents |
-| `vapi` | REST API | Vapi voice assistants |
-| `browser` | Headless browser | Web-based chat agents |
-
-## Target Agents
-Pre-built target agents for local testing:
-
-```text
-target-agents/
-├── registry.json            # Provider -> target-agent mapping (required)
-├── openai-api/              # OpenAI-compatible HTTP agent (mock/proxy mode)
-├── vapi/                    # Vapi /chat mock target
-├── browser/                 # Local browser chat target
-├── livekit/
-│   ├── text/                # LiveKit text agent (JS)
-│   └── voice/               # LiveKit voice agent (JS)
-└── pipecat/
-    ├── bot.py               # Pipecat voice agent (Daily)
-    ├── text/                # Pipecat text agent (Daily, Python)
-    └── text-livekit/        # Pipecat text agent (LiveKit, JS)
-```
-
-Run a target agent locally:
-```bash
-cd target-agents/openai-api
-npm install
-TARGET_OPENAI_MODE=mock npm start
-```
-
-## Provider Target Coverage + E2E
-Provider-target parity is enforced:
-- `server/src/__tests__/provider-targets.test.ts` verifies every provider in `server/src/providers/index.ts` has a corresponding `target-agents/registry.json` entry.
-- Registry paths must exist under `target-agents/`.
-
-Run API tests:
-```bash
-cd tests
-npm run test
-```
-
-Run provider-target E2E:
-```bash
-cd tests
-
-# Docker Compose API (default): app container reaches local target agents via host.docker.internal
-RUN_PROVIDER_E2E=1 npm run test:e2e
-
-# Include Vapi target
-RUN_PROVIDER_E2E=1 RUN_VAPI_PROVIDER_E2E=1 npm run test:e2e
-
-# Host API (non-Docker): override target routing to localhost
-RUN_PROVIDER_E2E=1 \
-  E2E_TARGET_OPENAI_BASE_URL=http://127.0.0.1:9100 \
-  E2E_TARGET_VAPI_BASE_URL=http://127.0.0.1:9200 \
-  npm run test:e2e
-```
-
-## Local Development (Without Docker)
-Requires a running PostgreSQL and valid `DATABASE_URL`.
-
-```bash
-# Server (port 8000)
-cd server && npm install && npm run dev
-
-# Frontend (port 3000, proxies API to :8000)
-cd frontend && npm install && npm run dev
-
-# Tests
-cd tests && npm install && npm test
-```
-
-## Adding a Provider
-Providers implement a three-method interface: `connect`, `sendMessage`, `disconnect`.
-
-1. Create a provider in `server/src/providers/` implementing `Provider` from `base.ts`
-2. Register it in `server/src/providers/index.ts`
-3. Add a target-agent implementation in `target-agents/`
-4. Update `target-agents/registry.json`
-5. Ensure `server/src/__tests__/provider-targets.test.ts` passes
-
-```ts
-interface Provider {
-  name: string;
-  connect(agentConfig: Record<string, unknown>, scenarioRunId: string): Promise<ProviderSession>;
-  sendMessage(session: ProviderSession, message: string, context: MessageContext): Promise<string>;
-  disconnect(session: ProviderSession): Promise<void>;
-}
-```
-
-## Environment Variables
-
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `OPENAI_API_KEY` | Yes* | — | OpenAI (or compatible) API key |
-| `DATABASE_URL` | Yes | Set by Docker | PostgreSQL connection string |
-| `TESTER_MODEL` | No | `gpt-4o-mini` | Model for simulated patient |
-| `GRADER_MODEL` | No | `gpt-4o-mini` | Model for transcript grading |
-| `WORKER_CONCURRENCY` | No | `5` | Parallel scenario execution |
-| `ANTHROPIC_API_KEY` | No | — | For Claude models (`claude-*`) |
-| `OLLAMA_BASE_URL` | No | `http://localhost:11434/v1` | Ollama base URL for `ollama:*` models |
-
-\* Not required if using only Anthropic or Ollama for tester/grader.
-
-See [`.env.example`](.env.example) for full configuration.
-
-## Tech Stack
-| Component | Technology |
-|---|---|
-| API server | Hono on Node.js |
-| Agent graphs | LangGraph (tester + grader) |
-| Job queue | pg-boss (Postgres-backed) |
-| Database | PostgreSQL 16 |
-| Frontend | Vite + React 18 + TypeScript |
-| State management | TanStack Query |
-| UI components | shadcn/ui + Tailwind CSS |
-| LLM integration | LangChain (OpenAI, Anthropic, Ollama) |
-
-## CLI & Agent Skills
-
-### Python CLI / SDK
+### Python CLI
 ```bash
 pip install preclinical
 preclinical run <agent-id> --creative --watch
@@ -310,38 +73,52 @@ preclinical run <agent-id> --creative --watch
 npx skills add Mentat-Lab/preclinical-skills
 ```
 
-Run tests, create scenarios, diagnose failures, and generate reports — all from your AI coding assistant. See [preclinical-skills](https://github.com/Mentat-Lab/preclinical-skills) for details.
+Run tests, create scenarios, diagnose failures, and generate reports from your AI coding assistant. See [preclinical-skills](https://github.com/Mentat-Lab/preclinical-skills) for details.
 
-## Monorepo Structure
+## Supported Providers
+
+`openai` (HTTP) | `vapi` (REST) | `livekit` (WebRTC) | `pipecat` (Daily/LiveKit) | `browser` (headless)
+
+## Local Development (Without Docker)
+
+Requires a running PostgreSQL and valid `DATABASE_URL`.
+
+```bash
+cd server && npm install && npm run dev      # API server (port 8000)
+cd frontend && npm install && npm run dev    # UI (port 3000, proxies to :8000)
+cd tests && npm install && npm test          # Tests
+```
+
+## Project Structure
 ```text
 preclinical/
-├── docker-compose.yml
-├── .env.example
-├── server/               # Hono API, workers, provider integrations
+├── server/               # Hono API, LangGraph workers, provider integrations
 ├── frontend/             # Vite + React UI
 ├── cli/                  # Python CLI and SDK (PyPI: preclinical)
 ├── tests/                # API and E2E tests
 ├── target-agents/        # Local provider mock/target agents
-├── services/             # Optional supporting services (e.g., BrowserUse)
-└── docs-site/            # Documentation site assets
+└── docs-site/            # Documentation (MkDocs Material)
 ```
 
-## Privacy / Security
-- Self-hosted runtime keeps execution in your infrastructure
-- Data is stored in local PostgreSQL by default in Docker mode
-- Secrets are loaded from `.env` and should never be committed
-- Use least-privilege keys and rotate regularly
+## Configuration
 
-## Limitations
-- Testing platform only — not medical advice software
-- Healthcare deployments may require additional legal/compliance controls
-- Optional profiles (`ollama`, `browseruse`) can require large first-time downloads/build times
+See [`.env.example`](.env.example) for all environment variables. Key settings:
+
+- `OPENAI_API_KEY` -- OpenAI (or compatible) API key (required unless using Anthropic/Ollama only)
+- `TESTER_MODEL` / `GRADER_MODEL` -- LLM models for patient simulation and grading (default: `gpt-4o-mini`)
+- `ANTHROPIC_API_KEY` -- for Claude models; `OLLAMA_BASE_URL` -- for Ollama models
+
+## Documentation
+
+Full documentation: [Architecture](docs-site/), [CI/CD Integration](docs-site/docs/getting-started/ci-cd.md), [Adding a Provider](docs-site/docs/getting-started/)
+
+## Updating
+```bash
+git pull && docker compose down && docker compose up --build -d
+```
 
 ## Contributing
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Notices / Attribution
-Preclinical builds on open-source technologies including Hono, Vite/React, PostgreSQL, pg-boss, and LangChain/LangGraph.
-
 ## License
-Apache-2.0 — see [LICENSE](LICENSE).
+Apache-2.0 -- see [LICENSE](LICENSE).

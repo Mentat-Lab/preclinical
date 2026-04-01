@@ -80,7 +80,7 @@ class TestHealthCLI:
 
 
 class TestAgentsCLI:
-    @patch("preclinical.cli.agents._get_client")
+    @patch("preclinical.cli.app.get_client")
     def test_agents_list(self, mock_get: MagicMock) -> None:
         mock_client = _mock_client()
         mock_client.list_agents.return_value = [
@@ -94,7 +94,7 @@ class TestAgentsCLI:
         assert "Test Agent" in result.output
         assert "Voice Agent" in result.output
 
-    @patch("preclinical.cli.agents._get_client")
+    @patch("preclinical.cli.app.get_client")
     def test_agents_list_json(self, mock_get: MagicMock) -> None:
         mock_client = _mock_client()
         mock_client.list_agents.return_value = [Agent.model_validate(SAMPLE_AGENT)]
@@ -106,7 +106,7 @@ class TestAgentsCLI:
         assert len(parsed) == 1
         assert parsed[0]["id"] == "agt-001"
 
-    @patch("preclinical.cli.agents._get_client")
+    @patch("preclinical.cli.app.get_client")
     def test_agents_get(self, mock_get: MagicMock) -> None:
         mock_client = _mock_client()
         mock_client.get_agent.return_value = Agent.model_validate(SAMPLE_AGENT)
@@ -116,7 +116,7 @@ class TestAgentsCLI:
         assert result.exit_code == 0
         assert "Test Agent" in result.output
 
-    @patch("preclinical.cli.agents._get_client")
+    @patch("preclinical.cli.app.get_client")
     def test_agents_get_not_found(self, mock_get: MagicMock) -> None:
         mock_client = _mock_client()
         mock_client.get_agent.side_effect = NotFoundError("Agent not found")
@@ -125,7 +125,7 @@ class TestAgentsCLI:
         result = runner.invoke(app, ["agents", "get", "bad-id"])
         assert result.exit_code == 1
 
-    @patch("preclinical.cli.agents._get_client")
+    @patch("preclinical.cli.app.get_client")
     def test_agents_create(self, mock_get: MagicMock) -> None:
         mock_client = _mock_client()
         mock_client.create_agent.return_value = Agent.model_validate(SAMPLE_AGENT)
@@ -137,7 +137,7 @@ class TestAgentsCLI:
         assert result.exit_code == 0
         assert "Created agent" in result.output
 
-    @patch("preclinical.cli.agents._get_client")
+    @patch("preclinical.cli.app.get_client")
     def test_agents_create_with_config(self, mock_get: MagicMock) -> None:
         mock_client = _mock_client()
         mock_client.create_agent.return_value = Agent.model_validate(SAMPLE_AGENT)
@@ -149,7 +149,7 @@ class TestAgentsCLI:
         ])
         assert result.exit_code == 0
 
-    @patch("preclinical.cli.agents._get_client")
+    @patch("preclinical.cli.app.get_client")
     def test_agents_delete(self, mock_get: MagicMock) -> None:
         mock_client = _mock_client()
         mock_client.delete_agent.return_value = None
@@ -164,7 +164,7 @@ class TestAgentsCLI:
 
 
 class TestRunsCLI:
-    @patch("preclinical.cli.runs._get_client")
+    @patch("preclinical.cli.app.get_client")
     def test_runs_list(self, mock_get: MagicMock) -> None:
         mock_client = _mock_client()
         mock_client.list_runs.return_value = RunsList(runs=[TestRun.model_validate(SAMPLE_RUN)], total=1)
@@ -174,7 +174,7 @@ class TestRunsCLI:
         assert result.exit_code == 0
         assert "run_2025" in result.output
 
-    @patch("preclinical.cli.runs._get_client")
+    @patch("preclinical.cli.app.get_client")
     def test_runs_get(self, mock_get: MagicMock) -> None:
         mock_client = _mock_client()
         mock_client.get_run.return_value = TestRun.model_validate(SAMPLE_RUN)
@@ -184,7 +184,7 @@ class TestRunsCLI:
         assert result.exit_code == 0
         assert "80" in result.output
 
-    @patch("preclinical.cli.runs._get_client")
+    @patch("preclinical.cli.app.get_client")
     def test_runs_cancel(self, mock_get: MagicMock) -> None:
         mock_client = _mock_client()
         mock_client.cancel_run.return_value = {"status": "canceled", "canceled_scenarios": 3}
@@ -194,7 +194,7 @@ class TestRunsCLI:
         assert result.exit_code == 0
         assert "Canceled" in result.output
 
-    @patch("preclinical.cli.runs._get_client")
+    @patch("preclinical.cli.app.get_client")
     def test_runs_delete(self, mock_get: MagicMock) -> None:
         mock_client = _mock_client()
         mock_client.delete_run.return_value = None
@@ -260,7 +260,7 @@ class TestRunCommand:
 
 
 class TestScenariosCLI:
-    @patch("preclinical.cli.scenarios._get_client")
+    @patch("preclinical.cli.app.get_client")
     def test_scenarios_list(self, mock_get: MagicMock) -> None:
         mock_client = _mock_client()
         mock_client.list_scenarios.return_value = ScenariosList(
@@ -272,7 +272,7 @@ class TestScenariosCLI:
         assert result.exit_code == 0
         assert "Chest Pain" in result.output
 
-    @patch("preclinical.cli.scenarios._get_client")
+    @patch("preclinical.cli.app.get_client")
     def test_scenarios_get(self, mock_get: MagicMock) -> None:
         mock_client = _mock_client()
         mock_client.get_scenario.return_value = Scenario.model_validate(SAMPLE_SCENARIO)
@@ -282,7 +282,7 @@ class TestScenariosCLI:
         assert result.exit_code == 0
         assert "Chest Pain Triage" in result.output
 
-    @patch("preclinical.cli.scenarios._get_client")
+    @patch("preclinical.cli.app.get_client")
     def test_scenarios_generate(self, mock_get: MagicMock) -> None:
         mock_client = _mock_client()
         mock_client.generate_scenario.return_value = Scenario.model_validate(SAMPLE_SCENARIO)
@@ -294,7 +294,7 @@ class TestScenariosCLI:
         assert result.exit_code == 0
         assert "Generated scenario" in result.output
 
-    @patch("preclinical.cli.scenarios._get_client")
+    @patch("preclinical.cli.app.get_client")
     def test_scenarios_delete(self, mock_get: MagicMock) -> None:
         mock_client = _mock_client()
         mock_client.delete_scenario.return_value = None
@@ -309,7 +309,7 @@ class TestScenariosCLI:
 
 
 class TestResultsCLI:
-    @patch("preclinical.cli.results._get_client")
+    @patch("preclinical.cli.app.get_client")
     def test_results_list(self, mock_get: MagicMock) -> None:
         mock_client = _mock_client()
         mock_client.list_scenario_runs.return_value = ScenarioRunsList(
@@ -321,7 +321,7 @@ class TestResultsCLI:
         assert result.exit_code == 0
         assert "Chest Pain" in result.output
 
-    @patch("preclinical.cli.results._get_client")
+    @patch("preclinical.cli.app.get_client")
     def test_results_get(self, mock_get: MagicMock) -> None:
         mock_client = _mock_client()
         mock_client.get_scenario_run.return_value = ScenarioRun.model_validate(SAMPLE_SCENARIO_RUN)
@@ -332,7 +332,7 @@ class TestResultsCLI:
         assert "Chest Pain" in result.output
         assert "PASS" in result.output
 
-    @patch("preclinical.cli.results._get_client")
+    @patch("preclinical.cli.app.get_client")
     def test_results_json(self, mock_get: MagicMock) -> None:
         mock_client = _mock_client()
         mock_client.list_scenario_runs.return_value = ScenarioRunsList(

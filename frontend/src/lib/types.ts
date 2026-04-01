@@ -1,48 +1,3 @@
-// Summary breakdown types for test run charts
-export interface BreakdownBucket {
-  passed: number;
-  failed: number;
-  total: number;
-}
-
-export interface SummaryBreakdown {
-  by_urgency: {
-    emergent: BreakdownBucket;
-    conditionally_emergent: BreakdownBucket;
-    non_emergent: BreakdownBucket;
-  };
-  by_axis: {
-    accuracy: BreakdownBucket;
-    completeness: BreakdownBucket;
-    context_awareness: BreakdownBucket;
-  };
-  by_severity: {
-    HIGH: BreakdownBucket;
-    MEDIUM: BreakdownBucket;
-    LOW: BreakdownBucket;
-  };
-  by_category?: {
-    cardiac: BreakdownBucket;
-    respiratory: BreakdownBucket;
-    mental_health: BreakdownBucket;
-    pediatric: BreakdownBucket;
-    neurological: BreakdownBucket;
-    gastrointestinal: BreakdownBucket;
-    musculoskeletal: BreakdownBucket;
-    dermatological: BreakdownBucket;
-    infectious: BreakdownBucket;
-    other: BreakdownBucket;
-  };
-  by_age_group?: {
-    infant: BreakdownBucket;
-    child: BreakdownBucket;
-    adolescent: BreakdownBucket;
-    adult: BreakdownBucket;
-    elderly: BreakdownBucket;
-    unknown: BreakdownBucket;
-  };
-}
-
 export interface TestRun {
   id: string;
   test_run_id: string;
@@ -66,7 +21,7 @@ export interface TestRun {
   created_at: string;
   updated_at?: string;
   creative_mode?: boolean;
-  summary_breakdown?: SummaryBreakdown | null;
+  summary_breakdown?: Record<string, unknown> | null;
 }
 
 export interface ScenarioRunResult {

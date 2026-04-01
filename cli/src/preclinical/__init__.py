@@ -2,7 +2,7 @@
 
 __version__ = "0.3.0"
 
-from preclinical.client import AsyncPreclinical, Preclinical, PreclinicalClient
+from preclinical.client import AsyncPreclinical, Preclinical
 from preclinical.exceptions import (
     APIValidationError,
     NotFoundError,
@@ -24,7 +24,6 @@ from preclinical.models import (
 __all__ = [
     "Preclinical",
     "AsyncPreclinical",
-    "PreclinicalClient",
     "PreclinicalError",
     "PreclinicalAPIError",
     "NotFoundError",

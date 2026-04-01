@@ -264,6 +264,47 @@ def print_scenario_detail(scenario: Any) -> None:
     console.print()
 
 
+def _event_color(event_type: str) -> str:
+    """Return a Rich color name for a given SSE event type."""
+    if "complete" in event_type or "passed" in event_type:
+        return "green"
+    if "failed" in event_type or "error" in event_type:
+        return "red"
+    if "cancel" in event_type:
+        return "yellow"
+    if "started" in event_type or "running" in event_type:
+        return "cyan"
+    return "white"
+
+
+_INTERESTING_EVENT_KEYS = (
+    "status", "passed", "scenario_name", "pass_rate",
+    "passed_count", "failed_count", "error_count",
+    "canceled_scenarios", "reason",
+)
+
+
+def print_sse_event(event: Any, *, json_mode: bool = False) -> None:
+    """Print a single SSE event with color-coded type and key details.
+
+    Works for both ``preclinical run --watch`` and ``preclinical runs watch``.
+    """
+    if json_mode:
+        print_json(event)
+        return
+
+    event_type = event.event or event.data.get("type", "unknown")
+    color = _event_color(event_type)
+    console.print(f"  [{color}]{event_type}[/{color}]", end="")
+
+    details = {k: v for k, v in event.data.items() if k in _INTERESTING_EVENT_KEYS}
+    if details:
+        parts = [f"{k}={v}" for k, v in details.items()]
+        console.print(f"  {', '.join(parts)}")
+    else:
+        console.print()
+
+
 def print_health(health: Any) -> None:
     """Print health check results."""
     console.print(f"\n[bold]Platform Health:[/bold] ", end="")

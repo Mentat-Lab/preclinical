@@ -12,16 +12,11 @@ from preclinical.cli.formatters import (
     print_json,
     print_run_detail,
     print_runs_table,
+    print_sse_event,
 )
 from preclinical.exceptions import PreclinicalAPIError
 
 app = typer.Typer(name="runs", help="Manage test runs.")
-
-
-def _get_client() -> "Preclinical":
-    from preclinical.cli.app import get_client
-
-    return get_client()
 
 
 @app.command("list")
@@ -32,7 +27,8 @@ def list_runs(
     output_json: Annotated[bool, typer.Option("--json", help="Output raw JSON")] = False,
 ) -> None:
     """List test runs."""
-    client = _get_client()
+    from preclinical.cli.app import get_client
+    client = get_client()
     try:
         result = client.list_runs(limit=limit, offset=offset, status=status)
     except PreclinicalAPIError as e:
@@ -51,7 +47,8 @@ def get_run(
     output_json: Annotated[bool, typer.Option("--json", help="Output raw JSON")] = False,
 ) -> None:
     """Get details of a specific test run."""
-    client = _get_client()
+    from preclinical.cli.app import get_client
+    client = get_client()
     try:
         run = client.get_run(run_id)
     except PreclinicalAPIError as e:
@@ -70,7 +67,8 @@ def cancel_run(
     output_json: Annotated[bool, typer.Option("--json", help="Output raw JSON")] = False,
 ) -> None:
     """Cancel a running test run."""
-    client = _get_client()
+    from preclinical.cli.app import get_client
+    client = get_client()
     try:
         result = client.cancel_run(run_id)
     except PreclinicalAPIError as e:
@@ -96,7 +94,8 @@ def delete_run(
         if not confirm:
             raise typer.Abort()
 
-    client = _get_client()
+    from preclinical.cli.app import get_client
+    client = get_client()
     try:
         client.delete_run(run_id)
     except PreclinicalAPIError as e:
@@ -112,42 +111,12 @@ def watch_run(
     output_json: Annotated[bool, typer.Option("--json", help="Output raw JSON")] = False,
 ) -> None:
     """Watch a test run via live SSE stream."""
-    client = _get_client()
+    from preclinical.cli.app import get_client
+    client = get_client()
     console.print(f"[dim]Watching run {run_id}... (Ctrl+C to stop)[/dim]\n")
 
     try:
         for event in client.watch(run_id):
-            if output_json:
-                print_json(event)
-            else:
-                event_type = event.event or event.data.get("type", "unknown")
-                console.print(f"  [{_event_color(event_type)}]{event_type}[/{_event_color(event_type)}]", end="")
-
-                # Print relevant fields from event data
-                data = event.data
-                interesting_keys = [
-                    "status", "passed", "scenario_name", "pass_rate",
-                    "passed_count", "failed_count", "error_count",
-                    "canceled_scenarios", "reason",
-                ]
-                details = {k: v for k, v in data.items() if k in interesting_keys}
-                if details:
-                    parts = [f"{k}={v}" for k, v in details.items()]
-                    console.print(f"  {', '.join(parts)}")
-                else:
-                    console.print()
+            print_sse_event(event, json_mode=output_json)
     except KeyboardInterrupt:
         console.print(f"\n[dim]Stopped watching.[/dim]")
-
-
-def _event_color(event_type: str) -> str:
-    """Return a color for a given event type."""
-    if "complete" in event_type or "passed" in event_type:
-        return "green"
-    if "failed" in event_type or "error" in event_type:
-        return "red"
-    if "cancel" in event_type:
-        return "yellow"
-    if "started" in event_type or "running" in event_type:
-        return "cyan"
-    return "white"

@@ -19,19 +19,13 @@ from preclinical.exceptions import PreclinicalAPIError
 app = typer.Typer(name="agents", help="Manage agents.")
 
 
-def _get_client() -> "Preclinical":
-    """Lazily import to avoid circular deps and allow --url override."""
-    from preclinical.cli.app import get_client
-
-    return get_client()
-
-
 @app.command("list")
 def list_agents(
     output_json: Annotated[bool, typer.Option("--json", help="Output raw JSON")] = False,
 ) -> None:
     """List all active agents."""
-    client = _get_client()
+    from preclinical.cli.app import get_client
+    client = get_client()
     try:
         agents = client.list_agents()
     except PreclinicalAPIError as e:
@@ -50,7 +44,8 @@ def get_agent(
     output_json: Annotated[bool, typer.Option("--json", help="Output raw JSON")] = False,
 ) -> None:
     """Get details of a specific agent."""
-    client = _get_client()
+    from preclinical.cli.app import get_client
+    client = get_client()
     try:
         agent = client.get_agent(agent_id)
     except PreclinicalAPIError as e:
@@ -72,7 +67,8 @@ def create_agent(
     output_json: Annotated[bool, typer.Option("--json", help="Output raw JSON")] = False,
 ) -> None:
     """Create a new agent."""
-    client = _get_client()
+    from preclinical.cli.app import get_client
+    client = get_client()
     config_dict = None
     if config:
         try:
@@ -108,7 +104,8 @@ def update_agent(
     output_json: Annotated[bool, typer.Option("--json", help="Output raw JSON")] = False,
 ) -> None:
     """Update an existing agent."""
-    client = _get_client()
+    from preclinical.cli.app import get_client
+    client = get_client()
     config_dict = None
     if config:
         try:
@@ -150,7 +147,8 @@ def delete_agent(
         if not confirm:
             raise typer.Abort()
 
-    client = _get_client()
+    from preclinical.cli.app import get_client
+    client = get_client()
     try:
         client.delete_agent(agent_id)
     except PreclinicalAPIError as e:

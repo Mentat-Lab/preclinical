@@ -14,7 +14,6 @@ import health from './routes/health.js';
 import events from './routes/events.js';
 import startRun from './routes/start-run.js';
 import cancelRun from './routes/cancel-run.js';
-import finalizeRun from './routes/finalize-run.js';
 import publicApi from './routes/public-api.js';
 
 const app = new Hono();
@@ -28,7 +27,6 @@ app.route('/', health);
 app.route('/', events);
 app.route('/', startRun);
 app.route('/', cancelRun);
-app.route('/', finalizeRun);
 app.route('/', publicApi);
 
 // Serve frontend static files (built Vite app)

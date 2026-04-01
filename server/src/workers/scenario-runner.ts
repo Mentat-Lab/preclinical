@@ -231,7 +231,6 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
       scenarioRunId: scenario_run_id,
       testRunId: test_run_id,
       scenarioId: scenario_id,
-      creativeMode,
       goldStandard,
       triageResult: null,
       rawGradingResult: null,
