@@ -121,8 +121,11 @@ class Preclinical:
     def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
         return _handle_response(self._client.get(path, params=params))
 
-    def _post(self, path: str, body: dict[str, Any] | None = None) -> Any:
-        return _handle_response(self._client.post(path, json=body or {}))
+    def _post(self, path: str, body: dict[str, Any] | None = None, timeout: float | None = None) -> Any:
+        kwargs: dict[str, Any] = {"json": body or {}}
+        if timeout is not None:
+            kwargs["timeout"] = timeout
+        return _handle_response(self._client.post(path, **kwargs))
 
     def _patch(self, path: str, body: dict[str, Any]) -> Any:
         return _handle_response(self._client.patch(path, json=body))
@@ -262,7 +265,7 @@ class Preclinical:
             body["name"] = name
         if tags is not None:
             body["tags"] = tags
-        return Scenario.model_validate(self._post("/api/v1/scenarios/generate", body))
+        return Scenario.model_validate(self._post("/api/v1/scenarios/generate", body, timeout=120))
 
     def generate_scenarios_batch(
         self,
@@ -275,7 +278,7 @@ class Preclinical:
             body["category"] = category
         if tags is not None:
             body["tags"] = tags
-        return ScenariosList.model_validate(self._post("/api/v1/scenarios/generate-batch", body))
+        return ScenariosList.model_validate(self._post("/api/v1/scenarios/generate-batch", body, timeout=300))
 
     # ── Scenario Runs ─────────────────────────────────────────────────
 
@@ -362,8 +365,11 @@ class AsyncPreclinical:
     async def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
         return _handle_response(await self._client.get(path, params=params))
 
-    async def _post(self, path: str, body: dict[str, Any] | None = None) -> Any:
-        return _handle_response(await self._client.post(path, json=body or {}))
+    async def _post(self, path: str, body: dict[str, Any] | None = None, timeout: float | None = None) -> Any:
+        kwargs: dict[str, Any] = {"json": body or {}}
+        if timeout is not None:
+            kwargs["timeout"] = timeout
+        return _handle_response(await self._client.post(path, **kwargs))
 
     async def _patch(self, path: str, body: dict[str, Any]) -> Any:
         return _handle_response(await self._client.patch(path, json=body))
@@ -502,7 +508,7 @@ class AsyncPreclinical:
             body["name"] = name
         if tags is not None:
             body["tags"] = tags
-        return Scenario.model_validate(await self._post("/api/v1/scenarios/generate", body))
+        return Scenario.model_validate(await self._post("/api/v1/scenarios/generate", body, timeout=120))
 
     async def generate_scenarios_batch(
         self,
@@ -515,7 +521,7 @@ class AsyncPreclinical:
             body["category"] = category
         if tags is not None:
             body["tags"] = tags
-        return ScenariosList.model_validate(await self._post("/api/v1/scenarios/generate-batch", body))
+        return ScenariosList.model_validate(await self._post("/api/v1/scenarios/generate-batch", body, timeout=300))
 
     # ── Scenario Runs ─────────────────────────────────────────────────
 
