@@ -285,6 +285,9 @@ temp/
 # Agent skills (installed via npx skills add)
 .agents/
 skills-lock.json
+
+# Playwright/test output
+output/
 preclinical-skills/
 
 # Cursor
