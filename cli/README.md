@@ -106,7 +106,7 @@ If you use Claude Code, install the plugin for a guided experience with slash co
 /preclinical:setup
 ```
 
-Commands: `/preclinical:run`, `/preclinical:benchmark`, `/preclinical:diagnose`, `/preclinical:compare`, `/preclinical:improve`, `/preclinical:create-scenario`, `/preclinical:export-report`.
+Commands: `/preclinical:setup`, `/preclinical:run`, `/preclinical:benchmark`, `/preclinical:diagnose`, `/preclinical:compare`, `/preclinical:improve`, `/preclinical:create-scenario`, `/preclinical:export-report`.
 
 ## Docs
 
