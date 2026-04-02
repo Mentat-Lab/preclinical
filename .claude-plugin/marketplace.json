@@ -1,0 +1,10 @@
+{
+  "plugins": {
+    "preclinical": {
+      "name": "preclinical",
+      "version": "0.1.0",
+      "description": "Healthcare AI safety testing platform. Runs adversarial multi-turn scenarios against healthcare AI agents. Requires Docker Compose and the preclinical CLI.",
+      "source": "./plugins/preclinical"
+    }
+  }
+}

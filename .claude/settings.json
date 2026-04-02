@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "preclinical": {
+      "source": {
+        "source": "local",
+        "directory": "."
+      }
+    }
+  },
+  "enabledPlugins": {
+    "preclinical@preclinical": true
+  }
+}

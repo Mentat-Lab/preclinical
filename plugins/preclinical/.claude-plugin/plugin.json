@@ -1,0 +1,11 @@
+{
+  "name": "preclinical",
+  "version": "0.1.0",
+  "description": "Healthcare AI safety testing platform. Runs adversarial multi-turn scenarios against healthcare AI agents. Requires Docker Compose and the preclinical CLI (pip install preclinical).",
+  "author": {
+    "name": "Mentat Lab"
+  },
+  "homepage": "https://github.com/Mentat-Lab/preclinical",
+  "repository": "https://github.com/Mentat-Lab/preclinical",
+  "license": "Apache-2.0"
+}

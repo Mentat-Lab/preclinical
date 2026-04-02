@@ -281,6 +281,7 @@ temp/
 
 # Claude Code
 .claude/
+!.claude/settings.json
 
 # Agent skills (installed via npx skills add)
 .agents/
