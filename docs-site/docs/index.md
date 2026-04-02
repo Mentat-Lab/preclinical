@@ -49,14 +49,25 @@ Healthcare AI agents are being deployed rapidly, but without standardized testin
     preclinical run <agent-id> --creative --watch
     ```
 
-=== "AI Assistant"
+=== "Claude Code Plugin"
+
+    ```
+    /plugin marketplace add Mentat-Lab/preclinical
+    /plugin install preclinical@preclinical
+    /preclinical:setup
+    ```
+    Then use `/preclinical:run`, `/preclinical:benchmark`, `/preclinical:diagnose`, and more.
+
+    If you clone the repo, the plugin loads automatically — no install step needed.
+
+=== "AI Assistant (Other)"
 
     ```bash
     npx skills add Mentat-Lab/preclinical
     ```
     Then just ask: *"Test my healthcare agent with emergency scenarios"*
 
-    Works with Claude Code, Cursor, Windsurf, Copilot, Cline, and more.
+    Works with Cursor, Windsurf, Copilot, Cline, and more.
 
 === "Python SDK"
 

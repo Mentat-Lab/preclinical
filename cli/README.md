@@ -96,6 +96,18 @@ api_url = "https://your-server.example.com"
 api_key = "your-api-key"
 ```
 
+## Claude Code Plugin
+
+If you use Claude Code, install the plugin for a guided experience with slash commands:
+
+```
+/plugin marketplace add Mentat-Lab/preclinical
+/plugin install preclinical@preclinical
+/preclinical:setup
+```
+
+Commands: `/preclinical:run`, `/preclinical:benchmark`, `/preclinical:diagnose`, `/preclinical:compare`, `/preclinical:improve`, `/preclinical:create-scenario`, `/preclinical:export-report`.
+
 ## Docs
 
 [docs.preclinical.co](https://docs.preclinical.co)

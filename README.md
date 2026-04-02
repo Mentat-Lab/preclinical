@@ -68,12 +68,20 @@ pip install preclinical
 preclinical run <agent-id> --creative --watch
 ```
 
-### Agent Skills (Claude Code, Cursor, Windsurf, Copilot, Cline, and more)
+### Claude Code Plugin
+```
+/plugin marketplace add Mentat-Lab/preclinical
+/plugin install preclinical@preclinical
+```
+
+Provides 8 slash commands: `/preclinical:setup`, `/preclinical:run`, `/preclinical:benchmark`, `/preclinical:diagnose`, and more. Includes a SessionStart health check and cold-start setup wizard. If you clone the repo, the plugin loads automatically.
+
+### Agent Skills (Cursor, Windsurf, Copilot, Cline, and more)
 ```bash
 npx skills add Mentat-Lab/preclinical
 ```
 
-Run tests, create scenarios, diagnose failures, and generate reports — all from your AI coding assistant.
+Same capabilities as the plugin, for non-Claude Code AI assistants.
 
 ## Supported Providers
 
@@ -95,6 +103,7 @@ preclinical/
 ├── server/               # Hono API, LangGraph workers, provider integrations
 ├── frontend/             # Vite + React UI
 ├── cli/                  # Python CLI and SDK (PyPI: preclinical)
+├── plugins/preclinical/  # Claude Code plugin (slash commands, hooks, skills)
 ├── skills/               # Agent skills for AI coding assistants (skills.sh)
 ├── tests/                # API and E2E tests
 ├── target-agents/        # Local provider mock/target agents

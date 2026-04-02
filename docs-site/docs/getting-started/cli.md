@@ -1,6 +1,6 @@
-# CLI & Agent Skills
+# CLI, Plugin & Agent Skills
 
-Preclinical provides a Python CLI/SDK and agent skills for AI coding assistants. Use the CLI from your terminal, the SDK from Python scripts, or the skills directly from Claude Code, Cursor, Windsurf, and more.
+Preclinical provides a Python CLI/SDK, a Claude Code plugin, and agent skills for AI coding assistants. Use the CLI from your terminal, the plugin from Claude Code, the SDK from Python scripts, or the skills from Cursor, Windsurf, and more.
 
 ## Python CLI
 
@@ -169,9 +169,71 @@ async with AsyncPreclinical() as client:
     print(f"Pass rate: {run.pass_rate}%")
 ```
 
-## Agent Skills
+## Claude Code Plugin
 
-Agent skills let you use Preclinical directly from AI coding assistants — no context switching to a browser or terminal.
+The Preclinical plugin gives Claude Code users a guided, interactive experience with slash commands, automatic health checks, and a cold-start setup wizard.
+
+!!! note "Resource requirements"
+    Preclinical runs as Docker containers (database, API server, worker). The plugin's setup command handles bootstrapping, but expect ~2 GB of Docker images on first start.
+
+### Install
+
+**If you cloned the repo**: the plugin loads automatically — no install step needed.
+
+**From the marketplace**:
+
+```
+/plugin marketplace add Mentat-Lab/preclinical
+/plugin install preclinical@preclinical
+```
+
+### Available Commands
+
+| Command | What it does |
+|---------|-------------|
+| `/preclinical:setup` | Install CLI, start Docker services, configure connection |
+| `/preclinical:run` | Run adversarial safety tests with interactive configuration |
+| `/preclinical:benchmark` | Full safety benchmark with scorecard across all scenarios |
+| `/preclinical:create-scenario` | Author scenarios from clinical text, files, or step-by-step |
+| `/preclinical:diagnose` | Analyze why scenarios failed, identify cross-scenario patterns |
+| `/preclinical:improve` | Iterative loop: diagnose → create targeted scenarios → retest |
+| `/preclinical:compare` | Compare two runs side-by-side, detect regressions |
+| `/preclinical:export-report` | Generate markdown safety reports for stakeholders |
+
+### What Happens on Session Start
+
+The plugin runs a non-blocking health check when you start a Claude Code session. It verifies Docker, the CLI, and server connectivity, and warns you if anything is missing:
+
+```
+[preclinical] First time? Run /preclinical:setup to get started.
+```
+
+or, if partially configured:
+
+```
+[preclinical] Setup issues detected:
+  - Docker Compose services are not running
+  Run /preclinical:setup to fix.
+```
+
+### Cold-Start Setup
+
+Running `/preclinical:setup` with nothing installed walks you through two paths:
+
+- **Self-host**: Clones the repo, starts Docker services, installs the CLI
+- **Remote server**: Configures the CLI to point at an existing Preclinical server
+
+### Test the Plugin
+
+```bash
+bash plugins/preclinical/tests/smoke-test.sh
+```
+
+Runs 14 checks across 4 layers: manifest validation, command discovery, health-check behavior, and setup detection.
+
+## Agent Skills (Cursor, Windsurf, Copilot, Cline, and more)
+
+Agent skills provide the same capabilities as the plugin for non-Claude Code AI coding assistants.
 
 ### Install
 
@@ -179,7 +241,7 @@ Agent skills let you use Preclinical directly from AI coding assistants — no c
 npx skills add Mentat-Lab/preclinical
 ```
 
-Works with **Claude Code, Cursor, Windsurf, GitHub Copilot, Cline**, and [20+ other AI agents](https://skills.sh).
+Works with **Cursor, Windsurf, GitHub Copilot, Cline**, and [20+ other AI agents](https://skills.sh).
 
 ### Available Skills
 
@@ -205,11 +267,7 @@ Just talk to your AI assistant naturally:
 
 > Why did my last test run fail?
 
-> My agent is failing cardiology tests, help me improve it
-
 > Compare my last two runs and check for regressions
-
-> Generate a safety report for the latest benchmark
 ```
 
 The skills handle CLI installation, agent selection, configuration, and result interpretation automatically.
@@ -219,10 +277,10 @@ The skills handle CLI installation, agent selection, configuration, and result i
 ```
 ┌──────────────────────────────────────────────────┐
 │  AI Coding Assistant                             │
-│  (Claude Code, Cursor, Windsurf, etc.)           │
+│  (Claude Code / Cursor / Windsurf / etc.)        │
 │                                                  │
 │  ┌──────────────────────────────────────────┐    │
-│  │  Preclinical Skills                      │    │
+│  │  Plugin (Claude Code) or Skills (others) │    │
 │  │  Clinical domain knowledge + CLI usage   │    │
 │  └──────────────┬───────────────────────────┘    │
 │                 │ calls                          │
@@ -236,6 +294,4 @@ The skills handle CLI installation, agent selection, configuration, and result i
 └──────────────────────────────────────────────────┘
 ```
 
-Skills include reference docs on clinical categories, adversarial attack vectors, rubric design, and failure taxonomy — making the AI assistant an expert at healthcare safety testing.
-
-See the [`skills/` directory](https://github.com/Mentat-Lab/preclinical/tree/main/skills) for full details.
+See the [`plugins/preclinical/`](https://github.com/Mentat-Lab/preclinical/tree/main/plugins/preclinical) directory for the plugin and [`skills/`](https://github.com/Mentat-Lab/preclinical/tree/main/skills) for skills.
