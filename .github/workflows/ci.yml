@@ -96,6 +96,26 @@ jobs:
       - name: Run API tests
         run: cd tests && npm test
 
+  # ── Plugin validation (parallel with typechecks) ─────────────────────
+  plugin-validate:
+    name: Validate Plugin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Validate marketplace
+        run: claude plugin validate .
+
+      - name: Validate plugin
+        run: claude plugin validate ./plugins/preclinical
+
   # ── Security checks (parallel with typechecks) ────────────────────────
   security:
     name: Security Checks
