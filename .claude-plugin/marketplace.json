@@ -1,10 +1,17 @@
 {
-  "plugins": {
-    "preclinical": {
+  "name": "preclinical",
+  "owner": {
+    "name": "Mentat Lab"
+  },
+  "metadata": {
+    "description": "Adversarial testing platform for healthcare AI agents"
+  },
+  "plugins": [
+    {
       "name": "preclinical",
       "version": "0.1.0",
       "description": "Healthcare AI safety testing platform. Runs adversarial multi-turn scenarios against healthcare AI agents. Requires Docker Compose and the preclinical CLI.",
       "source": "./plugins/preclinical"
     }
-  }
+  ]
 }
