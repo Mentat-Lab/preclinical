@@ -1,6 +1,6 @@
 """Preclinical — test healthcare AI agents with adversarial scenarios."""
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 from preclinical.client import AsyncPreclinical, Preclinical
 from preclinical.exceptions import (
