@@ -120,7 +120,7 @@ See [`.env.example`](.env.example) for all environment variables. Key settings:
 
 ## Documentation
 
-Full documentation: [Architecture](docs-site/), [CI/CD Integration](docs-site/docs/getting-started/ci-cd.md), [Adding a Provider](docs-site/docs/getting-started/)
+Full documentation: [Architecture](https://Mentat-Lab.github.io/preclinical/getting-started/architecture/), [CI/CD Integration](https://Mentat-Lab.github.io/preclinical/getting-started/ci-cd/), [Integrations](https://Mentat-Lab.github.io/preclinical/integrations/overview/)
 
 ## Updating
 ```bash

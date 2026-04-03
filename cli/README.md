@@ -1,6 +1,6 @@
 # Preclinical
 
-Python SDK and CLI for [Preclinical](https://preclinical.co) — adversarial testing for healthcare AI agents.
+Python SDK and CLI for [Preclinical](https://github.com/Mentat-Lab/preclinical) — adversarial testing for healthcare AI agents.
 
 ## Installation
 
@@ -110,4 +110,4 @@ Commands: `/preclinical:setup`, `/preclinical:run`, `/preclinical:benchmark`, `/
 
 ## Docs
 
-[docs.preclinical.co](https://docs.preclinical.co)
+[Mentat-Lab.github.io/preclinical](https://Mentat-Lab.github.io/preclinical)
