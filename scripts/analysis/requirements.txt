@@ -1,0 +1,16 @@
+# TriageBench Analysis Scripts Requirements
+#
+# Core data analysis and processing libraries
+pandas>=1.5.0
+numpy>=1.20.0
+
+# Text analysis and readability scoring
+textstat>=0.7.0
+
+# Development and testing
+pytest>=6.0.0
+unittest2>=1.1.0
+
+# Optional: Enhanced text processing (if needed for advanced analysis)
+# nltk>=3.7.0
+# spacy>=3.4.0
