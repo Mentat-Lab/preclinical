@@ -2,7 +2,7 @@
   "extraKnownMarketplaces": {
     "preclinical": {
       "source": {
-        "source": "local",
+        "type": "local",
         "directory": "."
       }
     }
