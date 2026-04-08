@@ -7,9 +7,13 @@ Healthcare AI agent testing platform. Runs adversarial multi-turn scenarios agai
 ## Commands
 
 ```bash
-docker compose up                           # run all services
+make setup                                  # first-time: copy .env, launch Chrome pool, start services
+make up                                     # daily: launch Chrome pool + docker compose up
+make down                                   # stop services + kill Chrome pool
+make logs                                   # tail logs
+make status                                 # health check
+make clean                                  # nuke volumes, Chrome profiles, start fresh
 docker compose --profile ollama up          # with local Ollama
-docker compose --profile browseruse up      # with local BrowserUse
 cd server && npm run dev                    # server dev (hot reload)
 cd frontend && npm run dev                  # frontend dev
 cd server && npx tsc --noEmit               # type check server
@@ -58,15 +62,24 @@ Configurable via env: `DEFAULT_MAX_TURNS=11`, `MIN_MAX_TURNS=5`, `MAX_MAX_TURNS=
 - `frontend/` — Vite + React + TanStack Query
 - `tests/` — Vitest API tests
 - `target-agents/` — Self-hosted target agents for smoke tests (openai-api, livekit, pipecat)
-- `services/browseruse/` — Local BrowserUse wrapper (optional, used via `docker compose --profile browseruse up`)
+- `services/browseruse/` — Local BrowserUse worker (included by default in `docker compose up`)
 - `docs-site/` — MkDocs Material documentation site
 
 ## Browser Provider
 
 The `browser` provider uses BrowserUse to automate web-based chat testing (e.g. chatgpt.com, claude.ai, gemini.google.com).
 
+### CDP Mode (default)
+Browser provider connects to real Chrome instances on your host via CDP. This is the default because most targets (chatgpt.com, claude.ai, gemini.google.com) block headless browsers.
+
+**Chrome pool:** `make up` automatically launches 5 Chrome instances (ports 9222-9226). Each scenario gets its own Chrome for parallel execution. Configurable:
+```bash
+make up CHROME_INSTANCES=3 CHROME_BASE_PORT=9300   # custom pool size/ports
+```
+`make down` stops all Chrome instances along with Docker services.
+
 ### Local vs Cloud
-- **Local (default)**: `docker compose --profile browseruse up` starts a local BrowserUse worker. No API key needed. `BROWSER_USE_API_BASE` defaults to `http://browseruse:9000/api/v2`.
+- **Local (default)**: `docker compose up` includes the BrowserUse worker. `BROWSER_USE_API_BASE` defaults to `http://browseruse:9000/api/v2`.
 - **Cloud**: Set both `BROWSER_USE_API_KEY` and `BROWSER_USE_API_BASE` in `.env` to use BrowserUse Cloud instead.
 
 ### Browser Profiles
@@ -85,26 +98,19 @@ curl -X POST http://localhost:3000/api/v1/agents -H 'Content-Type: application/j
   -d '{"provider":"browser","name":"Claude AI","config":{"url":"https://claude.ai","email":"you@example.com","password":"your-password"}}'
 ```
 
-### CDP Mode (recommended for sites with bot detection)
-Set `CDP_URL` in `.env` to connect to a real Chrome on the host instead of headless Chromium in Docker:
-```bash
-# 1. Launch Chrome with remote debugging
-google-chrome --remote-debugging-port=9222 --remote-allow-origins=*
-# 2. Set in .env
-CDP_URL=http://host.docker.internal:9222
-```
-
 ### Known Limitations
-- Headless Chromium gets blocked by Cloudflare — use CDP mode with real Chrome
 - `BROWSERUSE_MODEL` env var overrides the LLM model used by the local BrowserUse worker (defaults to `TESTER_MODEL`)
-- Browser tests are slow (~5 min/turn) — use `max_turns: 2` for faster iteration
+- Browser tests run ~1-2 min/turn with CDP Chrome pool
+
+## Scenarios
+
+59 TriageBench scenarios: 20 home care, 20 clinician evaluation, 19 emergency/911. Each tests whether the agent correctly triages the patient.
 
 ## Deployment
 
 ```bash
-docker compose up -d                        # production
+make up                                     # production (Chrome pool + Docker)
 docker compose --profile ollama up -d       # with Ollama
-docker compose --profile browseruse up -d   # with local BrowserUse
 docker compose build                        # rebuild images
 ```
 

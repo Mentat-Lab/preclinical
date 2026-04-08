@@ -30,9 +30,9 @@ const __dirname = dirname(__filename);
 const sharedDir = join(__dirname, '..', 'shared');
 
 const BROWSER_USE_API_BASE = process.env.BROWSER_USE_API_BASE || 'http://localhost:9000/api/v2';
-const BROWSER_POLL_INTERVAL_MS = 3_000;
+const BROWSER_POLL_INTERVAL_MS = 1_500;
 const BROWSER_TASK_TIMEOUT_MS = parseInt(process.env.BROWSER_TASK_TIMEOUT_MS || '3600000', 10);
-const BROWSER_STEP_TIMEOUT = parseInt(process.env.BROWSER_STEP_TIMEOUT || '180', 10);
+const BROWSER_STEP_TIMEOUT = parseInt(process.env.BROWSER_STEP_TIMEOUT || '60', 10);
 const BROWSER_MAX_ACTIONS_PER_STEP = parseInt(process.env.BROWSER_MAX_ACTIONS_PER_STEP || '5', 10);
 const BROWSER_USE_VISION = process.env.BROWSER_USE_VISION === '1';
 const BROWSER_SAVE_CONVERSATIONS = process.env.BROWSER_SAVE_CONVERSATIONS === '1';
@@ -345,7 +345,7 @@ const browserProvider: Provider = {
       const taskBody: Record<string, unknown> = {
         task: taskPrompt,
         sessionId: activeSessionId,
-        maxSteps: context.turn === 1 ? 20 : 15,
+        maxSteps: context.turn === 1 ? 12 : 8,
         extraction_schema: EXTRACTION_SCHEMA,
         extend_system_message: systemExt,
         max_actions_per_step: BROWSER_MAX_ACTIONS_PER_STEP,

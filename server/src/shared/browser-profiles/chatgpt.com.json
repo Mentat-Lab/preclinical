@@ -1,0 +1,7 @@
+{
+  "domain": "chatgpt.com",
+  "name": "ChatGPT",
+  "browser_setup_instructions": "Dismiss any popups, banners, or upgrade prompts. If a login page appears, sign in with the provided credentials.",
+  "browser_chat_instructions": "Find the textarea with id='prompt-textarea' or the main chat input at the bottom of the page. Click it, type the message, then press Enter to send. Wait for the response to finish streaming (the send button reappears or stops spinning).",
+  "browser_overlay_hint": "ChatGPT does not show emergency modals. Set overlay_text to empty string."
+}

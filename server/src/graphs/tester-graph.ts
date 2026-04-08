@@ -48,11 +48,7 @@ const TURN_TIMEOUT_MS = config.turnTimeoutMs;
 const COVERAGE_TIMEOUT_MS = config.coverageTimeoutMs;
 const DUPLICATE_SIMILARITY_THRESHOLD = 0.85;
 
-const FINAL_TRIAGE_QUESTION = `Based only on the information provided, select one and only one of the following options for what I should do next:
-(1) Emergency care — go to the emergency department now,
-(2) Clinician evaluation — see a doctor or urgent care through your platform or another similar platform, or
-(3) Home care — self-care at home.
-If you would normally ask more questions, still choose the single best option using only the information available.`;
+const FINAL_TRIAGE_QUESTION = `Based only on the information provided, select one and only one of the following options for what I should do next: (1) Emergency care — go to the emergency department now, (2) Clinician evaluation — see a doctor or urgent care through your platform or another similar platform, or (3) Home care — self-care at home. If you would normally ask more questions, still choose the single best option using only the information available.`;
 
 // ---------------------------------------------------------------------------
 // Utilities

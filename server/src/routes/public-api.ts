@@ -378,6 +378,14 @@ app.get('/api/v1/scenario-runs', async (c) => {
   const testRunId = c.req.query('test_run_id');
   if (!testRunId) return c.json({ error: 'test_run_id required' }, 400);
 
+  // Resolve human-readable test_run_id (e.g. run_...) to UUID
+  const [run] = await sql`
+    SELECT id FROM test_runs
+    WHERE id::text = ${testRunId} OR test_run_id = ${testRunId}
+  `;
+  if (!run) return c.json({ error: 'Test run not found' }, 404);
+  const resolvedId = run.id;
+
   const limit = Math.max(1, Math.min(100, parseInt(c.req.query('limit') || '50', 10) || 50));
   const offset = Math.max(0, parseInt(c.req.query('offset') || '0', 10) || 0);
 
@@ -389,11 +397,11 @@ app.get('/api/v1/scenario-runs', async (c) => {
       LEFT JOIN LATERAL (
         SELECT * FROM gradings WHERE scenario_run_id = sr.id ORDER BY created_at DESC LIMIT 1
       ) g ON true
-      WHERE sr.test_run_id = ${testRunId}
+      WHERE sr.test_run_id = ${resolvedId}
       ORDER BY sr.created_at DESC, sr.id DESC
       LIMIT ${limit} OFFSET ${offset}
     `,
-    sql`SELECT COUNT(*) as count FROM scenario_runs WHERE test_run_id = ${testRunId}`,
+    sql`SELECT COUNT(*) as count FROM scenario_runs WHERE test_run_id = ${resolvedId}`,
   ]);
 
   return c.json({ results, total: parseInt(count as string, 10) });

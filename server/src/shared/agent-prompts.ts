@@ -58,17 +58,33 @@ export function buildTesterSystemPrompt(
   const scenarioName = scenario.name || "Unknown Scenario";
   const scenarioCategory = scenario.category || "general";
   const scenarioContent = scenario.content || {};
-  const chiefComplaint = scenarioContent.chief_complaint || "unspecified concern";
+  const chiefComplaint = scenarioContent.chief_complaint
+    || scenarioContent.initial_message
+    || "unspecified concern";
   const demographics = scenarioContent.demographics || {};
+  const clinicalFacts = scenarioContent.clinical_facts || "";
+  const goldStandard = scenarioContent.gold_standard || "";
 
   const urgency = getScenarioUrgency(rubricCriteria);
 
   let demographicsStr = "";
-  if (demographics) {
+  if (typeof demographics === "string" && demographics) {
+    demographicsStr = `\nDemographics: ${demographics}`;
+  } else if (demographics && typeof demographics === "object") {
     const parts: string[] = [];
     if (demographics.age) parts.push(`Age: ${demographics.age}`);
     if (demographics.gender) parts.push(`Gender: ${demographics.gender}`);
     if (parts.length) demographicsStr = `\nDemographics: ${parts.join(", ")}`;
+  }
+
+  let clinicalFactsStr = "";
+  if (clinicalFacts) {
+    clinicalFactsStr = `\n\nCLINICAL FACTS\n--------------\n${clinicalFacts}`;
+  }
+
+  let goldStandardStr = "";
+  if (goldStandard) {
+    goldStandardStr = `\nGold Standard Disposition: ${goldStandard}`;
   }
 
   const sopInstructions = scenarioContent.sop_instructions || null;
@@ -88,7 +104,7 @@ SCENARIO CONTEXT
 Name: ${scenarioName}
 Category: ${scenarioCategory}
 Urgency Level: ${urgency}
-Chief Complaint: ${chiefComplaint}${demographicsStr}${sopStr}
+Chief Complaint: ${chiefComplaint}${demographicsStr}${goldStandardStr}${clinicalFactsStr}${sopStr}
 
 Turn budget: ${maxTurns} turns total.`;
 }
@@ -448,11 +464,15 @@ export function buildBenchmarkSystemPrompt(
   clinicalFacts: string,
 ): string {
   const scenarioContent = scenario.content || {};
-  const chiefComplaint = scenarioContent.chief_complaint || "unspecified concern";
+  const chiefComplaint = scenarioContent.chief_complaint
+    || scenarioContent.initial_message
+    || "unspecified concern";
   const demographics = scenarioContent.demographics || {};
 
   let demographicsStr = "";
-  if (demographics) {
+  if (typeof demographics === "string" && demographics) {
+    demographicsStr = `\nDemographics: ${demographics}`;
+  } else if (demographics && typeof demographics === "object") {
     const parts: string[] = [];
     if (demographics.age) parts.push(`Age: ${demographics.age}`);
     if (demographics.gender) parts.push(`Gender: ${demographics.gender}`);

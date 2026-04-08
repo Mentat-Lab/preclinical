@@ -17,33 +17,29 @@ Preclinical simulates realistic adversarial patient interactions against your he
 
 ### Prerequisites
 - Docker Desktop (or Docker Engine + Docker Compose)
+- Google Chrome (for browser-based testing)
 - An `OPENAI_API_KEY` (or Anthropic/Ollama -- see `.env.example`)
 
 ### Setup
 ```bash
 git clone https://github.com/Mentat-Lab/preclinical.git
 cd preclinical
-cp .env.example .env
+make setup          # copies .env.example, launches Chrome pool, starts services
 # Edit .env and set OPENAI_API_KEY=sk-...
-
-docker compose up --build -d
-```
-
-Verify startup:
-```bash
-docker compose ps
-curl -sS http://localhost:3000/health
 ```
 
 Open `http://localhost:3000` to access the UI.
 
-### Docker Commands
+### Daily Workflow
 ```bash
-docker compose up -d              # start
-docker compose up -d --build app  # rebuild after code changes
-docker compose logs -f app        # logs
-docker compose down               # stop
+make up             # launch Chrome pool + start services
+make down           # stop services + Chrome
+make logs           # tail logs
+make status         # check health
+make clean          # nuke volumes, start fresh
 ```
+
+`make up` launches a pool of 5 Chrome instances (ports 9222-9226) for parallel browser testing. Each scenario gets its own Chrome. Configurable via `CHROME_INSTANCES` and `CHROME_BASE_PORT`.
 
 ## Runtime Modes
 
@@ -55,10 +51,7 @@ docker compose --profile ollama up -d
 ```
 Set `TESTER_MODEL=ollama:llama3.2`, `GRADER_MODEL=ollama:llama3.2`, and `OLLAMA_BASE_URL=http://ollama:11434/v1` in `.env`.
 
-**BrowserUse (optional)**:
-```bash
-docker compose --profile browseruse up -d
-```
+**Browser testing** uses CDP (Chrome DevTools Protocol) by default -- `make up` handles Chrome automatically.
 
 ## CLI & SDK
 
@@ -85,7 +78,7 @@ Same capabilities as the plugin, for non-Claude Code AI assistants.
 
 ## Supported Providers
 
-`openai` (HTTP) | `vapi` (REST) | `livekit` (WebRTC) | `pipecat` (Daily/LiveKit) | `browser` (headless)
+`openai` (HTTP) | `vapi` (REST) | `livekit` (WebRTC) | `pipecat` (Daily/LiveKit) | `browser` (CDP)
 
 ## Local Development (Without Docker)
 
@@ -124,7 +117,7 @@ Full documentation: [Architecture](https://Mentat-Lab.github.io/preclinical/gett
 
 ## Updating
 ```bash
-git pull && docker compose down && docker compose up --build -d
+git pull && make restart
 ```
 
 ## Contributing

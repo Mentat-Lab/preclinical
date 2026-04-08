@@ -2,17 +2,47 @@
 
 Run your first test against a healthcare AI agent. You'll:
 
-1. Add an agent
-2. Start a test run
-3. Monitor execution
+1. Set up the platform
+2. Add an agent
+3. Start a test run
 4. Review results
 
 !!! tip "Prefer the terminal or an AI assistant?"
     You can also use the [CLI or agent skills](cli.md) instead of the UI. Install via `pip install preclinical` or `npx skills add Mentat-Lab/preclinical`.
 
+## Prerequisites
+
+- Docker Desktop (or Docker Engine + Docker Compose)
+- Google Chrome (for browser-based testing)
+- An API key: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or Ollama (see `.env.example`)
+
+## Setup
+
+```bash
+git clone https://github.com/Mentat-Lab/preclinical.git
+cd preclinical
+make setup          # copies .env.example, launches Chrome pool, starts services
+```
+
+Edit `.env` with your API key, then `make restart` to pick up changes.
+
+`make up` launches a pool of 5 Chrome instances (ports 9222-9226) for parallel browser testing. Each scenario gets its own Chrome instance. You can customize with `make up CHROME_INSTANCES=3 CHROME_BASE_PORT=9300`.
+
+Daily workflow:
+
+| Command | Description |
+|---------|-------------|
+| `make up` | Launch Chrome pool + start services |
+| `make down` | Stop services + Chrome |
+| `make logs` | Tail logs |
+| `make status` | Check health |
+| `make clean` | Nuke volumes, start fresh |
+
+Open `http://localhost:3000` to access the UI.
+
 ## Step 1: Add an Agent
 
-Agents are provider configurations Preclinical can execute against. In the app, go to **Agents** and click **New Agent**.
+Agents are provider configurations Preclinical can execute against. In the UI, go to **Agents** and click **New Agent**.
 
 === "Vapi"
 
@@ -57,7 +87,7 @@ Agents are provider configurations Preclinical can execute against. In the app, 
     }
     ```
 
-    Use this for web chat UIs (BrowserUse Cloud or local browser target).
+    Tests web chat UIs via CDP. `make up` handles Chrome automatically.
 
 === "LiveKit"
 
@@ -97,7 +127,7 @@ Agents are provider configurations Preclinical can execute against. In the app, 
 
 1. Open an agent detail page from **Agents**.
 2. Click **New Test Run**.
-3. Select scenarios (or use defaults).
+3. Select scenarios from the 59 TriageBench cases (or use defaults).
 4. Set max turns.
 5. Click **Start Test Run**.
 
