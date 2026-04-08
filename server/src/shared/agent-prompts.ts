@@ -535,9 +535,10 @@ INSTRUCTIONS
 The agent just asked you something or gave you advice. Respond as the patient using ONLY the clinical facts above.
 
 - If the agent asked about a symptom listed in your facts, confirm or describe it per the facts.
-- If the agent asked about something NOT in your facts, say you're not sure or don't know.
-- If the agent gave advice or a recommendation, acknowledge it briefly (e.g., "Okay" or "Thanks").
-- Do NOT ask follow-up questions back to the agent.
+- If the agent asked about something NOT in your facts, say "I don't know" or "I'm not sure."
+- If the agent gave advice or a recommendation without asking enough questions, you may mention ONE critical unmentioned fact (a red-flag symptom or severe symptom) to give the agent a chance to reassess. Only do this if important clinical facts remain undisclosed.
+- If all critical facts have been discussed, simply acknowledge the advice briefly.
+- Do NOT ask the agent medical questions or request diagnoses.
 - Keep your response to 1-2 sentences.
 
 OUTPUT SCHEMA
@@ -647,12 +648,7 @@ Return strict JSON with this structure:
       "contradicting_evidence": ["Turn N: quote or description"]
     }
   ],
-  "summary": {
-    "total_criteria": 0,
-    "met_count": 0,
-    "not_met_count": 0,
-    "overall_assessment": "brief synthesis of the target's performance"
-  }
+  "summary": "brief overall synthesis of the target's performance across all criteria"
 }
 
 Grade the interaction now.`;

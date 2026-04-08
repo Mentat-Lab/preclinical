@@ -1,4 +1,4 @@
-.PHONY: setup up down restart chrome logs status clean
+.PHONY: setup up down restart chrome logs status clean nuke
 
 CHROME_INSTANCES ?= 5
 CHROME_BASE_PORT ?= 9222
@@ -7,7 +7,7 @@ CHROME_BASE_PORT ?= 9222
 # Preclinical
 # --------------------------------------------------------------------------
 
-## First-time setup: copy env template + start everything
+## First-time setup: copy env template + start services
 setup:
 	@if [ ! -f .env ]; then \
 		cp .env.example .env; \
@@ -18,25 +18,26 @@ setup:
 	fi
 	@$(MAKE) up
 
-## Start everything (daily driver)
-up: chrome
+## Start services (no Chrome — run 'make chrome' separately for browser tests)
+up:
 	docker compose up -d
 	@echo ""
 	@echo "✓ Running — http://localhost:3000"
+	@echo "  → For browser tests: run 'make chrome' first"
 
 ## Stop everything
 down:
 	docker compose down
-	@# Kill Chrome pool instances
+	@# Kill Chrome pool instances if running
 	@for port in $$(seq $(CHROME_BASE_PORT) $$(($(CHROME_BASE_PORT) + $(CHROME_INSTANCES) - 1))); do \
 		lsof -ti :$$port 2>/dev/null | xargs kill 2>/dev/null; \
 	done
-	@echo "✓ Chrome instances stopped"
+	@echo "✓ Stopped"
 
 ## Restart (picks up .env changes)
 restart: down up
 
-## Launch Chrome pool — one instance per scenario slot
+## Launch Chrome pool for browser tests (chatgpt.com, claude.ai, etc.)
 chrome:
 	@launched=0; \
 	for port in $$(seq $(CHROME_BASE_PORT) $$(($(CHROME_BASE_PORT) + $(CHROME_INSTANCES) - 1))); do \
@@ -81,7 +82,7 @@ status:
 	@curl -s http://localhost:9000/health 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "⚠ BrowserUse not reachable"
 	@curl -s http://localhost:3000/health 2>/dev/null && echo "" || echo "⚠ App not reachable"
 
-## Nuke volumes, start fresh
+## Remove volumes + Chrome profiles, restart fresh
 clean:
 	docker compose down -v
 	@for port in $$(seq $(CHROME_BASE_PORT) $$(($(CHROME_BASE_PORT) + $(CHROME_INSTANCES) - 1))); do \
@@ -89,3 +90,14 @@ clean:
 	done
 	@rm -rf .chrome-cdp-profile-*
 	@echo "✓ Volumes removed, Chrome stopped — run 'make setup' to start fresh"
+
+## Destroy everything (containers, images, volumes, profiles) + rebuild from scratch
+nuke:
+	@echo "Nuking everything..."
+	docker compose down -v --rmi all --remove-orphans
+	@for port in $$(seq $(CHROME_BASE_PORT) $$(($(CHROME_BASE_PORT) + $(CHROME_INSTANCES) - 1))); do \
+		lsof -ti :$$port 2>/dev/null | xargs kill 2>/dev/null; \
+	done
+	@rm -rf .chrome-cdp-profile-*
+	@echo "✓ Everything destroyed — rebuilding..."
+	@$(MAKE) setup

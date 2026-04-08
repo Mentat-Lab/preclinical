@@ -7,7 +7,7 @@
 
 import { StateGraph, END, START } from '@langchain/langgraph';
 import { GraderState, type GraderStateType, type CriteriaResult } from './grader-state.js';
-import { loadGraderSkills } from './skill-loaders.js';
+import { loadGraderSkills, loadBenchmarkTriageSkill } from './skill-loaders.js';
 import { buildGraderSystemPrompt, buildGradingTask, buildTriageExtractionTask } from '../shared/agent-prompts.js';
 import { GradingResultSchema, TriageExtractionSchema, normalizeCriteria, pointsForDecision } from '../shared/agent-schemas.js';
 import type { GradingResult, TriageExtraction } from '../shared/agent-schemas.js';
@@ -316,7 +316,11 @@ async function extractTriage(state: GraderStateType): Promise<Partial<GraderStat
   const nodeLog = logger.child({ scenarioRunId: state.scenarioRunId });
   nodeLog.info('Extracting triage recommendation for benchmark');
 
-  const systemPrompt = buildGraderSystemPrompt();
+  const benchmarkSkill = await loadBenchmarkTriageSkill();
+  const basePrompt = buildGraderSystemPrompt();
+  const systemPrompt = benchmarkSkill
+    ? `${basePrompt}\n\n# SKILLS REFERENCE\n\n${benchmarkSkill}`
+    : basePrompt;
   const task = buildTriageExtractionTask(state.transcript, state.goldStandard);
 
   const result = await invokeStructuredWithCaching<TriageExtraction>(

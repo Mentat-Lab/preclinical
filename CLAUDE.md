@@ -7,12 +7,15 @@ Healthcare AI agent testing platform. Runs adversarial multi-turn scenarios agai
 ## Commands
 
 ```bash
-make setup                                  # first-time: copy .env, launch Chrome pool, start services
-make up                                     # daily: launch Chrome pool + docker compose up
-make down                                   # stop services + kill Chrome pool
+make setup                                  # first-time: copy .env + start services
+make up                                     # start services (no Chrome)
+make down                                   # stop services + kill Chrome if running
+make restart                                # down + up
+make chrome                                 # launch Chrome pool (only for browser tests)
 make logs                                   # tail logs
 make status                                 # health check
-make clean                                  # nuke volumes, Chrome profiles, start fresh
+make clean                                  # remove volumes, Chrome profiles, restart fresh
+make nuke                                   # destroy everything + rebuild from scratch
 docker compose --profile ollama up          # with local Ollama
 cd server && npm run dev                    # server dev (hot reload)
 cd frontend && npm run dev                  # frontend dev
@@ -72,11 +75,11 @@ The `browser` provider uses BrowserUse to automate web-based chat testing (e.g. 
 ### CDP Mode (default)
 Browser provider connects to real Chrome instances on your host via CDP. This is the default because most targets (chatgpt.com, claude.ai, gemini.google.com) block headless browsers.
 
-**Chrome pool:** `make up` automatically launches 5 Chrome instances (ports 9222-9226). Each scenario gets its own Chrome for parallel execution. Configurable:
+**Chrome pool:** Run `make chrome` before browser tests to launch 5 Chrome instances (ports 9222-9226). Each scenario gets its own Chrome for parallel execution. Configurable:
 ```bash
-make up CHROME_INSTANCES=3 CHROME_BASE_PORT=9300   # custom pool size/ports
+make chrome CHROME_INSTANCES=3 CHROME_BASE_PORT=9300   # custom pool size/ports
 ```
-`make down` stops all Chrome instances along with Docker services.
+`make down` stops all Chrome instances along with Docker services. Chrome is NOT started automatically — only when you need browser tests.
 
 ### Local vs Cloud
 - **Local (default)**: `docker compose up` includes the BrowserUse worker. `BROWSER_USE_API_BASE` defaults to `http://browseruse:9000/api/v2`.

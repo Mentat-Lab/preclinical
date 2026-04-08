@@ -189,6 +189,7 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
         currentTurn: 0,
         providerSession: connectedSession,
         coverageReview: null,
+        turnIntents: [],
         shouldStop: false,
         error: null,
       });

@@ -80,6 +80,20 @@ export const BenchmarkTurnSchema = z.object({
 
 export type BenchmarkTurn = z.infer<typeof BenchmarkTurnSchema>;
 
+export const TriageDetectionSchema = z.object({
+  has_recommendation: z.boolean().describe(
+    "True if the agent made a clear triage recommendation in this response"
+  ),
+  triage_level: z.enum(["Emergency", "Clinician", "Home care"]).nullable().describe(
+    "Detected triage level, or null if no recommendation found"
+  ),
+  confidence: z.enum(["clear", "implied", "none"]).describe(
+    "clear = explicit recommendation, implied = strong suggestion without direct statement, none = no recommendation"
+  ),
+});
+
+export type TriageDetection = z.infer<typeof TriageDetectionSchema>;
+
 export const TriageExtractionSchema = z.object({
   extracted_triage: z.enum(["Emergency", "Clinician", "Home care"]).describe(
     "Extracted triage recommendation from the agent"

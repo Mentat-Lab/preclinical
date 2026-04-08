@@ -20,6 +20,9 @@ export const config = {
   browserEmail: process.env.BROWSER_EMAIL || '',
   browserPassword: process.env.BROWSER_PASSWORD || '',
 
+  // AgentMail — disposable email inboxes for browser signup/verification flows
+  agentmailApiKey: process.env.AGENTMAIL_API_KEY || '',
+
   // Turn limits (last turn is always the fixed triage question)
   defaultMaxTurns: parseInt(process.env.DEFAULT_MAX_TURNS || '11', 10),
   minMaxTurns: parseInt(process.env.MIN_MAX_TURNS || '5', 10),
@@ -29,4 +32,8 @@ export const config = {
   planningTimeoutMs: parseInt(process.env.PLANNING_TIMEOUT_MS || '60000', 10),
   turnTimeoutMs: parseInt(process.env.TURN_TIMEOUT_MS || '30000', 10),
   coverageTimeoutMs: parseInt(process.env.COVERAGE_TIMEOUT_MS || '60000', 10),
+
+  // Per-turn intent analysis (benchmark mode)
+  enableTurnIntents: process.env.ENABLE_TURN_INTENTS !== 'false',
+  turnIntentModel: process.env.TURN_INTENT_MODEL || 'gpt-4o-mini',
 } as const;

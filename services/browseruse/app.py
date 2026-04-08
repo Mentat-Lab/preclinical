@@ -4,12 +4,10 @@ Local BrowserUse API wrapper.
 Exposes the same REST API as BrowserUse Cloud (sessions + tasks)
 so the existing browser provider can point here instead.
 
-Supports three modes (highest priority wins):
-  - CDP pool: Multiple host Chrome instances on ports 9222-9226.
-    Set CDP_URL=http://host.docker.internal:9222 to enable.
-    Additional Chromes on 9223-9226 are auto-detected.
-  - CDP single: Falls back to single CDP_URL if only one Chrome is available.
-  - Self-contained: Launches headless Chromium inside Docker (default fallback).
+Requires a Chrome pool running on the host via CDP.
+  Set CDP_URL=http://host.docker.internal:9222 to configure.
+  Run 'make chrome' on the host to launch Chrome instances on ports 9222-9226.
+  Will NOT fall back to headless Chromium (sites like chatgpt.com block it).
 
 Enhanced features (v2):
   - Cookie/storage state persistence per domain (skip re-login)
@@ -38,6 +36,14 @@ from pydantic import BaseModel
 from browser_use import Agent, ChatOpenAI
 from browser_use.browser.profile import BrowserProfile
 from browser_use.browser.session import BrowserSession
+
+# AgentMail — optional, for disposable email inboxes during signup flows
+try:
+    from agentmail import AsyncAgentMail  # type: ignore
+    from email_tools import EmailTools
+    AGENTMAIL_AVAILABLE = True
+except ImportError:
+    AGENTMAIL_AVAILABLE = False
 
 # ---------------------------------------------------------------------------
 # Config
@@ -163,6 +169,7 @@ class ChromePool:
 sessions: dict[str, BrowserSession] = {}
 tasks: dict[str, dict[str, Any]] = {}
 session_slots: dict[str, ChromeSlot] = {}  # session_id → pool slot
+session_email_tools: dict[str, "EmailTools"] = {}  # session_id → EmailTools (AgentMail)
 chrome_pool: ChromePool | None = None
 
 
@@ -174,26 +181,39 @@ chrome_pool: ChromePool | None = None
 async def lifespan(app: FastAPI):
     global chrome_pool
 
-    # Initialize Chrome pool if CDP_URL is configured
+    # Initialize Chrome pool — required for browser tests
     if _CDP_URL_RAW:
         pool = ChromePool(_CDP_URL_RAW, max_instances=MAX_CHROME_INSTANCES)
-        try:
-            count = await pool.discover()
-            chrome_pool = pool
-            print(f"[pool] Chrome pool ready: {count} instance(s)")
-        except Exception as e:
-            print(f"[pool] Chrome pool init failed: {e}")
-            print("[pool] Falling back to headless Chromium")
+        # Retry discovery a few times — Chrome may still be starting
+        for attempt in range(3):
+            try:
+                count = await pool.discover()
+                chrome_pool = pool
+                print(f"[pool] Chrome pool ready: {count} instance(s)")
+                break
+            except Exception as e:
+                if attempt < 2:
+                    print(f"[pool] Chrome not ready (attempt {attempt + 1}/3): {e}")
+                    await asyncio.sleep(3)
+                else:
+                    print(f"[pool] Chrome pool init failed after 3 attempts: {e}")
+                    print("[pool] ⚠ No Chrome available — browser tests will fail.")
+                    print("[pool] Run 'make chrome' on the host to start Chrome instances.")
+    else:
+        print("[pool] ⚠ CDP_URL not set — browser tests will fail.")
+        print("[pool] Set CDP_URL and run 'make chrome' on the host.")
 
     yield
 
-    for sid, session in sessions.items():
+    for sid, session in list(sessions.items()):
         try:
             await session.close()
         except Exception:
             pass
     sessions.clear()
     session_slots.clear()
+    session_email_tools.clear()
+    chrome_pool = None
 
 
 app = FastAPI(title="BrowserUse Local", lifespan=lifespan)
@@ -206,6 +226,7 @@ app = FastAPI(title="BrowserUse Local", lifespan=lifespan)
 class CreateSessionRequest(BaseModel):
     domain: str | None = None
     allowed_domains: list[str] | None = None
+    agentmail_api_key: str | None = None  # creates a disposable inbox for signup flows
 
 
 class CreateTaskRequest(BaseModel):
@@ -294,14 +315,16 @@ async def create_browser_session(
     if allowed_domains:
         profile_kwargs["allowed_domains"] = allowed_domains
 
-    if chrome_pool:
-        # Acquire a dedicated Chrome from the pool
-        slot = await chrome_pool.acquire(session_id)
-        session_slots[session_id] = slot
-        profile_kwargs["cdp_url"] = slot.ws_url
-    else:
-        profile_kwargs["headless"] = True
-        profile_kwargs["user_data_dir"] = BROWSER_DATA_DIR
+    if not chrome_pool:
+        raise HTTPException(
+            status_code=503,
+            detail="No Chrome instances available. Run 'make chrome' on the host first.",
+        )
+
+    # Acquire a dedicated Chrome from the pool
+    slot = await chrome_pool.acquire(session_id)
+    session_slots[session_id] = slot
+    profile_kwargs["cdp_url"] = slot.ws_url
 
     profile = BrowserProfile(**profile_kwargs)
     return BrowserSession(browser_profile=profile)
@@ -318,7 +341,24 @@ async def create_session(body: CreateSessionRequest | None = None):
     allowed_domains = body.allowed_domains if body else None
     browser_session = await create_browser_session(session_id, domain, allowed_domains)
     sessions[session_id] = browser_session
-    return {"id": session_id, "live_url": "", "domain": domain}
+
+    # Create AgentMail inbox for this session (optional — for signup/email-verification flows)
+    inbox_address = ""
+    agentmail_key = body.agentmail_api_key if body else None
+    if agentmail_key and AGENTMAIL_AVAILABLE:
+        try:
+            client = AsyncAgentMail(api_key=agentmail_key)
+            inbox = await client.inboxes.create()
+            tools = EmailTools(email_client=client, inbox=inbox)
+            session_email_tools[session_id] = tools
+            inbox_address = inbox.inbox_id
+            print(f"[agentmail] Created inbox {inbox_address} for session {session_id[:8]}")
+        except Exception as e:
+            print(f"[agentmail] Failed to create inbox: {e}")
+    elif agentmail_key and not AGENTMAIL_AVAILABLE:
+        print("[agentmail] ⚠ agentmail_api_key provided but agentmail package not installed")
+
+    return {"id": session_id, "live_url": "", "domain": domain, "inbox_address": inbox_address}
 
 
 @app.get("/api/v2/tasks/{task_id}")
@@ -383,6 +423,10 @@ async def _run_agent(task_id: str, browser_session: BrowserSession, body: Create
             gif_path = os.path.join(GIF_OUTPUT_DIR, f"{run_id}.gif")
             agent_kwargs["generate_gif"] = gif_path
 
+        # Attach AgentMail email tools if this session has an inbox
+        if body.sessionId in session_email_tools:
+            agent_kwargs["tools"] = session_email_tools[body.sessionId]
+
         agent = Agent(**agent_kwargs)
         result = await agent.run(max_steps=body.maxSteps)
 
@@ -427,10 +471,12 @@ async def _run_agent(task_id: str, browser_session: BrowserSession, body: Create
         tasks[task_id] = {
             "id": task_id,
             "status": "finished",
-            "isSuccess": True,
+            "isSuccess": bool(output),
             "output": output,
             "parsed": parsed,
         }
+        if not output:
+            print(f"[task {task_id}] ⚠ Finished but no response extracted — marked as failed")
     except Exception as e:
         tasks[task_id] = {
             "id": task_id,
@@ -468,6 +514,8 @@ async def patch_session(session_id: str, body: PatchSessionRequest):
         if session_id in session_slots:
             await chrome_pool.release(session_id)
             del session_slots[session_id]
+        # Clean up AgentMail tools
+        session_email_tools.pop(session_id, None)
     return {"status": "stopped"}
 
 

@@ -63,6 +63,7 @@ interface BrowserState {
   liveUrl?: string;
   profile?: BrowserProfile;
   scenarioRunId: string;
+  inboxAddress?: string; // AgentMail disposable email for signup flows
 }
 
 const EXTRACTION_SCHEMA = {
@@ -150,14 +151,18 @@ async function createSession(
   apiKey: string,
   domain: string,
   allowedDomains?: string[],
-): Promise<{ id: string; liveUrl: string }> {
+  agentmailApiKey?: string,
+): Promise<{ id: string; liveUrl: string; inboxAddress: string }> {
+  const body: Record<string, unknown> = {
+    domain,
+    allowed_domains: allowedDomains,
+  };
+  if (agentmailApiKey) body.agentmail_api_key = agentmailApiKey;
+
   const response = await fetch(`${BROWSER_USE_API_BASE}/sessions`, {
     method: 'POST',
     headers: apiHeaders(apiKey),
-    body: JSON.stringify({
-      domain,
-      allowed_domains: allowedDomains,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
@@ -165,7 +170,11 @@ async function createSession(
   }
 
   const data = await response.json() as any;
-  return { id: data.id, liveUrl: data.live_url || data.liveUrl || '' };
+  return {
+    id: data.id,
+    liveUrl: data.live_url || data.liveUrl || '',
+    inboxAddress: data.inbox_address || '',
+  };
 }
 
 async function pollTask(apiKey: string, taskId: string): Promise<Record<string, unknown>> {
@@ -241,6 +250,7 @@ function buildTaskPrompt(
   targetUrl: string,
   turn: number,
   agentConfig: Record<string, unknown>,
+  inboxAddress?: string,
 ): string {
   const email = String(agentConfig.email || config.browserEmail || '');
   const password = String(agentConfig.password || config.browserPassword || '');
@@ -248,22 +258,42 @@ function buildTaskPrompt(
   const extraInstructions = String(agentConfig.instructions || '').trim();
   const extraStep = extraInstructions ? ` ${extraInstructions}` : '';
 
-  // Build login instructions for turn 1 when credentials are available
-  let loginStep = '';
-  if (turn === 1 && hasCredentials) {
-    if (profile.browser_login_instructions) {
-      // Credentials are passed via sensitive_data now — use placeholders
-      loginStep = profile.browser_login_instructions
+  // AgentMail signup flow — fresh disposable email, bypasses Cloudflare login issues
+  const useAgentMailSignup = !!(inboxAddress && profile.email_verification);
+
+  let authStep = '';
+  if (turn === 1 && useAgentMailSignup) {
+    // Signup flow with AgentMail: use get_email_address + get_latest_email tools
+    if (profile.browser_signup_instructions) {
+      authStep = profile.browser_signup_instructions
         .replace(/\{url\}/g, targetUrl)
         .replace(/\{email\}/g, '%email%')
         .replace(/\{password\}/g, '%password%') + ' ';
     } else {
-      loginStep = `Go to ${targetUrl}. If a login or sign-in page appears, sign in with the provided credentials. Complete any verification steps. Once logged in, dismiss any popups or banners. `;
+      authStep = `Go to ${targetUrl}. Sign up for a new account. Use the get_email_address tool to get your email address, and use %password% as the password. `;
+    }
+    // Add verification step
+    if (profile.browser_verify_instructions) {
+      const verifyStep = profile.browser_verify_instructions
+        .replace(/\{otp\}/g, 'THE_CODE_FROM_EMAIL');
+      authStep += `After submitting signup, use the get_latest_email tool to retrieve the verification code. ${verifyStep} `;
+    } else {
+      authStep += 'After submitting signup, use the get_latest_email tool to retrieve the verification email. Find the code in the email and enter it on the verification page. ';
+    }
+  } else if (turn === 1 && hasCredentials) {
+    // Standard login flow (existing behavior)
+    if (profile.browser_login_instructions) {
+      authStep = profile.browser_login_instructions
+        .replace(/\{url\}/g, targetUrl)
+        .replace(/\{email\}/g, '%email%')
+        .replace(/\{password\}/g, '%password%') + ' ';
+    } else {
+      authStep = `Go to ${targetUrl}. If a login or sign-in page appears, sign in with the provided credentials. Complete any verification steps. Once logged in, dismiss any popups or banners. `;
     }
   }
 
   if (turn === 1) {
-    const nav = loginStep || `Go to ${targetUrl}. `;
+    const nav = authStep || `Go to ${targetUrl}. `;
     return `${nav}${extraStep} Send this message in the chat: "${message}". Then extract the chatbot's response.`;
   }
   return `In the chat that is already open, send this message: "${message}". Then extract the chatbot's latest response only.`;
@@ -272,12 +302,13 @@ function buildTaskPrompt(
 function buildSensitiveData(
   domain: string,
   agentConfig: Record<string, unknown>,
+  inboxAddress?: string,
 ): Record<string, string> | undefined {
-  const email = String(agentConfig.email || config.browserEmail || '');
+  // AgentMail signup: use disposable inbox as email, keep password from config
+  const email = inboxAddress || String(agentConfig.email || config.browserEmail || '');
   const password = String(agentConfig.password || config.browserPassword || '');
   if (!email && !password) return undefined;
 
-  // Domain-keyed sensitive data — browser-use will log as <email>/<password> instead of plaintext
   const data: Record<string, string> = {};
   if (email) data.email = email;
   if (password) data.password = password;
@@ -318,9 +349,14 @@ const browserProvider: Provider = {
     // Create session on first turn — pass domain for cookie restoration + allowed_domains
     if (context.turn === 1) {
       const allowedDomains = state.domain ? [state.domain] : undefined;
-      const browserSession = await createSession(state.apiKey, state.domain, allowedDomains);
+      const agentmailKey = config.agentmailApiKey || undefined;
+      const browserSession = await createSession(state.apiKey, state.domain, allowedDomains, agentmailKey);
       state.sessionId = browserSession.id;
       state.liveUrl = browserSession.liveUrl;
+      state.inboxAddress = browserSession.inboxAddress || undefined;
+      if (state.inboxAddress) {
+        logger.info('AgentMail inbox created', { inbox: state.inboxAddress, domain: state.domain });
+      }
       logger.info('Session created', { sessionId: browserSession.id, domain: state.domain });
     }
 
@@ -332,20 +368,20 @@ const browserProvider: Provider = {
     }
 
     const taskPrompt = buildTaskPrompt(
-      state.profile, message, state.targetUrl, context.turn, state.agentConfig,
+      state.profile, message, state.targetUrl, context.turn, state.agentConfig, state.inboxAddress,
     );
 
     // Build system message extension with chat rules and overlay hints
     const systemExt = buildSystemMessageExtension(state.profile, context.persona || null);
 
-    // Build sensitive_data for safe credential handling
-    const sensitiveData = buildSensitiveData(state.domain, state.agentConfig);
+    // Build sensitive_data for safe credential handling (uses inbox address as email when AgentMail active)
+    const sensitiveData = buildSensitiveData(state.domain, state.agentConfig, state.inboxAddress);
 
     async function createAndPollTask(activeSessionId: string): Promise<Record<string, unknown>> {
       const taskBody: Record<string, unknown> = {
         task: taskPrompt,
         sessionId: activeSessionId,
-        maxSteps: context.turn === 1 ? 12 : 8,
+        maxSteps: context.turn === 1 ? (state.inboxAddress ? 20 : 12) : 8,
         extraction_schema: EXTRACTION_SCHEMA,
         extend_system_message: systemExt,
         max_actions_per_step: BROWSER_MAX_ACTIONS_PER_STEP,
@@ -389,8 +425,10 @@ const browserProvider: Provider = {
       if (isDeadSession) {
         logger.info('Session dead, creating fresh session');
         const allowedDomains = state.domain ? [state.domain] : undefined;
-        const freshSession = await createSession(state.apiKey, state.domain, allowedDomains);
+        const agentmailKey = config.agentmailApiKey || undefined;
+        const freshSession = await createSession(state.apiKey, state.domain, allowedDomains, agentmailKey);
         state.sessionId = freshSession.id;
+        state.inboxAddress = freshSession.inboxAddress || state.inboxAddress;
         result = await createAndPollTask(freshSession.id);
       } else {
         throw taskError;

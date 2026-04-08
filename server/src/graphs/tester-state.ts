@@ -20,6 +20,13 @@ export interface TranscriptEntry {
   timestamp: string;
 }
 
+export interface TurnIntent {
+  turn: number;
+  has_recommendation: boolean;
+  triage_level: string | null;
+  confidence: 'clear' | 'implied' | 'none';
+}
+
 export const TesterState = Annotation.Root({
   // --- Inputs (set once at start) ---
   scenario: Annotation<Record<string, any>>,
@@ -46,6 +53,9 @@ export const TesterState = Annotation.Root({
   currentTurn: Annotation<number>,
   providerSession: Annotation<ProviderSession | null>,
   coverageReview: Annotation<CoverageReview | null>,
+
+  // --- Per-turn intent analysis (benchmark mode) ---
+  turnIntents: Annotation<TurnIntent[]>,
 
   // --- Control flow ---
   shouldStop: Annotation<boolean>,

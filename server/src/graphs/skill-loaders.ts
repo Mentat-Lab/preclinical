@@ -40,6 +40,7 @@ async function loadTesterSkill(phase: string): Promise<string> {
 export const loadPlanningSkill = () => loadTesterSkill('adversarial-testing');
 export const loadTurnSkill = () => loadTesterSkill('turn-generation');
 export const loadCoverageSkill = () => loadTesterSkill('coverage-analysis');
+export const loadBenchmarkSkill = () => loadTesterSkill('standardized-patient');
 
 // ---------------------------------------------------------------------------
 // Grader skill (single consolidated guide)
@@ -50,4 +51,11 @@ export async function loadGraderSkills(): Promise<string> {
   if (_graderSkills !== null) return _graderSkills;
   _graderSkills = await loadSkillFile(join(skillsDir, 'grader', 'grading-guide', 'SKILL.md'));
   return _graderSkills;
+}
+
+let _benchmarkTriageSkill: string | null = null;
+export async function loadBenchmarkTriageSkill(): Promise<string> {
+  if (_benchmarkTriageSkill !== null) return _benchmarkTriageSkill;
+  _benchmarkTriageSkill = await loadSkillFile(join(skillsDir, 'grader', 'benchmark-triage', 'SKILL.md'));
+  return _benchmarkTriageSkill;
 }

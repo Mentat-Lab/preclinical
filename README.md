@@ -24,7 +24,7 @@ Preclinical simulates realistic adversarial patient interactions against your he
 ```bash
 git clone https://github.com/Mentat-Lab/preclinical.git
 cd preclinical
-make setup          # copies .env.example, launches Chrome pool, starts services
+make setup          # copies .env.example + starts services
 # Edit .env and set OPENAI_API_KEY=sk-...
 ```
 
@@ -32,14 +32,15 @@ Open `http://localhost:3000` to access the UI.
 
 ### Daily Workflow
 ```bash
-make up             # launch Chrome pool + start services
-make down           # stop services + Chrome
+make up             # start services
+make down           # stop everything
+make restart        # down + up (picks up .env changes)
+make chrome         # launch Chrome pool (only for browser tests)
 make logs           # tail logs
 make status         # check health
-make clean          # nuke volumes, start fresh
+make clean          # remove volumes + Chrome profiles, restart fresh
+make nuke           # destroy everything + rebuild from scratch
 ```
-
-`make up` launches a pool of 5 Chrome instances (ports 9222-9226) for parallel browser testing. Each scenario gets its own Chrome. Configurable via `CHROME_INSTANCES` and `CHROME_BASE_PORT`.
 
 ## Runtime Modes
 
@@ -51,7 +52,7 @@ docker compose --profile ollama up -d
 ```
 Set `TESTER_MODEL=ollama:llama3.2`, `GRADER_MODEL=ollama:llama3.2`, and `OLLAMA_BASE_URL=http://ollama:11434/v1` in `.env`.
 
-**Browser testing** uses CDP (Chrome DevTools Protocol) by default -- `make up` handles Chrome automatically.
+**Browser testing** (chatgpt.com, claude.ai, etc.) uses CDP (Chrome DevTools Protocol). Run `make chrome` before browser tests to launch 5 Chrome instances (ports 9222-9226). Configurable via `CHROME_INSTANCES` and `CHROME_BASE_PORT`.
 
 ## CLI & SDK
 
