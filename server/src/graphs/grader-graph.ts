@@ -100,7 +100,7 @@ async function gradeTranscript(state: GraderStateType): Promise<Partial<GraderSt
       systemPrompt,
       task,
       GradingResultSchema,
-      120_000,
+      config.gradingTimeoutMs,
     );
 
     nodeLog.info('Grader returned evaluations', { count: result.evaluations?.length || 0 });
@@ -129,7 +129,7 @@ async function gradeTranscript(state: GraderStateType): Promise<Partial<GraderSt
 
 function shouldRetryGrading(state: GraderStateType): string {
   if (state.error && state.gradingAttempt < 2) return 'gradeTranscript';
-  if (state.error && state.gradingAttempt >= 2) return END;
+  if (state.error && state.gradingAttempt >= 2) return 'handleGradingFailure';
   return 'verifyEvidence';
 }
 
@@ -173,7 +173,7 @@ async function verifyEvidence(state: GraderStateType): Promise<Partial<GraderSta
 
 function shouldRetryAfterEvidenceCheck(state: GraderStateType): string {
   if (state.error && state.gradingAttempt < 2) return 'gradeTranscript';
-  if (state.error && state.gradingAttempt >= 2) return END;
+  if (state.error && state.gradingAttempt >= 2) return 'handleGradingFailure';
   return 'consistencyAudit';
 }
 
@@ -305,6 +305,37 @@ async function computeScore(state: GraderStateType): Promise<Partial<GraderState
 }
 
 // =============================================================================
+// Node: handleGradingFailure (terminal — writes failed record for forensics)
+// =============================================================================
+
+async function handleGradingFailure(state: GraderStateType): Promise<Partial<GraderStateType>> {
+  const nodeLog = logger.child({ scenarioRunId: state.scenarioRunId });
+  nodeLog.error('Grading exhausted retries', {
+    attempts: state.gradingAttempt,
+    lastError: state.error,
+  });
+
+  await createGrading(state.scenarioRunId, {
+    passed: false,
+    total_points: 0,
+    max_points: 0,
+    summary: `Grading failed after ${state.gradingAttempt} attempts: ${state.error}`,
+    criteria_results: [],
+  });
+
+  await emitEvent(state.testRunId, 'grading_complete', {
+    scenario_run_id: state.scenarioRunId,
+    scenario_id: state.scenarioId,
+    passed: false,
+    total_points: 0,
+    max_points: 0,
+    error: state.error,
+  });
+
+  return {};
+}
+
+// =============================================================================
 // Node: extractTriage (always runs — primary outcome)
 // =============================================================================
 
@@ -363,20 +394,22 @@ export function createGraderGraph() {
     .addNode('consistencyAudit', consistencyAudit)
     .addNode('computeScore', computeScore)
     .addNode('extractTriage', extractTriage)
+    .addNode('handleGradingFailure', handleGradingFailure)
     .addEdge(START, 'gradeTranscript')
     .addConditionalEdges('gradeTranscript', shouldRetryGrading, {
       gradeTranscript: 'gradeTranscript',
       verifyEvidence: 'verifyEvidence',
-      [END]: END,
+      handleGradingFailure: 'handleGradingFailure',
     })
     .addConditionalEdges('verifyEvidence', shouldRetryAfterEvidenceCheck, {
       gradeTranscript: 'gradeTranscript',
       consistencyAudit: 'consistencyAudit',
-      [END]: END,
+      handleGradingFailure: 'handleGradingFailure',
     })
     .addEdge('consistencyAudit', 'computeScore')
     .addEdge('computeScore', 'extractTriage')
-    .addEdge('extractTriage', END);
+    .addEdge('extractTriage', END)
+    .addEdge('handleGradingFailure', END);
 
   return graph.compile();
 }

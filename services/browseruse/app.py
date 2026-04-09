@@ -24,7 +24,7 @@ import json
 import os
 import uuid
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -45,6 +45,13 @@ try:
 except ImportError:
     AGENTMAIL_AVAILABLE = False
 
+# Browserbase — optional, cloud Chrome instances via CDP
+try:
+    from browserbase import Browserbase
+    BROWSERBASE_AVAILABLE = True
+except ImportError:
+    BROWSERBASE_AVAILABLE = False
+
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -54,6 +61,11 @@ LLM_BASE_URL = os.getenv("LLM_BASE_URL", None)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 _CDP_URL_RAW = os.getenv("CDP_URL", None)  # e.g. http://host.docker.internal:9222
 MAX_CHROME_INSTANCES = int(os.getenv("MAX_CHROME_INSTANCES", "5"))
+
+# Browserbase — cloud Chrome (feature flag: set BROWSERBASE_API_KEY to enable)
+BROWSERBASE_API_KEY = os.getenv("BROWSERBASE_API_KEY", "")
+BROWSERBASE_PROJECT_ID = os.getenv("BROWSERBASE_PROJECT_ID", "")
+USE_BROWSERBASE = bool(BROWSERBASE_API_KEY) and BROWSERBASE_AVAILABLE
 
 BROWSER_DATA_DIR = os.getenv("BROWSER_DATA_DIR", "/data/browser-profiles")
 STORAGE_STATE_DIR = os.getenv("STORAGE_STATE_DIR", "/data/storage-states")
@@ -163,14 +175,87 @@ class ChromePool:
 
 
 # ---------------------------------------------------------------------------
+# Browserbase Backend — cloud Chrome instances via CDP
+# ---------------------------------------------------------------------------
+
+@dataclass
+class BrowserbaseSlot:
+    """Represents a Browserbase cloud browser session."""
+    bb_session_id: str
+    connect_url: str  # CDP WebSocket URL
+    context_id: str | None = None
+    session_id: str | None = None  # our internal session_id
+
+
+class BrowserbaseBackend:
+    """Cloud browser backend via Browserbase API."""
+
+    def __init__(self, api_key: str, project_id: str):
+        self.client = Browserbase(api_key=api_key)
+        self.project_id = project_id
+        self._contexts: dict[str, str] = {}  # domain -> context_id
+        self._lock = asyncio.Lock()
+
+    async def acquire(self, session_id: str, domain: str | None = None) -> BrowserbaseSlot:
+        """Create a Browserbase session and return the CDP connect URL."""
+        context_id = None
+        if domain:
+            context_id = await self._get_or_create_context(domain)
+
+        create_kwargs: dict[str, Any] = {}
+        if self.project_id:
+            create_kwargs["project_id"] = self.project_id
+        if context_id:
+            create_kwargs["browser_settings"] = {
+                "context": {"id": context_id, "persist": True}
+            }
+
+        bb_session = self.client.sessions.create(**create_kwargs)
+        slot = BrowserbaseSlot(
+            bb_session_id=bb_session.id,
+            connect_url=bb_session.connect_url,
+            context_id=context_id,
+            session_id=session_id,
+        )
+        print(f"[browserbase] Created session {bb_session.id} for {session_id[:8]}")
+        return slot
+
+    async def release(self, slot: BrowserbaseSlot):
+        """Release a Browserbase session (stops billing)."""
+        try:
+            self.client.sessions.update(
+                slot.bb_session_id,
+                status="REQUEST_RELEASE",
+            )
+            print(f"[browserbase] Released session {slot.bb_session_id}")
+        except Exception as e:
+            print(f"[browserbase] Failed to release session {slot.bb_session_id}: {e}")
+
+    async def _get_or_create_context(self, domain: str) -> str:
+        """Get or create a Browserbase Context for persistent auth per domain."""
+        async with self._lock:
+            if domain in self._contexts:
+                return self._contexts[domain]
+            create_kwargs: dict[str, Any] = {}
+            if self.project_id:
+                create_kwargs["project_id"] = self.project_id
+            ctx = self.client.contexts.create(**create_kwargs)
+            self._contexts[domain] = ctx.id
+            print(f"[browserbase] Created context {ctx.id} for {domain}")
+            return ctx.id
+
+
+# ---------------------------------------------------------------------------
 # State
 # ---------------------------------------------------------------------------
 
 sessions: dict[str, BrowserSession] = {}
 tasks: dict[str, dict[str, Any]] = {}
 session_slots: dict[str, ChromeSlot] = {}  # session_id → pool slot
+session_bb_slots: dict[str, BrowserbaseSlot] = {}  # session_id → Browserbase slot
 session_email_tools: dict[str, "EmailTools"] = {}  # session_id → EmailTools (AgentMail)
 chrome_pool: ChromePool | None = None
+browserbase_backend: BrowserbaseBackend | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -179,10 +264,14 @@ chrome_pool: ChromePool | None = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global chrome_pool
+    global chrome_pool, browserbase_backend
 
-    # Initialize Chrome pool — required for browser tests
-    if _CDP_URL_RAW:
+    if USE_BROWSERBASE:
+        # Browserbase mode — cloud Chrome, no local Chrome needed
+        browserbase_backend = BrowserbaseBackend(BROWSERBASE_API_KEY, BROWSERBASE_PROJECT_ID)
+        print("[browserbase] Browserbase backend enabled — cloud Chrome sessions")
+    elif _CDP_URL_RAW:
+        # Local Chrome pool mode (existing behavior)
         pool = ChromePool(_CDP_URL_RAW, max_instances=MAX_CHROME_INSTANCES)
         # Retry discovery a few times — Chrome may still be starting
         for attempt in range(3):
@@ -200,10 +289,19 @@ async def lifespan(app: FastAPI):
                     print("[pool] ⚠ No Chrome available — browser tests will fail.")
                     print("[pool] Run 'make chrome' on the host to start Chrome instances.")
     else:
-        print("[pool] ⚠ CDP_URL not set — browser tests will fail.")
-        print("[pool] Set CDP_URL and run 'make chrome' on the host.")
+        print("[pool] ⚠ CDP_URL not set and BROWSERBASE_API_KEY not set — browser tests will fail.")
+        print("[pool] Set CDP_URL + run 'make chrome', or set BROWSERBASE_API_KEY for cloud Chrome.")
 
     yield
+
+    # Cleanup Browserbase sessions
+    if browserbase_backend:
+        for sid, bb_slot in list(session_bb_slots.items()):
+            try:
+                await browserbase_backend.release(bb_slot)
+            except Exception:
+                pass
+        session_bb_slots.clear()
 
     for sid, session in list(sessions.items()):
         try:
@@ -214,6 +312,7 @@ async def lifespan(app: FastAPI):
     session_slots.clear()
     session_email_tools.clear()
     chrome_pool = None
+    browserbase_backend = None
 
 
 app = FastAPI(title="BrowserUse Local", lifespan=lifespan)
@@ -300,31 +399,35 @@ async def create_browser_session(
     domain: str | None = None,
     allowed_domains: list[str] | None = None,
 ) -> BrowserSession:
-    """Create a BrowserSession — pool > single CDP > headless."""
-    # Try to restore storage state for this domain
-    restored_state = load_storage_state(domain) if domain else None
-
+    """Create a BrowserSession — Browserbase cloud or local Chrome pool."""
     profile_kwargs: dict[str, Any] = {
         "keep_alive": True,
         "highlight_elements": False,
     }
 
-    if restored_state:
-        profile_kwargs["storage_state"] = restored_state
-
     if allowed_domains:
         profile_kwargs["allowed_domains"] = allowed_domains
 
-    if not chrome_pool:
-        raise HTTPException(
-            status_code=503,
-            detail="No Chrome instances available. Run 'make chrome' on the host first.",
-        )
+    if browserbase_backend:
+        # Browserbase mode — cloud Chrome via CDP
+        bb_slot = await browserbase_backend.acquire(session_id, domain)
+        session_bb_slots[session_id] = bb_slot
+        profile_kwargs["cdp_url"] = bb_slot.connect_url
+    else:
+        # Local Chrome pool mode
+        restored_state = load_storage_state(domain) if domain else None
+        if restored_state:
+            profile_kwargs["storage_state"] = restored_state
 
-    # Acquire a dedicated Chrome from the pool
-    slot = await chrome_pool.acquire(session_id)
-    session_slots[session_id] = slot
-    profile_kwargs["cdp_url"] = slot.ws_url
+        if not chrome_pool:
+            raise HTTPException(
+                status_code=503,
+                detail="No Chrome instances available. Run 'make chrome' on the host first.",
+            )
+
+        slot = await chrome_pool.acquire(session_id)
+        session_slots[session_id] = slot
+        profile_kwargs["cdp_url"] = slot.ws_url
 
     profile = BrowserProfile(**profile_kwargs)
     return BrowserSession(browser_profile=profile)
@@ -487,7 +590,8 @@ async def _run_agent(task_id: str, browser_session: BrowserSession, body: Create
         }
     finally:
         # Always save cookies — even if the task failed, login may have succeeded.
-        if domain:
+        # Skip when using Browserbase (Contexts handle persistence cloud-side).
+        if domain and not browserbase_backend:
             await _save_storage_state(browser_session, domain)
 
 
@@ -510,8 +614,12 @@ async def patch_session(session_id: str, body: PatchSessionRequest):
             await browser_session.close(force=True)
         except Exception:
             pass
-        # Release the Chrome slot back to the pool
-        if session_id in session_slots:
+        # Release Browserbase session or Chrome pool slot
+        if session_id in session_bb_slots:
+            bb_slot = session_bb_slots.pop(session_id)
+            if browserbase_backend:
+                await browserbase_backend.release(bb_slot)
+        elif session_id in session_slots:
             await chrome_pool.release(session_id)
             del session_slots[session_id]
         # Clean up AgentMail tools
@@ -522,14 +630,20 @@ async def patch_session(session_id: str, body: PatchSessionRequest):
 @app.get("/health")
 async def health():
     pool_info = {}
-    if chrome_pool:
+    if browserbase_backend:
         pool_info = {
+            "backend": "browserbase",
+            "active_sessions": len(session_bb_slots),
+        }
+    elif chrome_pool:
+        pool_info = {
+            "backend": "chrome_pool",
             "pool_size": chrome_pool.size,
             "pool_available": chrome_pool.available,
         }
     return {
         "status": "ok",
-        "cdp_mode": bool(chrome_pool),
+        "cdp_mode": bool(chrome_pool) or bool(browserbase_backend),
         "version": "v2",
         **pool_info,
     }

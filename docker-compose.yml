@@ -108,6 +108,8 @@ services:
       LLM_BASE_URL: ${OPENAI_BASE_URL:-}
       CDP_URL: ${CDP_URL:-http://host.docker.internal:9222}
       MAX_CHROME_INSTANCES: ${MAX_CHROME_INSTANCES:-5}
+      BROWSERBASE_API_KEY: ${BROWSERBASE_API_KEY:-}
+      BROWSERBASE_PROJECT_ID: ${BROWSERBASE_PROJECT_ID:-}
     volumes:
       - browserdata:/data/browser-profiles
       - browser_storage:/data/storage-states

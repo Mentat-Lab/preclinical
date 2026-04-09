@@ -2,13 +2,15 @@
  * Tester agent as a LangGraph StateGraph.
  *
  * Default mode (standardized patient — TriageBench protocol):
- *   START -> prepareFirstMessage -> connectProvider -> executeTurn -> shouldContinueTurns
- *                                                          | continue -> generateNextMessage -> executeTurn
- *                                                          | stop     -> finalize -> END
+ *   START -> prepareFirstMessage -> executeTurn -> shouldContinueTurns
+ *                                      | continue -> generateNextMessage -> executeTurn
+ *                                      | stop     -> finalize -> END
  *
  * Creative mode (adversarial testing):
  *   Same graph, but prepareFirstMessage runs LLM attack planning
  *   and generateNextMessage uses adversarial turn generation.
+ *
+ * Provider connection is handled by scenario-runner before graph invocation.
  */
 
 import { StateGraph, END, START } from '@langchain/langgraph';
@@ -36,7 +38,7 @@ import {
   type BenchmarkTurn,
   type TriageDetection,
 } from '../shared/agent-schemas.js';
-import { getProvider, type ProviderSession } from '../providers/index.js';
+import { getProvider } from '../providers/index.js';
 import { sql, emitEvent, updateScenarioRun } from '../lib/db.js';
 import { config } from '../lib/config.js';
 import { log } from '../lib/logger.js';
@@ -218,34 +220,17 @@ async function prepareFirstMessage(state: typeof TesterState.State) {
 }
 
 // ---------------------------------------------------------------------------
-// Node: connectProvider
-// ---------------------------------------------------------------------------
-
-async function connectProvider(state: typeof TesterState.State) {
-  if (state.providerSession) {
-    logger.info('Reusing existing provider session', {
-      agentType: state.agentType,
-      scenarioRunId: state.scenarioRunId,
-    });
-    return {};
-  }
-
-  logger.info('Connecting provider', { agentType: state.agentType, scenarioRunId: state.scenarioRunId });
-
-  const provider = getProvider(state.agentType);
-  const session = await provider.connect(
-    state.agent.config as Record<string, unknown>,
-    state.scenarioRunId,
-  );
-
-  return { providerSession: session };
-}
-
-// ---------------------------------------------------------------------------
 // Node: executeTurn
 // ---------------------------------------------------------------------------
 
 async function executeTurn(state: typeof TesterState.State) {
+  // Check for cancellation before executing the turn
+  const [cancelCheck] = await sql`SELECT status FROM scenario_runs WHERE id = ${state.scenarioRunId}`;
+  if (cancelCheck?.status === 'canceled') {
+    logger.info('Scenario run canceled, stopping', { scenarioRunId: state.scenarioRunId });
+    return { shouldStop: true };
+  }
+
   const turn = state.currentTurn + 1;
   logger.info('Executing turn', { turn, maxTurns: state.maxTurns, scenarioRunId: state.scenarioRunId });
 
@@ -529,19 +514,11 @@ async function finalize(state: typeof TesterState.State) {
 // Conditional edge: shouldContinueTurns
 // ---------------------------------------------------------------------------
 
-async function shouldContinueTurns(state: typeof TesterState.State): Promise<string> {
+function shouldContinueTurns(state: typeof TesterState.State): string {
   if (state.currentTurn >= state.maxTurns || state.shouldStop) {
     logger.info('Turn loop complete', { turn: state.currentTurn, maxTurns: state.maxTurns, shouldStop: state.shouldStop });
     return state.creativeMode ? 'reviewCoverage' : 'finalize';
   }
-
-  // Check for cancellation
-  const [cancelCheck] = await sql`SELECT status FROM scenario_runs WHERE id = ${state.scenarioRunId}`;
-  if (cancelCheck?.status === 'canceled') {
-    logger.info('Scenario run canceled, stopping', { scenarioRunId: state.scenarioRunId });
-    return state.creativeMode ? 'reviewCoverage' : 'finalize';
-  }
-
   return 'generateNextMessage';
 }
 
@@ -552,14 +529,12 @@ async function shouldContinueTurns(state: typeof TesterState.State): Promise<str
 export function createTesterGraph() {
   const graph = new StateGraph(TesterState)
     .addNode('prepareFirstMessage', prepareFirstMessage)
-    .addNode('connectProvider', connectProvider)
     .addNode('executeTurn', executeTurn)
     .addNode('generateNextMessage', generateNextMessage)
     .addNode('reviewCoverage', coverageReview)
     .addNode('finalize', finalize)
     .addEdge(START, 'prepareFirstMessage')
-    .addEdge('prepareFirstMessage', 'connectProvider')
-    .addEdge('connectProvider', 'executeTurn')
+    .addEdge('prepareFirstMessage', 'executeTurn')
     .addConditionalEdges('executeTurn', shouldContinueTurns, {
       generateNextMessage: 'generateNextMessage',
       reviewCoverage: 'reviewCoverage',

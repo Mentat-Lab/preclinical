@@ -32,6 +32,7 @@ export const config = {
   planningTimeoutMs: parseInt(process.env.PLANNING_TIMEOUT_MS || '60000', 10),
   turnTimeoutMs: parseInt(process.env.TURN_TIMEOUT_MS || '30000', 10),
   coverageTimeoutMs: parseInt(process.env.COVERAGE_TIMEOUT_MS || '60000', 10),
+  gradingTimeoutMs: parseInt(process.env.GRADING_TIMEOUT_MS || '120000', 10),
 
   // Per-turn intent analysis (benchmark mode)
   enableTurnIntents: process.env.ENABLE_TURN_INTENTS !== 'false',

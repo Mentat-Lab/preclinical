@@ -31,11 +31,14 @@ Each scenario runs as a pg-boss job that invokes two LangGraph StateGraphs:
 ```
 pg-boss job → testerGraph.invoke() → graderGraph.invoke() → finalize
 ```
-- **Tester graph** (`server/src/graphs/tester-graph.ts`): planAttack → connectProvider → executeTurn ⇄ generateNextMessage → coverageReview
-- **Grader graph** (`server/src/graphs/grader-graph.ts`): gradeTranscript → verifyEvidence → consistencyAudit → computeScore
+- **Tester graph** (`server/src/graphs/tester-graph.ts`): prepareFirstMessage → executeTurn ⇄ generateNextMessage → finalize/coverageReview
+  - Provider connection handled by scenario-runner before graph invocation
+  - Cancellation check inside `executeTurn` (not in routing edge)
+- **Grader graph** (`server/src/graphs/grader-graph.ts`): gradeTranscript → verifyEvidence → consistencyAudit → computeScore → extractTriage
   - Conditional retry edge: retries grading up to 2 attempts on failure
   - `verifyEvidence`: programmatic check that cited turn numbers exist
   - `consistencyAudit`: regex-based override (MET with failure-pattern rationale → PARTIALLY MET)
+  - `handleGradingFailure`: writes failed grading record when retries exhausted
 - State definitions in `server/src/graphs/tester-state.ts` and `grader-state.ts` (LangGraph `Annotation.Root`)
 - Per-phase skill injection via `server/src/graphs/skill-loaders.ts`
 
@@ -85,6 +88,13 @@ make chrome CHROME_INSTANCES=3 CHROME_BASE_PORT=9300   # custom pool size/ports
 - **Local (default)**: `docker compose up` includes the BrowserUse worker. `BROWSER_USE_API_BASE` defaults to `http://browseruse:9000/api/v2`.
 - **Cloud**: Set both `BROWSER_USE_API_KEY` and `BROWSER_USE_API_BASE` in `.env` to use BrowserUse Cloud instead.
 
+### Browserbase (cloud Chrome)
+Set `BROWSERBASE_API_KEY` and optionally `BROWSERBASE_PROJECT_ID` in `.env` to use Browserbase cloud Chrome instead of the local Chrome pool. When enabled:
+- No `make chrome` needed — Chrome instances are provisioned in the cloud
+- `CDP_URL` is ignored — Browserbase provides the CDP connection
+- Cookie/auth persistence uses Browserbase Contexts (per-domain, cloud-side)
+- Concurrency is managed by Browserbase (plan-dependent: 3 free, 25 dev, 100 startup)
+
 ### Browser Profiles
 Site-specific interaction instructions live in `server/src/shared/browser-profiles/`. Named by domain (e.g. `chatgpt.com.json`). Falls back to `_default.json`.
 
@@ -101,9 +111,29 @@ curl -X POST http://localhost:3000/api/v1/agents -H 'Content-Type: application/j
   -d '{"provider":"browser","name":"Claude AI","config":{"url":"https://claude.ai","email":"you@example.com","password":"your-password"}}'
 ```
 
+### AgentMail Integration (Email Verification)
+Sites with Cloudflare or email verification (e.g. Doctronic, Clerk-based auth) can use AgentMail for automated signup:
+
+1. Get an API key from https://agentmail.to
+2. Set `AGENTMAIL_API_KEY=your-key` in `.env`
+3. Create browser agents with a password (email is auto-generated):
+```bash
+curl -X POST http://localhost:3000/api/v1/agents -H 'Content-Type: application/json' \
+  -d '{"provider":"browser","name":"Doctronic","config":{"url":"https://doctronic.ai","password":"TestPass123!"}}'
+```
+
+When `AGENTMAIL_API_KEY` is set and a browser profile has `email_verification: true`:
+- A disposable inbox is created per browser session
+- The agent signs up with the disposable email instead of logging in
+- Verification codes are fetched automatically via AgentMail websocket
+- No Cloudflare login page friction
+
+Browser profiles control the flow via `browser_signup_instructions` and `browser_verify_instructions` fields.
+
 ### Known Limitations
 - `BROWSERUSE_MODEL` env var overrides the LLM model used by the local BrowserUse worker (defaults to `TESTER_MODEL`)
 - Browser tests run ~1-2 min/turn with CDP Chrome pool
+- AgentMail signup flow uses ~20 steps on turn 1 (vs 12 for standard login)
 
 ## Scenarios
 
