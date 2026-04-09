@@ -307,6 +307,7 @@ tasks: dict[str, dict[str, Any]] = {}
 session_slots: dict[str, ChromeSlot] = {}  # session_id → pool slot
 session_bb_slots: dict[str, BrowserbaseSlot] = {}  # session_id → Browserbase slot
 session_email_tools: dict[str, "EmailTools"] = {}  # session_id → EmailTools (AgentMail)
+session_domains: dict[str, str] = {}  # session_id → domain
 chrome_pool: ChromePool | None = None
 browserbase_backend: BrowserbaseBackend | None = None
 
@@ -364,6 +365,7 @@ async def lifespan(app: FastAPI):
     sessions.clear()
     session_slots.clear()
     session_email_tools.clear()
+    session_domains.clear()
     chrome_pool = None
     browserbase_backend = None
 
@@ -507,6 +509,8 @@ async def create_session(body: CreateSessionRequest | None = None):
     bb_context_id = body.browserbase_context_id if body else None
     browser_session = await create_browser_session(session_id, domain, allowed_domains, bb_context_id)
     sessions[session_id] = browser_session
+    if domain:
+        session_domains[session_id] = domain
 
     # Skip AgentMail when using a pre-authenticated Browserbase context
     already_authenticated = bool(bb_context_id) or (
@@ -689,6 +693,10 @@ async def _save_storage_state(browser_session: BrowserSession, domain: str):
 async def patch_session(session_id: str, body: PatchSessionRequest):
     if body.action == "stop" and session_id in sessions:
         browser_session = sessions.pop(session_id)
+        # Export cookies for local Chrome sessions (not Browserbase — contexts handle that)
+        domain = session_domains.pop(session_id, "")
+        if domain and session_id not in session_bb_slots:
+            await _save_storage_state(browser_session, domain)
         try:
             # Force close to clean up tabs in CDP mode
             await browser_session.close(force=True)

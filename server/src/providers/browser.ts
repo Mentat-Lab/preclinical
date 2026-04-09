@@ -397,6 +397,11 @@ const browserProvider: Provider = {
     const state = session.state as BrowserState;
     const headers = apiHeaders(state.apiKey);
 
+    // BrowserUse Cloud runtime is not yet implemented — profile setup is ready but runtime needs more work
+    if (state.agentConfig.browser_backend === 'browseruse_cloud') {
+      throw new Error('BrowserUse Cloud runtime not yet implemented — use Browserbase or Local Chrome');
+    }
+
     // Create session on first turn — no AgentMail yet (try login/cookies first)
     const browserbaseContextId = String(state.agentConfig.browserbase_context_id || '').trim() || undefined;
     if (context.turn === 1) {

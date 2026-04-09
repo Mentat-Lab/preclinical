@@ -384,6 +384,126 @@ app.post('/api/v1/agents/:id/complete-context-setup', async (c) => {
   }
 });
 
+// ── BrowserUse Cloud helpers ────────────────────────────────────────
+app.post('/api/v1/browseruse-cloud/setup-profile', async (c) => {
+  const apiKey = process.env.BROWSER_USE_API_KEY || '';
+  if (!apiKey) return c.json({ error: 'BROWSER_USE_API_KEY is not set' }, 400);
+
+  const BU_API = 'https://api.browser-use.com/api/v3';
+  const buHeaders = { 'Content-Type': 'application/json', 'X-Browser-Use-API-Key': apiKey };
+
+  let domain = '';
+  try {
+    const body = await c.req.json();
+    if (body.url) domain = new URL(body.url).hostname.replace(/^www\./, '');
+  } catch {}
+
+  try {
+    // Create profile
+    const profRes = await fetch(`${BU_API}/profiles`, {
+      method: 'POST', headers: buHeaders,
+      body: JSON.stringify({ name: domain || 'preclinical-profile' }),
+    });
+    if (!profRes.ok) return c.json({ error: `Failed to create profile: ${await profRes.text()}` }, profRes.status as any);
+    const prof = await profRes.json() as Record<string, unknown>;
+    const profileId = String(prof.id);
+
+    // Create browser with profile
+    const brRes = await fetch(`${BU_API}/browsers`, {
+      method: 'POST', headers: buHeaders,
+      body: JSON.stringify({ profile_id: profileId }),
+    });
+    if (!brRes.ok) return c.json({ error: `Failed to create browser: ${await brRes.text()}` }, brRes.status as any);
+    const br = await brRes.json() as Record<string, unknown>;
+
+    return c.json({
+      profile_id: profileId,
+      session_id: String(br.id),
+      live_url: String(br.live_url || ''),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return c.json({ error: message }, 500);
+  }
+});
+
+app.post('/api/v1/browseruse-cloud/complete-profile-setup', async (c) => {
+  let sessionId: string;
+  try {
+    const body = await c.req.json();
+    sessionId = body.session_id;
+  } catch { return c.json({ error: 'session_id is required' }, 400); }
+  if (!sessionId) return c.json({ error: 'session_id is required' }, 400);
+
+  const apiKey = process.env.BROWSER_USE_API_KEY || '';
+  if (!apiKey) return c.json({ error: 'BROWSER_USE_API_KEY is not set' }, 400);
+
+  const BU_API = 'https://api.browser-use.com/api/v3';
+  const buHeaders = { 'Content-Type': 'application/json', 'X-Browser-Use-API-Key': apiKey };
+
+  try {
+    const res = await fetch(`${BU_API}/browsers/${sessionId}/stop`, {
+      method: 'POST', headers: buHeaders,
+    });
+    if (!res.ok) return c.json({ error: `Failed to stop browser: ${await res.text()}` }, res.status as any);
+    return c.json({ status: 'completed' });
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Unknown error' }, 500);
+  }
+});
+
+// ── Local Chrome auth helpers ───────────────────────────────────────
+app.post('/api/v1/local-chrome/setup-auth', async (c) => {
+  let url = '';
+  try {
+    const body = await c.req.json();
+    url = body.url || '';
+  } catch {}
+
+  const browserUseBase = process.env.BROWSER_USE_API_BASE || 'http://browseruse:9000/api/v2';
+  const domain = url ? new URL(url).hostname.replace(/^www\./, '') : '';
+
+  try {
+    const res = await fetch(`${browserUseBase}/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain }),
+    });
+    if (!res.ok) return c.json({ error: `Failed to create session: ${await res.text()}` }, res.status as any);
+    const data = await res.json() as Record<string, unknown>;
+
+    return c.json({
+      session_id: String(data.id),
+      domain,
+    });
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Unknown error' }, 500);
+  }
+});
+
+app.post('/api/v1/local-chrome/complete-auth', async (c) => {
+  let sessionId: string;
+  try {
+    const body = await c.req.json();
+    sessionId = body.session_id;
+  } catch { return c.json({ error: 'session_id is required' }, 400); }
+  if (!sessionId) return c.json({ error: 'session_id is required' }, 400);
+
+  const browserUseBase = process.env.BROWSER_USE_API_BASE || 'http://browseruse:9000/api/v2';
+
+  try {
+    const res = await fetch(`${browserUseBase}/sessions/${sessionId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'stop' }),
+    });
+    if (!res.ok) return c.json({ error: `Failed to stop session: ${await res.text()}` }, res.status as any);
+    return c.json({ status: 'completed' });
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : 'Unknown error' }, 500);
+  }
+});
+
 // ==================== TESTS (runs) ====================
 
 app.get('/api/v1/tests', async (c) => {

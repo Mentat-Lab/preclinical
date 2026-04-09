@@ -75,14 +75,13 @@ export const PROVIDER_FIELDS: Record<AgentProvider, ProviderField[]> = {
   browser: [
     { key: 'url', label: 'Target URL', type: 'text', placeholder: 'https://example.com/chat', required: true },
     { key: 'browser_backend', label: 'Browser Backend', type: 'select', options: [
-      { label: 'Local Chrome (BrowserUse)', value: 'local' },
       { label: 'Browserbase (Cloud)', value: 'browserbase' },
+      { label: 'BrowserUse Cloud', value: 'browseruse_cloud' },
+      { label: 'Local Chrome', value: 'local' },
     ] },
-    { key: 'email', label: 'Login Email', type: 'text', placeholder: 'Optional — for sites that require sign-in', showWhen: { key: 'browser_backend', value: 'local' } },
-    { key: 'password', label: 'Login Password', type: 'password', placeholder: 'Optional — for sites that require sign-in', showWhen: { key: 'browser_backend', value: 'local' } },
     { key: 'browserbase_context_id', label: 'Browserbase Context ID', type: 'text', placeholder: 'Context ID', showWhen: { key: 'browser_backend', value: 'browserbase' } },
-    // Always shown
-    { key: 'instructions', label: 'Additional Instructions', type: 'text', placeholder: 'Optional — e.g. "Click the Patient Chat tab first" or "Select GPT-4o from the model dropdown"' },
+    { key: 'browseruse_profile_id', label: 'BrowserUse Profile ID', type: 'text', placeholder: 'Profile ID', showWhen: { key: 'browser_backend', value: 'browseruse_cloud' } },
+    { key: 'instructions', label: 'Additional Instructions', type: 'text', placeholder: 'Optional — e.g. "Click the Patient Chat tab first"' },
   ],
   elevenlabs: [
     { key: 'agent_id', label: 'Agent ID', type: 'text', placeholder: 'agent_...', required: true },

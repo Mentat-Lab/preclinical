@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAgent, useTestRuns, queryKeys } from '@/hooks/use-queries';
 import * as api from '@/lib/api';
 import type { TestRun } from '@/lib/types';
-import { Plus, Pencil, Trash2, Globe, ExternalLink, Check } from 'lucide-react';
+import { Plus, Pencil, Trash2, Globe, ExternalLink, Check, Monitor } from 'lucide-react';
 import { ProviderIcon } from '@/components/ProviderIcon';
 import { PROVIDER_NAMES } from '@/lib/provider-config';
 
@@ -83,6 +83,23 @@ export default function AgentDetailPage() {
     contextId: string;
   } | null>(null);
 
+  // BrowserUse Cloud profile setup state
+  const [profileSetup, setProfileSetup] = useState<{
+    sessionId: string;
+    liveUrl: string;
+    profileId: string;
+  } | null>(null);
+
+  // Local Chrome auth setup state
+  const [localAuthSetup, setLocalAuthSetup] = useState<{
+    sessionId: string;
+    domain: string;
+  } | null>(null);
+  const [localAuthDone, setLocalAuthDone] = useState<string | null>(null);
+
+  const agentConfig = agent ? (typeof agent.config === 'string' ? (() => { try { return JSON.parse(agent.config as string); } catch { return {}; } })() : agent.config ?? {}) as Record<string, string> : {};
+  const browserBackend = agentConfig.browser_backend || 'browserbase';
+
   const setupContextMutation = useMutation({
     mutationFn: () => api.setupBrowserbaseContext(agentId!),
     onSuccess: (data) => {
@@ -101,6 +118,45 @@ export default function AgentDetailPage() {
       setContextSetup(null);
       queryClient.invalidateQueries({ queryKey: queryKeys.agent(agentId!) });
       queryClient.invalidateQueries({ queryKey: queryKeys.agents() });
+    },
+  });
+
+  const setupProfileMutation = useMutation({
+    mutationFn: () => api.setupBrowserUseCloudProfile(agentConfig.url),
+    onSuccess: (data) => {
+      setProfileSetup({
+        sessionId: data.session_id,
+        liveUrl: data.live_url,
+        profileId: data.profile_id,
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agent(agentId!) });
+    },
+  });
+
+  const completeProfileMutation = useMutation({
+    mutationFn: () => api.completeBrowserUseCloudProfileSetup(profileSetup!.sessionId),
+    onSuccess: () => {
+      setProfileSetup(null);
+      queryClient.invalidateQueries({ queryKey: queryKeys.agent(agentId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.agents() });
+    },
+  });
+
+  const setupLocalAuthMutation = useMutation({
+    mutationFn: () => api.setupLocalChromeAuth(agentConfig.url),
+    onSuccess: (data) => {
+      setLocalAuthSetup({
+        sessionId: data.session_id,
+        domain: data.domain,
+      });
+    },
+  });
+
+  const completeLocalAuthMutation = useMutation({
+    mutationFn: () => api.completeLocalChromeAuth(localAuthSetup!.sessionId),
+    onSuccess: () => {
+      setLocalAuthDone(localAuthSetup!.domain);
+      setLocalAuthSetup(null);
     },
   });
 
@@ -170,7 +226,7 @@ export default function AgentDetailPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {agent.provider === 'browser' && !contextSetup && (
+            {agent.provider === 'browser' && !contextSetup && !profileSetup && !localAuthSetup && browserBackend === 'browserbase' && (
               <button
                 onClick={() => setupContextMutation.mutate()}
                 disabled={setupContextMutation.isPending}
@@ -178,6 +234,26 @@ export default function AgentDetailPage() {
               >
                 <Globe className="w-3.5 h-3.5" />
                 {setupContextMutation.isPending ? 'Setting up...' : 'Setup Browserbase Context'}
+              </button>
+            )}
+            {agent.provider === 'browser' && !contextSetup && !profileSetup && !localAuthSetup && browserBackend === 'browseruse_cloud' && (
+              <button
+                onClick={() => setupProfileMutation.mutate()}
+                disabled={setupProfileMutation.isPending}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-border rounded-md bg-card hover:bg-muted transition-colors text-text-primary disabled:opacity-50"
+              >
+                <Globe className="w-3.5 h-3.5" />
+                {setupProfileMutation.isPending ? 'Setting up...' : 'Setup BrowserUse Profile'}
+              </button>
+            )}
+            {agent.provider === 'browser' && !contextSetup && !profileSetup && !localAuthSetup && !localAuthDone && browserBackend === 'local' && (
+              <button
+                onClick={() => setupLocalAuthMutation.mutate()}
+                disabled={setupLocalAuthMutation.isPending}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-border rounded-md bg-card hover:bg-muted transition-colors text-text-primary disabled:opacity-50"
+              >
+                <Monitor className="w-3.5 h-3.5" />
+                {setupLocalAuthMutation.isPending ? 'Setting up...' : 'Setup Local Auth'}
               </button>
             )}
             <Link
@@ -205,10 +281,20 @@ export default function AgentDetailPage() {
         )}
       </header>
 
-      {/* Browserbase Context Setup Panel */}
+      {/* Browser Auth Setup Panels */}
       {setupContextMutation.isError && !contextSetup && (
         <div className="mx-8 mt-4 p-3 rounded bg-destructive/10 border border-destructive/20 text-destructive text-sm">
           {setupContextMutation.error instanceof Error ? setupContextMutation.error.message : 'Context setup failed'}
+        </div>
+      )}
+      {setupProfileMutation.isError && !profileSetup && (
+        <div className="mx-8 mt-4 p-3 rounded bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+          {setupProfileMutation.error instanceof Error ? setupProfileMutation.error.message : 'Profile setup failed'}
+        </div>
+      )}
+      {setupLocalAuthMutation.isError && !localAuthSetup && (
+        <div className="mx-8 mt-4 p-3 rounded bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+          {setupLocalAuthMutation.error instanceof Error ? setupLocalAuthMutation.error.message : 'Auth setup failed'}
         </div>
       )}
 
@@ -254,6 +340,89 @@ export default function AgentDetailPage() {
               {completeContextMutation.error instanceof Error ? completeContextMutation.error.message : 'Failed to complete setup'}
             </p>
           )}
+        </div>
+      )}
+
+      {profileSetup && (
+        <div className="mx-8 mt-4 rounded-lg border border-blue-200 bg-blue-50 p-5">
+          <h3 className="text-sm font-semibold text-blue-900 mb-2">BrowserUse Cloud Profile Setup</h3>
+          <p className="text-sm text-blue-800 mb-3">
+            A browser session is ready for you to log in manually. Open the live view, complete the login,
+            and click "Done" when finished. The cookies will be saved for future test runs.
+          </p>
+          <div className="flex items-center gap-2 mb-3">
+            <code className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">
+              Profile: {profileSetup.profileId}
+            </code>
+          </div>
+          <div className="flex items-center gap-3">
+            <a
+              href={profileSetup.liveUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Open Live View
+            </a>
+            <button
+              onClick={() => completeProfileMutation.mutate()}
+              disabled={completeProfileMutation.isPending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
+            >
+              <Check className="w-3.5 h-3.5" />
+              {completeProfileMutation.isPending ? 'Saving...' : 'Done — Save Profile'}
+            </button>
+            <button
+              onClick={() => setProfileSetup(null)}
+              className="px-3 py-1.5 text-sm text-blue-700 hover:text-blue-900 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+          {completeProfileMutation.isError && (
+            <p className="mt-2 text-sm text-destructive">
+              {completeProfileMutation.error instanceof Error ? completeProfileMutation.error.message : 'Failed to complete setup'}
+            </p>
+          )}
+        </div>
+      )}
+
+      {localAuthSetup && (
+        <div className="mx-8 mt-4 rounded-lg border border-blue-200 bg-blue-50 p-5">
+          <h3 className="text-sm font-semibold text-blue-900 mb-2">Local Chrome Auth Setup</h3>
+          <p className="text-sm text-blue-800 mb-3">
+            Log in to <strong>{agentConfig.url}</strong> in the Chrome window on your machine, then click "Done".
+            Cookies will be exported for future test runs.
+          </p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => completeLocalAuthMutation.mutate()}
+              disabled={completeLocalAuthMutation.isPending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
+            >
+              <Check className="w-3.5 h-3.5" />
+              {completeLocalAuthMutation.isPending ? 'Saving...' : 'Done — Export Cookies'}
+            </button>
+            <button
+              onClick={() => setLocalAuthSetup(null)}
+              className="px-3 py-1.5 text-sm text-blue-700 hover:text-blue-900 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+          {completeLocalAuthMutation.isError && (
+            <p className="mt-2 text-sm text-destructive">
+              {completeLocalAuthMutation.error instanceof Error ? completeLocalAuthMutation.error.message : 'Failed to export cookies'}
+            </p>
+          )}
+        </div>
+      )}
+
+      {localAuthDone && (
+        <div className="mx-8 mt-4 flex items-center gap-2 text-sm text-green-700 p-3 rounded-lg border border-green-200 bg-green-50">
+          <Check className="w-4 h-4" />
+          Auth saved for {localAuthDone}
         </div>
       )}
 

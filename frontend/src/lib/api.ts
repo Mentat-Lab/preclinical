@@ -226,6 +226,49 @@ export async function completeBrowserbaseContextSetup(agentId: string, sessionId
   });
 }
 
+// ==================== BROWSERUSE CLOUD ====================
+
+export async function setupBrowserUseCloudProfile(url?: string): Promise<{
+  profile_id: string;
+  session_id: string;
+  live_url: string;
+}> {
+  return fetchJSON('/api/v1/browseruse-cloud/setup-profile', {
+    method: 'POST',
+    body: JSON.stringify({ url }),
+  });
+}
+
+export async function completeBrowserUseCloudProfileSetup(sessionId: string): Promise<{
+  status: string;
+}> {
+  return fetchJSON('/api/v1/browseruse-cloud/complete-profile-setup', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+}
+
+// ==================== LOCAL CHROME ====================
+
+export async function setupLocalChromeAuth(url: string): Promise<{
+  session_id: string;
+  domain: string;
+}> {
+  return fetchJSON('/api/v1/local-chrome/setup-auth', {
+    method: 'POST',
+    body: JSON.stringify({ url }),
+  });
+}
+
+export async function completeLocalChromeAuth(sessionId: string): Promise<{
+  status: string;
+}> {
+  return fetchJSON('/api/v1/local-chrome/complete-auth', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+}
+
 // ==================== HEALTH ====================
 
 export async function getHealth(): Promise<HealthResponse> {
