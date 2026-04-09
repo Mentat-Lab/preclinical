@@ -138,14 +138,12 @@ describe('Scenario Runs API', () => {
       }
     });
 
-    it('returns empty results for a non-existent (but valid UUID) test_run_id', async () => {
+    it('returns 404 for a non-existent (but valid UUID) test_run_id', async () => {
       const res = await api.get<ScenarioRunsResponse>('/api/v1/scenario-runs', {
         test_run_id: NONEXISTENT_UUID,
       });
 
-      expect(res.status).toBe(200);
-      expect(res.data.results).toHaveLength(0);
-      expect(res.data.total).toBe(0);
+      expect(res.status).toBe(404);
     });
 
     it('respects the ?limit query param', async () => {
