@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAgent, queryKeys } from '@/hooks/use-queries';
 import * as api from '@/lib/api';
+import { ExternalLink } from 'lucide-react';
 import {
   PROVIDER_NAMES,
   PROVIDER_FIELDS,
@@ -174,7 +175,11 @@ export default function AgentEditPage() {
             {fields.length > 0 && (
               <div className="border-t border-border pt-6 space-y-4">
                 <h3 className="text-sm font-medium text-text-primary">Configuration</h3>
-                {fields.map((field) => (
+                {fields.map((field) => {
+                  if (field.showWhen && config[field.showWhen.key] !== field.showWhen.value) {
+                    return null;
+                  }
+                  return (
                   <div key={field.key} className="space-y-1.5">
                     <label className="block text-sm font-medium text-text-primary">
                       {field.label}
@@ -213,8 +218,28 @@ export default function AgentEditPage() {
                         className={inputCls}
                       />
                     )}
+                    {field.hint && (
+                      <p className="text-xs text-text-secondary mt-1">
+                        {field.hint}
+                        {field.hintLink && (
+                          <>
+                            {' '}
+                            <a
+                              href={field.hintLink.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-0.5 text-accent hover:underline"
+                            >
+                              {field.hintLink.label}
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </>
+                        )}
+                      </p>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 

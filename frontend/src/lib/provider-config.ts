@@ -25,6 +25,10 @@ export interface ProviderField {
   placeholder?: string;
   required?: boolean;
   options?: { label: string; value: string }[];
+  hint?: string;
+  hintLink?: { label: string; url: string };
+  /** Only show this field when config[showWhen.key] === showWhen.value */
+  showWhen?: { key: string; value: string };
 }
 
 export interface ProviderReadiness {
@@ -70,8 +74,14 @@ export const PROVIDER_FIELDS: Record<AgentProvider, ProviderField[]> = {
   ],
   browser: [
     { key: 'url', label: 'Target URL', type: 'text', placeholder: 'https://example.com/chat', required: true },
-    { key: 'email', label: 'Login Email', type: 'text', placeholder: 'Optional — for sites that require sign-in' },
-    { key: 'password', label: 'Login Password', type: 'password', placeholder: 'Optional — for sites that require sign-in' },
+    { key: 'browser_backend', label: 'Browser Backend', type: 'select', options: [
+      { label: 'Local Chrome (BrowserUse)', value: 'local' },
+      { label: 'Browserbase (Cloud)', value: 'browserbase' },
+    ] },
+    { key: 'email', label: 'Login Email', type: 'text', placeholder: 'Optional — for sites that require sign-in', showWhen: { key: 'browser_backend', value: 'local' } },
+    { key: 'password', label: 'Login Password', type: 'password', placeholder: 'Optional — for sites that require sign-in', showWhen: { key: 'browser_backend', value: 'local' } },
+    { key: 'browserbase_context_id', label: 'Browserbase Context ID', type: 'text', placeholder: 'Context ID', showWhen: { key: 'browser_backend', value: 'browserbase' } },
+    // Always shown
     { key: 'instructions', label: 'Additional Instructions', type: 'text', placeholder: 'Optional — e.g. "Click the Patient Chat tab first" or "Select GPT-4o from the model dropdown"' },
   ],
   elevenlabs: [
@@ -86,6 +96,7 @@ export const PROVIDER_DEFAULTS: Partial<Record<AgentProvider, Record<string, str
   openai: { target_model: 'gpt-4o', base_url: 'https://api.openai.com/v1' },
   vapi: { api_base: 'https://api.vapi.ai' },
   elevenlabs: { api_base: 'https://api.elevenlabs.io' },
+  browser: { browser_backend: 'browserbase' },
 };
 
 export const PROVIDER_READINESS: Record<AgentProvider, ProviderReadiness> = {

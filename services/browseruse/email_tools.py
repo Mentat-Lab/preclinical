@@ -36,8 +36,13 @@ class EmailTools(Tools):
 
     def _serialize_message(self, message) -> str:
         body = message.text
-        if not body and message.html:
-            body = self._html_to_text(message.html)
+        # Always include HTML-extracted text — verification links are often only in HTML
+        if message.html:
+            html_body = self._html_to_text(message.html)
+            if not body:
+                body = html_body
+            elif html_body and html_body != body:
+                body = f"{body}\n\nLinks from email:\n{self._extract_links(message.html)}"
         return (
             f"From: {message.from_}\n"
             f"Subject: {message.subject}\n"
@@ -45,9 +50,24 @@ class EmailTools(Tools):
         )
 
     @staticmethod
+    def _extract_links(html: str) -> str:
+        """Extract all href URLs from HTML."""
+        links = re.findall(r'href=["\']([^"\']+)["\']', html, re.IGNORECASE)
+        # Filter to http(s) links, deduplicate
+        seen = set()
+        result = []
+        for link in links:
+            if link.startswith("http") and link not in seen:
+                seen.add(link)
+                result.append(link)
+        return "\n".join(result) if result else "(no links found)"
+
+    @staticmethod
     def _html_to_text(html: str) -> str:
         html = re.sub(r'<script\b[^>]*>.*?</script\s*>', '', html, flags=re.DOTALL | re.IGNORECASE)
         html = re.sub(r'<style\b[^>]*>.*?</style\s*>', '', html, flags=re.DOTALL | re.IGNORECASE)
+        # Preserve link URLs: <a href="URL">text</a> → text (URL)
+        html = re.sub(r'<a\b[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', r'\2 (\1)', html, flags=re.DOTALL | re.IGNORECASE)
         html = re.sub(r'<[^>]+>', '', html)
         for entity, char in [('&nbsp;', ' '), ('&amp;', '&'), ('&lt;', '<'), ('&gt;', '>'), ('&quot;', '"'), ('&#39;', "'")]:
             html = html.replace(entity, char)

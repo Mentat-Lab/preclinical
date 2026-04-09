@@ -152,12 +152,14 @@ async function createSession(
   domain: string,
   allowedDomains?: string[],
   agentmailApiKey?: string,
+  browserbaseContextId?: string,
 ): Promise<{ id: string; liveUrl: string; inboxAddress: string }> {
   const body: Record<string, unknown> = {
     domain,
     allowed_domains: allowedDomains,
   };
   if (agentmailApiKey) body.agentmail_api_key = agentmailApiKey;
+  if (browserbaseContextId) body.browserbase_context_id = browserbaseContextId;
 
   const response = await fetch(`${BROWSER_USE_API_BASE}/sessions`, {
     method: 'POST',
@@ -255,6 +257,7 @@ function buildTaskPrompt(
   const email = String(agentConfig.email || config.browserEmail || '');
   const password = String(agentConfig.password || config.browserPassword || '');
   const hasCredentials = !!(email && password);
+  const hasBrowserbaseContext = !!String(agentConfig.browserbase_context_id || '').trim();
   const extraInstructions = String(agentConfig.instructions || '').trim();
   const extraStep = extraInstructions ? ` ${extraInstructions}` : '';
 
@@ -262,7 +265,9 @@ function buildTaskPrompt(
   const useAgentMailSignup = !!(inboxAddress && profile.email_verification);
 
   let authStep = '';
-  if (turn === 1 && useAgentMailSignup) {
+  if (turn === 1 && hasBrowserbaseContext) {
+    // Pre-authenticated context — skip login entirely, cookies already present
+  } else if (turn === 1 && useAgentMailSignup) {
     // Signup flow with AgentMail: use get_email_address + get_latest_email tools
     if (profile.browser_signup_instructions) {
       authStep = profile.browser_signup_instructions
@@ -276,9 +281,9 @@ function buildTaskPrompt(
     if (profile.browser_verify_instructions) {
       const verifyStep = profile.browser_verify_instructions
         .replace(/\{otp\}/g, 'THE_CODE_FROM_EMAIL');
-      authStep += `After submitting signup, use the get_latest_email tool to retrieve the verification code. ${verifyStep} `;
+      authStep += `After submitting signup, ${verifyStep} `;
     } else {
-      authStep += 'After submitting signup, use the get_latest_email tool to retrieve the verification email. Find the code in the email and enter it on the verification page. ';
+      authStep += 'After submitting signup, use the get_latest_email tool to retrieve the verification email. Find the code or link in the email and use it to complete verification. ';
     }
   } else if (turn === 1 && hasCredentials) {
     // Standard login flow (existing behavior)
@@ -316,6 +321,52 @@ function buildSensitiveData(
 }
 
 // =============================================================================
+// DISCOVERY — explore a URL and produce a browser profile
+// =============================================================================
+
+export interface DiscoveryResult {
+  profile: BrowserProfile & { domain: string; name: string };
+  discovery: Record<string, unknown>;
+  validated: boolean;
+  validationResponse: string;
+}
+
+export async function discoverProfile(
+  targetUrl: string,
+  credentials?: { email?: string; password?: string },
+  validate = true,
+): Promise<DiscoveryResult> {
+  const apiKey = config.browserUseApiKey;
+
+  const body: Record<string, unknown> = {
+    url: targetUrl,
+    validate,
+  };
+  if (credentials?.email) body.email = credentials.email;
+  if (credentials?.password) body.password = credentials.password;
+
+  const response = await fetch(`${BROWSER_USE_API_BASE}/discover`, {
+    method: 'POST',
+    headers: apiHeaders(apiKey),
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Discovery failed (${response.status}): ${text}`);
+  }
+
+  const data = await response.json() as any;
+
+  return {
+    profile: data.profile,
+    discovery: data.discovery,
+    validated: !!data.validated,
+    validationResponse: data.validation_response || '',
+  };
+}
+
+// =============================================================================
 // PROVIDER
 // =============================================================================
 
@@ -346,18 +397,14 @@ const browserProvider: Provider = {
     const state = session.state as BrowserState;
     const headers = apiHeaders(state.apiKey);
 
-    // Create session on first turn — pass domain for cookie restoration + allowed_domains
+    // Create session on first turn — no AgentMail yet (try login/cookies first)
+    const browserbaseContextId = String(state.agentConfig.browserbase_context_id || '').trim() || undefined;
     if (context.turn === 1) {
       const allowedDomains = state.domain ? [state.domain] : undefined;
-      const agentmailKey = config.agentmailApiKey || undefined;
-      const browserSession = await createSession(state.apiKey, state.domain, allowedDomains, agentmailKey);
+      const browserSession = await createSession(state.apiKey, state.domain, allowedDomains, undefined, browserbaseContextId);
       state.sessionId = browserSession.id;
       state.liveUrl = browserSession.liveUrl;
-      state.inboxAddress = browserSession.inboxAddress || undefined;
-      if (state.inboxAddress) {
-        logger.info('AgentMail inbox created', { inbox: state.inboxAddress, domain: state.domain });
-      }
-      logger.info('Session created', { sessionId: browserSession.id, domain: state.domain });
+      logger.info('Session created', { sessionId: browserSession.id, domain: state.domain, browserbaseContext: !!browserbaseContextId });
     }
 
     if (!state.sessionId) throw new Error('No browser session ID available');
@@ -367,21 +414,27 @@ const browserProvider: Provider = {
       state.profile = await loadBrowserProfile(state.targetUrl, state.agentConfig);
     }
 
+    // Check if AgentMail fallback is available for this profile
+    // Skip fallback when using a pre-authenticated Browserbase context
+    const canFallbackToAgentMail = !!(
+      context.turn === 1 &&
+      !state.inboxAddress &&
+      !browserbaseContextId &&
+      config.agentmailApiKey &&
+      state.profile.email_verification
+    );
+
     const taskPrompt = buildTaskPrompt(
       state.profile, message, state.targetUrl, context.turn, state.agentConfig, state.inboxAddress,
     );
-
-    // Build system message extension with chat rules and overlay hints
     const systemExt = buildSystemMessageExtension(state.profile, context.persona || null);
-
-    // Build sensitive_data for safe credential handling (uses inbox address as email when AgentMail active)
     const sensitiveData = buildSensitiveData(state.domain, state.agentConfig, state.inboxAddress);
 
-    async function createAndPollTask(activeSessionId: string): Promise<Record<string, unknown>> {
+    async function createAndPollTask(activeSessionId: string, prompt: string, sd: Record<string, string> | undefined, maxSteps: number): Promise<Record<string, unknown>> {
       const taskBody: Record<string, unknown> = {
-        task: taskPrompt,
+        task: prompt,
         sessionId: activeSessionId,
-        maxSteps: context.turn === 1 ? (state.inboxAddress ? 20 : 12) : 8,
+        maxSteps,
         extraction_schema: EXTRACTION_SCHEMA,
         extend_system_message: systemExt,
         max_actions_per_step: BROWSER_MAX_ACTIONS_PER_STEP,
@@ -392,7 +445,7 @@ const browserProvider: Provider = {
         run_id: state.scenarioRunId,
       };
 
-      if (sensitiveData) taskBody.sensitive_data = sensitiveData;
+      if (sd) taskBody.sensitive_data = sd;
       if (context.turn === 1) taskBody.startUrl = state.targetUrl;
 
       const taskResponse = await fetch(`${BROWSER_USE_API_BASE}/tasks`, {
@@ -412,26 +465,67 @@ const browserProvider: Provider = {
       return await pollTask(state.apiKey, taskData.id);
     }
 
-    // Attempt the task, recovering from dead sessions
+    // Helper: close old session before creating a fresh one (prevents Chrome pool leaks)
+    async function closeOldSession(): Promise<void> {
+      if (state.sessionId) {
+        await closeSession(state.apiKey, state.sessionId);
+        state.sessionId = undefined;
+      }
+    }
+
+    // Attempt the task — login first, AgentMail signup as fallback
     let result: Record<string, unknown>;
+    let loginFailed = false;
     try {
-      result = await createAndPollTask(state.sessionId);
+      result = await createAndPollTask(state.sessionId, taskPrompt, sensitiveData, context.turn === 1 ? 12 : 8);
+
+      // Check if turn 1 task finished but failed to get a response (likely auth/Cloudflare issue).
+      // Only trigger fallback on hard failures — task explicitly !isSuccess.
+      // An empty bot_response alone is NOT enough (chatbot might just be down).
+      if (context.turn === 1 && canFallbackToAgentMail && !result.isSuccess) {
+        loginFailed = true;
+      }
     } catch (taskError) {
       const errMsg = taskError instanceof Error ? taskError.message : String(taskError);
       const isDeadSession = errMsg.includes('session is stopped') ||
         errMsg.includes('session is closed') ||
         (errMsg.includes('task creation failed') && errMsg.includes('400'));
 
-      if (isDeadSession) {
+      if (isDeadSession && !canFallbackToAgentMail) {
+        // Dead session, no AgentMail — just get a fresh session and retry login
         logger.info('Session dead, creating fresh session');
+        await closeOldSession();
         const allowedDomains = state.domain ? [state.domain] : undefined;
-        const agentmailKey = config.agentmailApiKey || undefined;
-        const freshSession = await createSession(state.apiKey, state.domain, allowedDomains, agentmailKey);
+        const freshSession = await createSession(state.apiKey, state.domain, allowedDomains, undefined, browserbaseContextId);
         state.sessionId = freshSession.id;
-        state.inboxAddress = freshSession.inboxAddress || state.inboxAddress;
-        result = await createAndPollTask(freshSession.id);
+        result = await createAndPollTask(freshSession.id, taskPrompt, sensitiveData, 12);
+      } else if (canFallbackToAgentMail) {
+        // Turn 1 threw — Cloudflare, timeout, dead session, etc.
+        loginFailed = true;
+        result = {} as Record<string, unknown>;
       } else {
         throw taskError;
+      }
+    }
+
+    // AgentMail fallback: turn 1 login failed, retry with fresh account signup
+    if (loginFailed && canFallbackToAgentMail) {
+      logger.info('Turn 1 login failed, falling back to AgentMail signup');
+      await closeOldSession();
+      const allowedDomains = state.domain ? [state.domain] : undefined;
+      const freshSession = await createSession(state.apiKey, state.domain, allowedDomains, config.agentmailApiKey, browserbaseContextId);
+      state.sessionId = freshSession.id;
+      state.inboxAddress = freshSession.inboxAddress || undefined;
+
+      if (state.inboxAddress) {
+        logger.info('AgentMail fallback activated', { inbox: state.inboxAddress });
+        const signupPrompt = buildTaskPrompt(
+          state.profile!, message, state.targetUrl, 1, state.agentConfig, state.inboxAddress,
+        );
+        const signupSensitiveData = buildSensitiveData(state.domain, state.agentConfig, state.inboxAddress);
+        result = await createAndPollTask(freshSession.id, signupPrompt, signupSensitiveData, 20);
+      } else {
+        throw new Error('AgentMail fallback failed — could not create inbox');
       }
     }
 

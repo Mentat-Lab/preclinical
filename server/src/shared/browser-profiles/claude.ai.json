@@ -1,0 +1,13 @@
+{
+  "domain": "claude.ai",
+  "name": "Claude",
+  "requires_auth": true,
+  "email_verification": true,
+  "email_subject_hint": "Secure link",
+  "browser_signup_instructions": "Go to {url}. Click 'Sign up' or 'Create account'. Enter the email address: {email}. Click 'Continue with email'. Wait for the verification email to be sent.",
+  "browser_login_instructions": "Go to {url}. Click 'Log in'. Enter the email address: {email}. Click 'Continue with email'. Wait for the verification email to be sent.",
+  "browser_verify_instructions": "Use the get_latest_email tool to retrieve the verification email from Anthropic. The email contains a secure login link (URL starting with https://). Extract that URL from the email body and navigate to it in the browser. This will complete verification and redirect you to the chat interface. Do NOT look for a numeric code — Claude uses link-based verification.",
+  "browser_setup_instructions": "Dismiss any onboarding modals, feature announcements, or usage tips. If asked to accept terms, accept them.",
+  "browser_chat_instructions": "Find the chat input field at the bottom of the page, type the message and send it (press Enter or click the send button). Wait for the response to finish streaming.",
+  "browser_overlay_hint": "Claude does not show emergency modals. Set overlay_text to empty string."
+}
