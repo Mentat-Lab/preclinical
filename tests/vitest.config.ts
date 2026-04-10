@@ -14,6 +14,7 @@ export default defineConfig({
     testTimeout: 30_000,
     hookTimeout: 60_000,
     pool: 'forks',
+    fileParallelism: false,
     sequence: {
       // Run test files sequentially to avoid DB races
       concurrent: false,
