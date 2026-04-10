@@ -9,15 +9,6 @@ export const PROVIDER_NAMES: Record<AgentProvider, string> = {
   elevenlabs: 'ElevenLabs',
 };
 
-export const ALL_PROVIDERS: AgentProvider[] = [
-  'vapi',
-  'openai',
-  'elevenlabs',
-  'livekit',
-  'pipecat',
-  'browser',
-];
-
 export interface ProviderField {
   key: string;
   label: string;
@@ -76,11 +67,9 @@ export const PROVIDER_FIELDS: Record<AgentProvider, ProviderField[]> = {
     { key: 'url', label: 'Target URL', type: 'text', placeholder: 'https://example.com/chat', required: true },
     { key: 'browser_backend', label: 'Browser Backend', type: 'select', options: [
       { label: 'Browserbase (Cloud)', value: 'browserbase' },
-      { label: 'BrowserUse Cloud', value: 'browseruse_cloud' },
       { label: 'Local Chrome', value: 'local' },
     ] },
     { key: 'browserbase_context_id', label: 'Browserbase Context ID', type: 'text', placeholder: 'Context ID', showWhen: { key: 'browser_backend', value: 'browserbase' } },
-    { key: 'browseruse_profile_id', label: 'BrowserUse Profile ID', type: 'text', placeholder: 'Profile ID', showWhen: { key: 'browser_backend', value: 'browseruse_cloud' } },
     { key: 'instructions', label: 'Additional Instructions', type: 'text', placeholder: 'Optional — e.g. "Click the Patient Chat tab first"' },
   ],
   elevenlabs: [

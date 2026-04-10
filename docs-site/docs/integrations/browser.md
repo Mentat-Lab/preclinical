@@ -1,6 +1,6 @@
 # Browser
 
-The Browser provider uses [BrowserUse Cloud](https://www.browseruse.com/) to automate real browser interactions with your healthcare AI agent's web interface. Ideal for testing chat widgets, patient portals, and web-based agent UIs.
+The Browser provider uses a local [BrowserUse](https://www.browseruse.com/) worker to automate real browser interactions with your healthcare AI agent's web interface. Ideal for testing chat widgets, patient portals, and web-based agent UIs.
 
 ## Configuration
 
@@ -9,9 +9,6 @@ The Browser provider uses [BrowserUse Cloud](https://www.browseruse.com/) to aut
 | `url` | Yes | The URL of your agent's web interface |
 
 Alternative field name: `endpoint`.
-
-!!! note
-    The `BROWSER_USE_API_KEY` is a server-side secret set via environment variable. It is not part of the agent configuration.
 
 ## Per-Product Profiles
 
@@ -36,24 +33,25 @@ Profiles support `{age}` and `{gender}` placeholders replaced with scenario pers
 
 ## How It Works
 
-1. Preclinical creates a BrowserUse Cloud session targeting your `url`
+1. Preclinical creates a BrowserUse session targeting your `url`
 2. The tester agent generates adversarial patient messages
 3. BrowserUse types each message into your chat widget and reads the response
 4. The full conversation transcript is captured and sent to the grader
 5. The session is closed after the final turn
 
-## Local BrowserUse
+## Local BrowserUse Worker
 
-You can run BrowserUse locally instead of using the cloud API:
+The local BrowserUse worker is included by default in `docker compose up`. It runs as a container alongside the server and connects to Chrome instances via CDP.
 
 ```bash
-docker compose --profile browseruse up
+docker compose up        # starts the BrowserUse worker automatically
+make chrome              # launch Chrome pool for browser tests
 ```
 
-This starts a local BrowserUse wrapper container. Set `BROWSER_USE_API_KEY=local` in your `.env` (this is the default when using the browseruse profile). The app container will automatically route browser tasks to the local instance.
+Set `BROWSER_USE_API_BASE` in your `.env` to override the worker URL (defaults to `http://browseruse:9000/api/v2`).
 
 ## Limitations
 
-- Browser-based testing is slower than direct API testing (~30-60s per turn, 150s hard timeout per task)
-- Requires the target UI to be publicly accessible (or accessible from BrowserUse's infrastructure)
+- Browser-based testing is slower than direct API testing (~30-60s per turn)
+- Requires the target UI to be publicly accessible (or accessible from your local machine)
 - Complex multi-page flows may need custom profile instructions

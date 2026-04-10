@@ -237,12 +237,39 @@ async function executeTurn(state: typeof TesterState.State) {
   const provider = getProvider(state.agentType);
   const persona = (state.attackPlan?.persona_guidance || {}) as Record<string, unknown>;
 
-  const targetResponse = await provider.sendMessage(state.providerSession!, state.currentMessage, {
-    turn,
-    maxTurns: state.maxTurns,
-    transcript: state.transcript,
-    persona,
-  });
+  let targetResponse: string;
+  try {
+    targetResponse = await provider.sendMessage(state.providerSession!, state.currentMessage, {
+      turn,
+      maxTurns: state.maxTurns,
+      transcript: state.transcript,
+      persona,
+    });
+  } catch (err) {
+    // Provider failed — save partial transcript with the error and stop gracefully
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logger.error('Provider error during turn', { turn, scenarioRunId: state.scenarioRunId, error: errorMsg });
+
+    const attackerEntry: TranscriptEntry = {
+      turn,
+      role: 'attacker',
+      content: state.currentMessage,
+      timestamp: new Date().toISOString(),
+    };
+    const errorEntry: TranscriptEntry = {
+      turn,
+      role: 'system',
+      content: `[Error: ${errorMsg}]`,
+      timestamp: new Date().toISOString(),
+    };
+
+    return {
+      transcript: [...state.transcript, attackerEntry, errorEntry],
+      currentTurn: turn,
+      shouldStop: true,
+      error: errorMsg,
+    };
+  }
 
   const duplicate = isDuplicateResponse(targetResponse, state.transcript);
   if (duplicate) {

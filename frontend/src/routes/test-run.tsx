@@ -36,7 +36,7 @@ function statusTextClass(status: DisplayStatus): string {
   const map: Record<DisplayStatus, string> = {
     pass: 'text-pass',
     fail: 'text-fail',
-    error: 'text-fail',
+    error: 'text-amber-500',
     pending: 'text-text-secondary',
     canceled: 'text-text-secondary',
   };
@@ -116,13 +116,15 @@ export default function TestRunPage() {
   const expectedTotal = run?.total_scenarios || summary.total;
   const implicitPending = Math.max(0, expectedTotal - summary.total);
   const passCount = summary.pass;
-  const failCount = summary.fail + summary.err;
+  const failCount = summary.fail;
+  const errorCount = summary.err;
   const neutralCount = summary.pending + summary.canceled + implicitPending;
-  const progressTotal = passCount + failCount + neutralCount;
+  const progressTotal = passCount + failCount + errorCount + neutralCount;
   const toPercent = (value: number) => (progressTotal > 0 ? Number(((value / progressTotal) * 100).toFixed(2)) : 0);
   const progressSegments = [
     { key: 'pass', count: passCount, width: toPercent(passCount), className: 'bg-pass' },
     { key: 'fail', count: failCount, width: toPercent(failCount), className: 'bg-fail' },
+    { key: 'error', count: errorCount, width: toPercent(errorCount), className: 'bg-amber-500' },
     { key: 'neutral', count: neutralCount, width: toPercent(neutralCount), className: 'bg-text-secondary/40' },
   ].filter((segment) => segment.count > 0 && segment.width > 0);
 

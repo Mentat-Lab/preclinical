@@ -3,16 +3,13 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAgent, queryKeys } from '@/hooks/use-queries';
 import * as api from '@/lib/api';
-import { ExternalLink } from 'lucide-react';
 import {
   PROVIDER_NAMES,
   PROVIDER_FIELDS,
   applyProviderDefaults,
   validateProviderConfig,
 } from '@/lib/provider-config';
-
-const inputCls =
-  'w-full px-3 py-2 text-sm rounded-md border border-border bg-background text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50';
+import { ProviderConfigFields, inputCls } from '@/components/agents/ProviderConfigFields';
 
 export default function AgentEditPage() {
   const { agentId } = useParams<{ agentId: string }>();
@@ -173,74 +170,15 @@ export default function AgentEditPage() {
 
             {/* Provider-specific config */}
             {fields.length > 0 && (
-              <div className="border-t border-border pt-6 space-y-4">
-                <h3 className="text-sm font-medium text-text-primary">Configuration</h3>
-                {fields.map((field) => {
-                  if (field.showWhen && config[field.showWhen.key] !== field.showWhen.value) {
-                    return null;
-                  }
-                  return (
-                  <div key={field.key} className="space-y-1.5">
-                    <label className="block text-sm font-medium text-text-primary">
-                      {field.label}
-                      {field.required && <span className="text-red-500 ml-1">*</span>}
-                    </label>
-                    {field.type === 'select' && field.options ? (
-                      <select
-                        value={config[field.key] ?? ''}
-                        onChange={(e) => {
-                          setConfig((prev) => ({ ...prev, [field.key]: e.target.value }));
-                          setEditedConfigKeys((prev) => new Set(prev).add(field.key));
-                        }}
-                        disabled={submitting}
-                        className={inputCls}
-                      >
-                        <option value="">Select...</option>
-                        {field.options.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        type={field.type === 'password' ? 'password' : 'text'}
-                        name={field.key}
-                        id={`config-${field.key}`}
-                        autoComplete="off"
-                        value={config[field.key] ?? ''}
-                        onChange={(e) => {
-                          setConfig((prev) => ({ ...prev, [field.key]: e.target.value }));
-                          setEditedConfigKeys((prev) => new Set(prev).add(field.key));
-                        }}
-                        placeholder={field.placeholder}
-                        disabled={submitting}
-                        className={inputCls}
-                      />
-                    )}
-                    {field.hint && (
-                      <p className="text-xs text-text-secondary mt-1">
-                        {field.hint}
-                        {field.hintLink && (
-                          <>
-                            {' '}
-                            <a
-                              href={field.hintLink.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-0.5 text-accent hover:underline"
-                            >
-                              {field.hintLink.label}
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          </>
-                        )}
-                      </p>
-                    )}
-                  </div>
-                  );
-                })}
-              </div>
+              <ProviderConfigFields
+                fields={fields}
+                config={config}
+                onConfigChange={(key, value) => {
+                  setConfig((prev) => ({ ...prev, [key]: value }));
+                  setEditedConfigKeys((prev) => new Set(prev).add(key));
+                }}
+                disabled={submitting}
+              />
             )}
 
             {/* Actions */}

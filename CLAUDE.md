@@ -49,7 +49,7 @@ Model routing in `server/src/shared/llm-utils.ts`:
 - Everything else → OpenAI-compatible gateway (`OPENAI_BASE_URL`)
 
 ### Provider Routing
-- All providers run in-process: `openai`, `vapi`, `browser`, `livekit`, `pipecat`
+- All providers run in-process: `openai`, `vapi`, `browser`, `livekit`, `pipecat`, `elevenlabs`
 - Provider interface: `connect → sendMessage(loop) → disconnect` (see `server/src/providers/base.ts`)
 - LiveKit/Pipecat native modules are lazy-loaded (only when used)
 
@@ -62,11 +62,16 @@ Configurable via env: `DEFAULT_MAX_TURNS=11`, `MIN_MAX_TURNS=5`, `MAX_MAX_TURNS=
 ## Key Directories
 
 - `server/` — Hono API + pg-boss worker (Node.js)
+- `server/src/routes/` — Domain-split route modules (agent, scenario, run, browser-profile) + `public-api.ts` aggregator
 - `server/src/graphs/` — LangGraph StateGraphs (tester, grader), state schemas, skill loaders
 - `server/src/shared/` — Prompts, schemas, skills, attack vectors
-- `server/src/providers/` — Provider implementations (openai, vapi, livekit, pipecat, browser)
+- `server/src/providers/` — Provider implementations (openai, vapi, livekit, pipecat, elevenlabs, browser)
+- `server/src/providers/browser/` — Split modules: browser.ts (main), types, api, discovery, profile-loader, system-message
+- `server/src/workers/` — Scenario runner + voice transports (daily, livekit, pipecat) with shared `voice-transport-base.ts`
 - `frontend/` — Vite + React + TanStack Query
-- `tests/` — Vitest API tests
+- `frontend/src/components/agents/` — Shared agent form components (ProviderConfigFields, BrowserAuthSetup)
+- `frontend/src/components/scenarios/` — Shared scenario components (RubricTable, RubricEditor, DemographicsView, ScenarioSettingsEditor)
+- `tests/` — Vitest API tests (unified config with `api` and `e2e` projects)
 - `target-agents/` — Self-hosted target agents for smoke tests (openai-api, livekit, pipecat)
 - `services/browseruse/` — Local BrowserUse worker (included by default in `docker compose up`)
 - `docs-site/` — MkDocs Material documentation site
@@ -84,9 +89,8 @@ make chrome CHROME_INSTANCES=3 CHROME_BASE_PORT=9300   # custom pool size/ports
 ```
 `make down` stops all Chrome instances along with Docker services. Chrome is NOT started automatically — only when you need browser tests.
 
-### Local vs Cloud
-- **Local (default)**: `docker compose up` includes the BrowserUse worker. `BROWSER_USE_API_BASE` defaults to `http://browseruse:9000/api/v2`.
-- **Cloud**: Set both `BROWSER_USE_API_KEY` and `BROWSER_USE_API_BASE` in `.env` to use BrowserUse Cloud instead.
+### Local BrowserUse Worker
+`docker compose up` includes the BrowserUse worker. `BROWSER_USE_API_BASE` defaults to `http://browseruse:9000/api/v2`.
 
 ### Browserbase (cloud Chrome)
 Set `BROWSERBASE_API_KEY` and optionally `BROWSERBASE_PROJECT_ID` in `.env` to use Browserbase cloud Chrome instead of the local Chrome pool. When enabled:

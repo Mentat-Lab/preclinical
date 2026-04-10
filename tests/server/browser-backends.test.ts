@@ -1,12 +1,10 @@
 /**
- * Browser Backend Integration Tests — BrowserUse Cloud & Local Chrome
+ * Browser Backend Integration Tests — Local Chrome
  *
  * Real integration tests against the running server and database.
  * No mocks. Covers:
  *   - Agent CRUD with browser_backend config
- *   - BrowserUse Cloud API (setup-profile, complete-profile-setup)
  *   - Local Chrome API (setup-auth, complete-auth)
- *   - BrowserUse Cloud runtime (not-yet-implemented error)
  *   - Test run execution with browser agents (5 scenarios, chatgpt.com)
  *   - Data integrity (config merge, masking, snapshot)
  *   - Edge cases (legacy agents, backend switching, missing env vars)
@@ -45,7 +43,7 @@ function getConfig(data: unknown): Record<string, unknown> {
 
 // ─── test suite ──────────────────────────────────────────────────────────────
 
-describe('Browser Backends — BrowserUse Cloud & Local Chrome', () => {
+describe('Browser Backends — Local Chrome', () => {
   let scenarioIds: string[];
 
   beforeAll(async () => {
@@ -71,18 +69,6 @@ describe('Browser Backends — BrowserUse Cloud & Local Chrome', () => {
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('Agent CRUD — browser_backend config', () => {
-    it('creates browser agent with browseruse_cloud backend', async () => {
-      const res = await createBrowserAgent('BU Cloud Agent', {
-        browser_backend: 'browseruse_cloud',
-      });
-
-      expect(res.status).toBe(201);
-      expect(res.data).toHaveProperty('id');
-      const cfg = getConfig(res.data);
-      expect(cfg.browser_backend).toBe('browseruse_cloud');
-      expect(cfg.url).toBe(TARGET_URL);
-    });
-
     it('creates browser agent with local backend', async () => {
       const res = await createBrowserAgent('Local Chrome Agent', {
         browser_backend: 'local',
@@ -135,7 +121,7 @@ describe('Browser Backends — BrowserUse Cloud & Local Chrome', () => {
 
     it('PATCH preserves browser_backend when updating other config fields', async () => {
       const created = await createBrowserAgent('Preserve Backend Agent', {
-        browser_backend: 'browseruse_cloud',
+        browser_backend: 'local',
       });
       expect(created.status).toBe(201);
 
@@ -146,7 +132,7 @@ describe('Browser Backends — BrowserUse Cloud & Local Chrome', () => {
 
       expect(patched.status).toBe(200);
       const cfg = getConfig(patched.data);
-      expect(cfg.browser_backend).toBe('browseruse_cloud');
+      expect(cfg.browser_backend).toBe('local');
       expect(cfg.instructions).toBe('new instructions');
     });
 
@@ -167,7 +153,7 @@ describe('Browser Backends — BrowserUse Cloud & Local Chrome', () => {
 
     it('GET list includes browser agents', async () => {
       const created = await createBrowserAgent('List Backend Agent', {
-        browser_backend: 'browseruse_cloud',
+        browser_backend: 'local',
       });
       expect(created.status).toBe(201);
 
@@ -197,138 +183,7 @@ describe('Browser Backends — BrowserUse Cloud & Local Chrome', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 2. BrowserUse Cloud API — setup-profile & complete-profile-setup
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  describe('BrowserUse Cloud API', () => {
-    // Check if BrowserUse Cloud API key is valid by probing once
-    let buCloudAvailable = false;
-
-    beforeAll(async () => {
-      const probe = await api.post<{ profile_id?: string; session_id?: string; error?: string }>(
-        '/api/v1/browseruse-cloud/setup-profile',
-        { url: TARGET_URL }
-      );
-      buCloudAvailable = probe.status === 200;
-      // Clean up probe session if it worked
-      if (buCloudAvailable && probe.data.session_id) {
-        await api.post('/api/v1/browseruse-cloud/complete-profile-setup', {
-          session_id: probe.data.session_id,
-        });
-      }
-    });
-
-    it('POST /browseruse-cloud/setup-profile with URL → returns profile_id, session_id, live_url (or auth error)', async () => {
-      const res = await api.post<{
-        profile_id?: string;
-        session_id?: string;
-        live_url?: string;
-        error?: string;
-      }>('/api/v1/browseruse-cloud/setup-profile', { url: TARGET_URL });
-
-      if (buCloudAvailable) {
-        expect(res.status).toBe(200);
-        expect(res.data).toHaveProperty('profile_id');
-        expect(res.data).toHaveProperty('session_id');
-        expect(res.data).toHaveProperty('live_url');
-        expect(typeof res.data.profile_id).toBe('string');
-        expect(typeof res.data.session_id).toBe('string');
-
-        // Clean up
-        if (res.data.session_id) {
-          await api.post('/api/v1/browseruse-cloud/complete-profile-setup', {
-            session_id: res.data.session_id,
-          });
-        }
-      } else {
-        // No API key or invalid — 400 (not set) or 401 (invalid key)
-        expect([400, 401]).toContain(res.status);
-        expect(res.data.error).toMatch(/api.key|failed to create profile/i);
-      }
-    });
-
-    it('POST /browseruse-cloud/setup-profile without URL → returns profile or auth error', async () => {
-      const res = await api.post<{
-        profile_id?: string;
-        session_id?: string;
-        error?: string;
-      }>('/api/v1/browseruse-cloud/setup-profile', {});
-
-      if (buCloudAvailable) {
-        expect(res.status).toBe(200);
-        expect(res.data).toHaveProperty('profile_id');
-        expect(res.data).toHaveProperty('session_id');
-
-        if (res.data.session_id) {
-          await api.post('/api/v1/browseruse-cloud/complete-profile-setup', {
-            session_id: res.data.session_id,
-          });
-        }
-      } else {
-        expect(res.status).toBeGreaterThanOrEqual(400);
-      }
-    });
-
-    it('POST /browseruse-cloud/complete-profile-setup without session_id → 400', async () => {
-      const res = await api.post<{ error: string }>(
-        '/api/v1/browseruse-cloud/complete-profile-setup',
-        {}
-      );
-
-      expect(res.status).toBe(400);
-      expect(res.data.error).toMatch(/session_id/i);
-    });
-
-    it('POST /browseruse-cloud/complete-profile-setup with invalid session_id → error', async () => {
-      const res = await api.post<{ error: string }>(
-        '/api/v1/browseruse-cloud/complete-profile-setup',
-        { session_id: 'nonexistent-session-id-12345' }
-      );
-
-      // Should return an error (4xx or 5xx)
-      expect(res.status).toBeGreaterThanOrEqual(400);
-    });
-
-    it('multiple setup calls create different profiles (when API key valid)', async () => {
-      if (!buCloudAvailable) {
-        // When API key is invalid, both calls should fail consistently
-        const res1 = await api.post<{ error: string }>(
-          '/api/v1/browseruse-cloud/setup-profile',
-          { url: TARGET_URL }
-        );
-        const res2 = await api.post<{ error: string }>(
-          '/api/v1/browseruse-cloud/setup-profile',
-          { url: TARGET_URL }
-        );
-        expect(res1.status).toBe(res2.status);
-        return;
-      }
-
-      const res1 = await api.post<{ profile_id: string; session_id: string }>(
-        '/api/v1/browseruse-cloud/setup-profile',
-        { url: TARGET_URL }
-      );
-      const res2 = await api.post<{ profile_id: string; session_id: string }>(
-        '/api/v1/browseruse-cloud/setup-profile',
-        { url: TARGET_URL }
-      );
-
-      expect(res1.status).toBe(200);
-      expect(res2.status).toBe(200);
-      expect(res1.data.profile_id).not.toBe(res2.data.profile_id);
-
-      // Clean up both
-      await api.post('/api/v1/browseruse-cloud/complete-profile-setup', {
-        session_id: res1.data.session_id,
-      });
-      await api.post('/api/v1/browseruse-cloud/complete-profile-setup', {
-        session_id: res2.data.session_id,
-      });
-    });
-  });
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 3. Local Chrome API — setup-auth & complete-auth
+  // 2. Local Chrome API — setup-auth & complete-auth
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('Local Chrome API', () => {
@@ -502,7 +357,7 @@ describe('Browser Backends — BrowserUse Cloud & Local Chrome', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 4. Agent-specific context/profile setup
+  // 3. Agent-specific context/profile setup
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('Agent-specific setup endpoints', () => {
@@ -562,14 +417,14 @@ describe('Browser Backends — BrowserUse Cloud & Local Chrome', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 5. Data Integrity
+  // 4. Data Integrity
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('Data integrity', () => {
     it('config JSONB merge preserves all fields when updating browser_backend', async () => {
       const created = await createBrowserAgent('Integrity Agent', {
-        browser_backend: 'browseruse_cloud',
-        browseruse_profile_id: 'prof-123',
+        browser_backend: 'browserbase',
+        browserbase_context_id: 'ctx-123',
         instructions: 'be polite',
       });
       expect(created.status).toBe(201);
@@ -584,13 +439,13 @@ describe('Browser Backends — BrowserUse Cloud & Local Chrome', () => {
       const cfg = getConfig(patched.data);
       expect(cfg.browser_backend).toBe('local');
       expect(cfg.url).toBe(TARGET_URL);
-      expect(cfg.browseruse_profile_id).toBe('prof-123');
+      expect(cfg.browserbase_context_id).toBe('ctx-123');
       expect(cfg.instructions).toBe('be polite');
     });
 
     it('sensitive keys in browser config are masked in GET response', async () => {
       const created = await createBrowserAgent('Masking Browser Agent', {
-        browser_backend: 'browseruse_cloud',
+        browser_backend: 'local',
         api_key: 'sk-secret-browser-key-12345',
       });
       expect(created.status).toBe(201);
@@ -609,7 +464,6 @@ describe('Browser Backends — BrowserUse Cloud & Local Chrome', () => {
       const created = await createBrowserAgent('NonSensitive Browser Agent', {
         browser_backend: 'local',
         browserbase_context_id: 'ctx-12345',
-        browseruse_profile_id: 'prof-12345',
         instructions: 'test instructions',
       });
       expect(created.status).toBe(201);
@@ -622,7 +476,6 @@ describe('Browser Backends — BrowserUse Cloud & Local Chrome', () => {
       const cfg = getConfig(fetched.data);
       // These are not sensitive — should be visible
       expect(cfg.browserbase_context_id).toBe('ctx-12345');
-      expect(cfg.browseruse_profile_id).toBe('prof-12345');
       expect(cfg.instructions).toBe('test instructions');
       expect(cfg.url).toBe(TARGET_URL);
     });
@@ -655,7 +508,7 @@ describe('Browser Backends — BrowserUse Cloud & Local Chrome', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 6. Edge Cases
+  // 5. Edge Cases
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('Edge cases', () => {
@@ -755,7 +608,7 @@ describe('Browser Backends — BrowserUse Cloud & Local Chrome', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 7. Test Run Execution — Local Chrome agent with 5 scenarios
+  // 6. Test Run Execution — Local Chrome agent with 5 scenarios
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('Test run execution — Local Chrome with 5 scenarios', () => {
@@ -871,86 +724,7 @@ describe('Browser Backends — BrowserUse Cloud & Local Chrome', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 8. Test Run Execution — BrowserUse Cloud agent with 5 scenarios
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  describe('Test run execution — BrowserUse Cloud with 5 scenarios', () => {
-    let agentId: string;
-    let runId: string;
-
-    beforeAll(async () => {
-      const agent = await createBrowserAgent('Run BU Cloud Agent', {
-        browser_backend: 'browseruse_cloud',
-      });
-      expect(agent.status).toBe(201);
-      agentId = agent.data.id;
-    });
-
-    it('starts a test run with 5 scenarios → 200', async () => {
-      const fiveScenarios = scenarioIds.slice(0, 5);
-
-      const res = await api.post<{
-        id: string;
-        test_run_id: string;
-        status: string;
-        total_scenarios: number;
-        scenarios_launched: number;
-      }>('/start-run', {
-        agent_id: agentId,
-        scenario_ids: fiveScenarios,
-        max_turns: 5,
-        name: 'Browser Backend Test — BrowserUse Cloud 5 scenarios',
-      });
-
-      expect(res.status).toBe(200);
-      expect(res.data.status).toBe('running');
-      expect(res.data.total_scenarios).toBe(5);
-
-      runId = res.data.id;
-      startedRunIds.push(runId);
-    });
-
-    it('test run stored with correct agent type', async () => {
-      expect(runId).toBeDefined();
-
-      const res = await api.get<{
-        id: string;
-        agent_id: string;
-        agent_type: string;
-        total_scenarios: number;
-      }>(`/api/v1/tests/${runId}`);
-
-      expect(res.status).toBe(200);
-      expect(res.data.agent_id).toBe(agentId);
-      expect(res.data.agent_type).toBe('browser');
-      expect(res.data.total_scenarios).toBe(5);
-    });
-
-    it('all 5 scenario runs created', async () => {
-      expect(runId).toBeDefined();
-
-      const res = await api.get<{
-        results: Array<{ id: string; test_run_id: string }>;
-      }>('/api/v1/scenario-runs', { test_run_id: runId });
-
-      expect(res.status).toBe(200);
-      expect(res.data.results).toHaveLength(5);
-    });
-
-    it('can cancel the BrowserUse Cloud run', async () => {
-      expect(runId).toBeDefined();
-
-      const res = await api.post<{ status: string }>('/cancel-run', {
-        test_run_id: runId,
-      });
-
-      expect(res.status).toBe(200);
-      expect(res.data.status).toBe('canceled');
-    });
-  });
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 9. SSE Events for browser test runs
+  // 7. SSE Events for browser test runs
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('SSE events for browser test runs', () => {
@@ -1002,14 +776,14 @@ describe('Browser Backends — BrowserUse Cloud & Local Chrome', () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // 10. Concurrent browser agent operations
+  // 8. Concurrent browser agent operations
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('Concurrent browser agent operations', () => {
     it('can create multiple browser agents concurrently', async () => {
       const promises = Array.from({ length: 3 }, (_, i) =>
         createBrowserAgent(`Concurrent Agent ${i}`, {
-          browser_backend: i % 2 === 0 ? 'local' : 'browseruse_cloud',
+          browser_backend: i % 2 === 0 ? 'local' : 'browserbase',
         })
       );
 
@@ -1028,8 +802,8 @@ describe('Browser Backends — BrowserUse Cloud & Local Chrome', () => {
       const localAgent = await createBrowserAgent('Concurrent Local', {
         browser_backend: 'local',
       });
-      const cloudAgent = await createBrowserAgent('Concurrent Cloud', {
-        browser_backend: 'browseruse_cloud',
+      const cloudAgent = await createBrowserAgent('Concurrent Browserbase', {
+        browser_backend: 'browserbase',
       });
 
       expect(localAgent.status).toBe(201);

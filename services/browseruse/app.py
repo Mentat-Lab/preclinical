@@ -25,12 +25,14 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from browser_use import Agent, ChatOpenAI
@@ -71,9 +73,10 @@ BROWSER_DATA_DIR = os.getenv("BROWSER_DATA_DIR", "/data/browser-profiles")
 STORAGE_STATE_DIR = os.getenv("STORAGE_STATE_DIR", "/data/storage-states")
 CONVERSATION_LOG_DIR = os.getenv("CONVERSATION_LOG_DIR", "/data/conversation-logs")
 GIF_OUTPUT_DIR = os.getenv("GIF_OUTPUT_DIR", "/data/gifs")
+ACTION_HISTORY_DIR = os.getenv("ACTION_HISTORY_DIR", "/data/action-histories")
 
 # Ensure dirs exist
-for d in [BROWSER_DATA_DIR, STORAGE_STATE_DIR, CONVERSATION_LOG_DIR, GIF_OUTPUT_DIR]:
+for d in [BROWSER_DATA_DIR, STORAGE_STATE_DIR, CONVERSATION_LOG_DIR, GIF_OUTPUT_DIR, ACTION_HISTORY_DIR]:
     Path(d).mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------------------------------
@@ -400,6 +403,10 @@ class CreateTaskRequest(BaseModel):
     save_conversation: bool = False
     generate_gif: bool = False
     run_id: str | None = None
+    # --- Login replay optimisation ---
+    initial_actions: list[dict[str, dict[str, Any]]] | None = None
+    save_action_history: bool = False
+    flash_mode: bool = False
 
 
 class DiscoverRequest(BaseModel):
@@ -606,12 +613,38 @@ async def _run_agent(task_id: str, browser_session: BrowserSession, body: Create
             gif_path = os.path.join(GIF_OUTPUT_DIR, f"{run_id}.gif")
             agent_kwargs["generate_gif"] = gif_path
 
+        # Login replay: pre-recorded actions executed before LLM starts (zero LLM cost)
+        if body.initial_actions:
+            actions = body.initial_actions
+            # Substitute <secret>key</secret> placeholders with actual sensitive_data values
+            if body.sensitive_data:
+                actions_json = json.dumps(actions)
+                for key, value in body.sensitive_data.items():
+                    actions_json = actions_json.replace(f"<secret>{key}</secret>", value)
+                actions = json.loads(actions_json)
+            agent_kwargs["initial_actions"] = actions
+
+        # Flash mode: reduce LLM tokens per step (~40-60% savings)
+        if body.flash_mode:
+            agent_kwargs["flash_mode"] = True
+
         # Attach AgentMail email tools if this session has an inbox
         if body.sessionId in session_email_tools:
             agent_kwargs["tools"] = session_email_tools[body.sessionId]
 
         agent = Agent(**agent_kwargs)
         result = await agent.run(max_steps=body.maxSteps)
+
+        # Save action history for login replay extraction
+        action_history_path = None
+        if body.save_action_history and result and result.is_successful():
+            try:
+                action_history_path = os.path.join(ACTION_HISTORY_DIR, f"{body.run_id or task_id}.json")
+                agent.save_history(action_history_path)
+                print(f"[task {task_id}] Saved action history → {action_history_path}")
+            except Exception as e:
+                print(f"[task {task_id}] Failed to save action history: {e}")
+                action_history_path = None
 
         # Extract the final result
         output = ""
@@ -661,6 +694,7 @@ async def _run_agent(task_id: str, browser_session: BrowserSession, body: Create
             "isSuccess": agent_succeeded if agent_succeeded is not None else bool(output),
             "output": output,
             "parsed": parsed,
+            "action_history_path": action_history_path,
         }
         if not output:
             print(f"[task {task_id}] ⚠ Finished but no response extracted — marked as failed")
@@ -687,6 +721,105 @@ async def _save_storage_state(browser_session: BrowserSession, domain: str):
         print(f"[storage] Saved storage state for {domain} → {path}")
     except Exception as e:
         print(f"[storage] Failed to save storage state for {domain}: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Action History — record-once / replay-forever login flows
+# ---------------------------------------------------------------------------
+
+def _extract_login_actions(history_path: str, message_text: str) -> list[dict]:
+    """Extract login/setup actions from a full history, stopping before message sending."""
+    with open(history_path) as f:
+        data = json.load(f)
+
+    login_actions: list[dict] = []
+    history_items = data.get("history", [])
+
+    for item in history_items:
+        model_output = item.get("model_output")
+        if not model_output:
+            continue
+        actions = model_output.get("action", [])
+        if not isinstance(actions, list):
+            actions = [actions]
+
+        # Check if any action in this step is sending the user's message or finishing
+        is_message_step = False
+        for action in actions:
+            if not isinstance(action, dict):
+                continue
+            if "input_text" in action:
+                text = action["input_text"].get("text", "")
+                # Match if the message text appears in the input (first 50 chars to handle truncation)
+                if message_text and message_text[:50] in text:
+                    is_message_step = True
+                    break
+            if "done" in action:
+                is_message_step = True
+                break
+
+        if is_message_step:
+            break
+
+        # Collect actions from this step
+        for action in actions:
+            if isinstance(action, dict):
+                login_actions.append(action)
+
+    return login_actions
+
+
+class ExtractLoginRequest(BaseModel):
+    history_path: str
+    message_text: str
+    domain: str
+
+
+@app.post("/api/v2/action-histories/extract")
+async def extract_login_actions(body: ExtractLoginRequest):
+    """Extract login actions from a full history and cache them for a domain."""
+    if not os.path.exists(body.history_path):
+        return JSONResponse(status_code=404, content={"error": "History file not found"})
+
+    actions = _extract_login_actions(body.history_path, body.message_text)
+    if not actions:
+        return JSONResponse(status_code=422, content={"error": "No login actions found in history"})
+
+    cache_path = os.path.join(ACTION_HISTORY_DIR, f"{body.domain}.json")
+    cache_data = {
+        "domain": body.domain,
+        "recorded_at": datetime.now(timezone.utc).isoformat(),
+        "source_history": body.history_path,
+        "login_actions": actions,
+    }
+    with open(cache_path, "w") as f:
+        json.dump(cache_data, f, indent=2)
+
+    print(f"[action-history] Extracted {len(actions)} login actions for {body.domain} → {cache_path}")
+    return {"domain": body.domain, "action_count": len(actions), "login_actions": actions, "path": cache_path}
+
+
+@app.get("/api/v2/action-histories/{domain}")
+async def get_login_actions(domain: str):
+    """Return cached login actions for a domain, or 404 if none exist."""
+    cache_path = os.path.join(ACTION_HISTORY_DIR, f"{domain}.json")
+    if not os.path.exists(cache_path):
+        return JSONResponse(status_code=404, content={"error": f"No cached actions for {domain}"})
+
+    with open(cache_path) as f:
+        data = json.load(f)
+
+    return data
+
+
+@app.delete("/api/v2/action-histories/{domain}")
+async def delete_login_actions(domain: str):
+    """Invalidate cached login actions for a domain (e.g. after replay failure)."""
+    cache_path = os.path.join(ACTION_HISTORY_DIR, f"{domain}.json")
+    if os.path.exists(cache_path):
+        os.remove(cache_path)
+        print(f"[action-history] Invalidated cache for {domain}")
+    return {"deleted": True}
 
 
 @app.patch("/api/v2/sessions/{session_id}")

@@ -14,7 +14,7 @@ import { log } from './logger.js';
 // TYPES AND INTERFACES
 // ============================================================================
 
-export interface TriageBenchMetrics {
+interface TriageBenchMetrics {
   final_recommendation: string | null;
   response_turns: number;
   question_count: number;
@@ -27,7 +27,7 @@ export interface TriageBenchMetrics {
   critical_questions: number;
 }
 
-export interface TriageClassification {
+interface TriageClassification {
   classified_level: 'Emergency care' | 'Clinician evaluation' | 'Home care';
   confidence_score: number;
   evidence: string;

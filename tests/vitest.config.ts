@@ -4,20 +4,37 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const shared = {
+  root: __dirname,
+  globals: true,
+  environment: 'node' as const,
+  globalSetup: './setup/global-setup.ts',
+  hookTimeout: 60_000,
+  pool: 'forks' as const,
+  sequence: { concurrent: false },
+};
+
 export default defineConfig({
   test: {
-    root: __dirname,
-    globals: true,
-    environment: 'node',
-    globalSetup: './setup/global-setup.ts',
-    include: ['server/**/*.test.ts'],
-    testTimeout: 30_000,
-    hookTimeout: 60_000,
-    pool: 'forks',
-    fileParallelism: false,
-    sequence: {
-      // Run test files sequentially to avoid DB races
-      concurrent: false,
-    },
+    ...shared,
+    projects: [
+      {
+        test: {
+          ...shared,
+          name: 'api',
+          include: ['server/**/*.test.ts'],
+          testTimeout: 30_000,
+          fileParallelism: false,
+        },
+      },
+      {
+        test: {
+          ...shared,
+          name: 'e2e',
+          include: ['e2e/**/*.test.ts'],
+          testTimeout: 600_000,
+        },
+      },
+    ],
   },
 });

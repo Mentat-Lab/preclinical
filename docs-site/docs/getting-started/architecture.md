@@ -55,7 +55,7 @@ State definitions use LangGraph `Annotation.Root` in `server/src/graphs/tester-s
 |----------|----------|-------------|
 | `openai` | In-process | OpenAI-compatible chat completions target |
 | `vapi` | In-process | Vapi chat API target |
-| `browser` | In-process | BrowserUse Cloud or local target |
+| `browser` | In-process | Local BrowserUse worker target |
 | `livekit` | In-process | LiveKit WebRTC target |
 | `pipecat` | In-process | Pipecat Cloud target (LiveKit transport) |
 

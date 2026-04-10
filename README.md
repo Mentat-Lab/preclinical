@@ -79,7 +79,7 @@ Same capabilities as the plugin, for non-Claude Code AI assistants.
 
 ## Supported Providers
 
-`openai` (HTTP) | `vapi` (REST) | `livekit` (WebRTC) | `pipecat` (Daily/LiveKit) | `browser` (CDP)
+`openai` (HTTP) | `vapi` (REST) | `livekit` (WebRTC) | `pipecat` (Daily/LiveKit) | `elevenlabs` (Voice) | `browser` (CDP)
 
 ## Local Development (Without Docker)
 
@@ -95,12 +95,17 @@ cd tests && npm install && npm test          # Tests
 ```text
 preclinical/
 ├── server/               # Hono API, LangGraph workers, provider integrations
+│   ├── src/routes/       #   Domain-split route modules (agent, scenario, run, browser-profile)
+│   ├── src/graphs/       #   LangGraph StateGraphs (tester, grader)
+│   ├── src/providers/    #   Provider implementations (openai, vapi, livekit, pipecat, elevenlabs, browser)
+│   └── src/workers/      #   Scenario runner + voice transports
 ├── frontend/             # Vite + React UI
 ├── cli/                  # Python CLI and SDK (PyPI: preclinical)
 ├── plugins/preclinical/  # Claude Code plugin (slash commands, hooks, skills)
 ├── skills/               # Agent skills for AI coding assistants (skills.sh)
 ├── tests/                # API and E2E tests
 ├── target-agents/        # Local provider mock/target agents
+├── services/browseruse/  # Local BrowserUse worker
 └── docs-site/            # Documentation (MkDocs Material)
 ```
 

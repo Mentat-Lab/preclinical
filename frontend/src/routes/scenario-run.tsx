@@ -47,20 +47,37 @@ function statusClasses(status: DisplayStatus): string {
     pending: 'text-text-secondary',
     running: 'text-accent',
     grading: 'text-accent',
-    error: 'text-fail',
+    error: 'text-amber-500',
     canceled: 'text-text-secondary',
   };
   return map[status];
 }
 
-function statusLabel(status: DisplayStatus): string {
+const ERROR_LABELS: Record<string, string> = {
+  RATE_LIMIT: 'Rate Limited',
+  SERVER_ERROR: 'Server Error',
+  BROWSER_AUTH: 'Browser Login Failed',
+  BROWSER_TIMEOUT: 'Browser Timeout',
+  BROWSER_BLOCKED: 'Site Blocked Access',
+  BROWSER_SESSION: 'Browser Session Dead',
+  BROWSER_EXTRACTION: 'Could Not Extract Response',
+  PROVIDER_AUTH: 'API Auth Failed',
+  PROVIDER_NOT_FOUND: 'Endpoint Not Found',
+  INVALID_INPUT: 'Invalid Input',
+  UNKNOWN: 'Unknown Error',
+};
+
+function statusLabel(status: DisplayStatus, errorCode?: string): string {
+  if (status === 'error' && errorCode) {
+    return ERROR_LABELS[errorCode] || `Error: ${errorCode}`;
+  }
   const map: Record<DisplayStatus, string> = {
     pass: 'Pass',
     fail: 'Fail',
     pending: 'Pending',
     running: 'Running',
     grading: 'Grading',
-    error: 'Error',
+    error: 'Infrastructure Error',
     canceled: 'Canceled',
   };
   return map[status];
@@ -111,6 +128,19 @@ function normalizeCriteria(criteria: CriteriaResult[]): NormalizedEvaluation[] {
 
 function MessageBubble({ entry }: { entry: TranscriptEntry }) {
   const isTester = entry.role === 'attacker';
+  const isSystem = entry.role === 'system';
+
+  if (isSystem) {
+    return (
+      <div className="flex justify-center">
+        <div className="max-w-[90%] rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+          <p className="text-xs font-semibold text-amber-600 mb-1">Infrastructure Error</p>
+          <p className="text-sm text-amber-700 whitespace-pre-wrap">{entry.content}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={cn('flex', isTester ? 'justify-start' : 'justify-end')}>
       <div
@@ -233,7 +263,7 @@ export default function ScenarioRunPage() {
           <div>
             <h1 className="text-2xl font-semibold text-text-primary mb-2">{scenarioName}</h1>
             <p className={cn('text-sm font-medium', statusClasses(displayStatus))}>
-              {statusLabel(displayStatus)}
+              {statusLabel(displayStatus, result.error_code)}
             </p>
           </div>
 
@@ -301,7 +331,7 @@ export default function ScenarioRunPage() {
               <div className="border border-border rounded-lg p-3 flex items-center justify-between">
                 <span className="text-sm text-text-secondary">Result</span>
                 <span className={cn('text-sm font-semibold', statusClasses(displayStatus))}>
-                  {statusLabel(displayStatus)}
+                  {statusLabel(displayStatus, result.error_code)}
                 </span>
               </div>
 
@@ -353,7 +383,17 @@ export default function ScenarioRunPage() {
               )}
 
               {result.error_message && (
-                <div className="rounded border border-fail/30 bg-fail/5 p-3 text-xs text-fail">
+                <div className={cn(
+                  'rounded border p-3 text-xs',
+                  displayStatus === 'error'
+                    ? 'border-amber-500/30 bg-amber-500/5 text-amber-600'
+                    : 'border-fail/30 bg-fail/5 text-fail'
+                )}>
+                  {displayStatus === 'error' && (
+                    <p className="font-semibold mb-1">
+                      Infrastructure Error — not a test failure
+                    </p>
+                  )}
                   {result.error_message}
                 </div>
               )}

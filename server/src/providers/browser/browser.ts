@@ -16,145 +16,26 @@
  *   - Configurable step_timeout and max_actions_per_step
  */
 
-import { readFile } from 'fs/promises';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-import { registerProvider, type Provider, type ProviderSession, type MessageContext } from '../base.js';
+import { registerProvider, type Provider, type ProviderSession } from '../base.js';
 import { config } from '../../lib/config.js';
-import { sql, getBrowserProfileByDomain, upsertBrowserProfileCredentials } from '../../lib/db.js';
+import { upsertBrowserProfileCredentials, upsertLoginActions, clearLoginActions } from '../../lib/db.js';
 import { log } from '../../lib/logger.js';
+import type { BrowserState } from './types.js';
+import { EXTRACTION_SCHEMA } from './types.js';
+import { apiHeaders, createSession, pollTask, closeSession, extractLoginActions, BROWSER_USE_API_BASE } from './api.js';
+import { loadBrowserProfile } from './profile-loader.js';
+import { buildSystemMessageExtension, buildTaskPrompt, buildSensitiveData } from './system-message.js';
+
+// Re-export public API so existing imports from 'browser/browser.js' keep working
+export { discoverProfile, type DiscoveryResult } from './discovery.js';
 
 const logger = log.child({ component: 'browser' });
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const sharedDir = join(__dirname, '..', 'shared');
-
-const BROWSER_USE_API_BASE = process.env.BROWSER_USE_API_BASE || 'http://localhost:9000/api/v2';
-const BROWSER_POLL_INTERVAL_MS = 1_500;
-const BROWSER_TASK_TIMEOUT_MS = parseInt(process.env.BROWSER_TASK_TIMEOUT_MS || '3600000', 10);
 const BROWSER_STEP_TIMEOUT = parseInt(process.env.BROWSER_STEP_TIMEOUT || '60', 10);
 const BROWSER_MAX_ACTIONS_PER_STEP = parseInt(process.env.BROWSER_MAX_ACTIONS_PER_STEP || '5', 10);
 const BROWSER_USE_VISION = process.env.BROWSER_USE_VISION === '1';
 const BROWSER_SAVE_CONVERSATIONS = process.env.BROWSER_SAVE_CONVERSATIONS === '1';
 const BROWSER_GENERATE_GIFS = process.env.BROWSER_GENERATE_GIFS === '1';
-
-// =============================================================================
-// TYPES
-// =============================================================================
-
-interface BrowserProfile {
-  browser_setup_instructions: string;
-  browser_chat_instructions: string;
-  browser_overlay_hint: string;
-  requires_auth?: boolean;
-  email_verification?: boolean;
-  email_subject_hint?: string;
-  auth_domains?: string[];
-  browser_signup_instructions?: string;
-  browser_login_instructions?: string;
-  browser_verify_instructions?: string;
-}
-
-interface BrowserState {
-  apiKey: string;
-  targetUrl: string;
-  domain: string;
-  agentConfig: Record<string, unknown>;
-  sessionId?: string;
-  liveUrl?: string;
-  profile?: BrowserProfile;
-  credentials?: { email?: string; password?: string };
-  scenarioRunId: string;
-  inboxAddress?: string; // AgentMail disposable email for signup flows
-}
-
-const EXTRACTION_SCHEMA = {
-  bot_response: {
-    type: 'string',
-    description: 'The full text of the chatbot/assistant response message',
-  },
-  overlay_text: {
-    type: 'string',
-    description: 'Text from a NEW modal, popup, or emergency alert that appeared AFTER the message was sent. Empty string if none.',
-  },
-  response_received: {
-    type: 'boolean',
-    description: 'Whether a chatbot response was detected',
-  },
-};
-
-// =============================================================================
-// BROWSER PROFILE LOADER
-// =============================================================================
-
-const PROFILE_KEYS: (keyof BrowserProfile)[] = [
-  'browser_setup_instructions', 'browser_chat_instructions', 'browser_overlay_hint',
-  'browser_signup_instructions', 'browser_login_instructions', 'browser_verify_instructions',
-  'email_subject_hint',
-];
-
-function dbRowToProfile(row: Record<string, unknown>): { profile: BrowserProfile; credentials: Record<string, string> } {
-  const cfg = (row.config || {}) as Record<string, unknown>;
-  return {
-    profile: {
-      ...Object.fromEntries(PROFILE_KEYS.map(k => [k, String(cfg[k] || '')])),
-      requires_auth: !!row.requires_auth,
-      email_verification: !!row.email_verification,
-      auth_domains: Array.isArray(row.auth_domains) ? row.auth_domains as string[] : [],
-    } as BrowserProfile,
-    credentials: (row.credentials || {}) as Record<string, string>,
-  };
-}
-
-async function loadBrowserProfile(
-  targetUrl: string,
-  agentConfig: Record<string, unknown>,
-): Promise<{ profile: BrowserProfile; credentials: Record<string, string> }> {
-  let domain = '';
-  try { domain = new URL(targetUrl).hostname.replace(/^www\./, ''); } catch { /* skip */ }
-
-  // 1. Try DB — domain match, then _default
-  for (const d of domain ? [domain, '_default'] : ['_default']) {
-    const row = await getBrowserProfileByDomain(d);
-    if (row) {
-      logger.info('Loaded profile from DB', { domain: d });
-      return dbRowToProfile(row as Record<string, unknown>);
-    }
-  }
-
-  // 2. Fallback: JSON files on disk (backwards compat)
-  const basePath = join(sharedDir, 'browser-profiles');
-  const candidates = domain
-    ? [join(basePath, `${domain}.json`), join(basePath, '_default.json')]
-    : [join(basePath, '_default.json')];
-
-  for (const filePath of candidates) {
-    try {
-      const fileProfile = JSON.parse(await readFile(filePath, 'utf-8'));
-      logger.info('Loaded profile from file', { filePath });
-      return {
-        profile: {
-          ...Object.fromEntries(PROFILE_KEYS.map(k => [k, fileProfile[k] || ''])),
-          requires_auth: !!fileProfile.requires_auth,
-          email_verification: !!fileProfile.email_verification,
-          auth_domains: Array.isArray(fileProfile.auth_domains) ? fileProfile.auth_domains : [],
-        } as BrowserProfile,
-        credentials: {},
-      };
-    } catch { /* file not found, try next */ }
-  }
-
-  // 3. Final fallback: build from agent config
-  return {
-    profile: {
-      ...Object.fromEntries(PROFILE_KEYS.map(k => [k, String(agentConfig[k] || '')])),
-      requires_auth: agentConfig.requires_auth === 'true' || agentConfig.requires_auth === true,
-      email_verification: agentConfig.email_verification === 'true' || agentConfig.email_verification === true,
-    } as BrowserProfile,
-    credentials: {},
-  };
-}
 
 // =============================================================================
 // DOMAIN HELPER
@@ -167,237 +48,6 @@ function extractDomain(url: string): string {
   } catch {
     return '';
   }
-}
-
-// =============================================================================
-// BROWSERUSE API HELPERS
-// =============================================================================
-
-function apiHeaders(apiKey: string): Record<string, string> {
-  const h: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (apiKey) h['X-Browser-Use-API-Key'] = apiKey;
-  return h;
-}
-
-async function createSession(
-  apiKey: string,
-  domain: string,
-  allowedDomains?: string[],
-  agentmailApiKey?: string,
-  browserbaseContextId?: string,
-): Promise<{ id: string; liveUrl: string; inboxAddress: string }> {
-  const body: Record<string, unknown> = {
-    domain,
-    allowed_domains: allowedDomains,
-  };
-  if (agentmailApiKey) body.agentmail_api_key = agentmailApiKey;
-  if (browserbaseContextId) body.browserbase_context_id = browserbaseContextId;
-
-  const response = await fetch(`${BROWSER_USE_API_BASE}/sessions`, {
-    method: 'POST',
-    headers: apiHeaders(apiKey),
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    throw new Error(`BrowserUse session creation failed (${response.status}): ${await response.text()}`);
-  }
-
-  const data = await response.json() as any;
-  return {
-    id: data.id,
-    liveUrl: data.live_url || data.liveUrl || '',
-    inboxAddress: data.inbox_address || '',
-  };
-}
-
-async function pollTask(apiKey: string, taskId: string): Promise<Record<string, unknown>> {
-  const start = Date.now();
-  while (Date.now() - start < BROWSER_TASK_TIMEOUT_MS) {
-    const response = await fetch(`${BROWSER_USE_API_BASE}/tasks/${taskId}`, {
-      headers: apiHeaders(apiKey),
-    });
-
-    if (!response.ok) {
-      throw new Error(`BrowserUse task poll failed (${response.status}): ${await response.text()}`);
-    }
-
-    const data = await response.json() as any;
-    if (['finished', 'stopped', 'failed'].includes(data.status)) return data;
-
-    await new Promise((resolve) => setTimeout(resolve, BROWSER_POLL_INTERVAL_MS));
-  }
-
-  throw new Error(`BrowserUse task timed out after ${BROWSER_TASK_TIMEOUT_MS}ms`);
-}
-
-async function closeSession(apiKey: string, sessionId: string): Promise<void> {
-  try {
-    await fetch(`${BROWSER_USE_API_BASE}/sessions/${sessionId}`, {
-      method: 'PATCH',
-      headers: apiHeaders(apiKey),
-      body: JSON.stringify({ action: 'stop' }),
-    });
-  } catch (err) {
-    logger.warn('Failed to close session', { sessionId, error: err });
-  }
-}
-
-// =============================================================================
-// TASK PROMPT BUILDER
-// =============================================================================
-
-const DEFAULT_SETUP = 'If there is any terms/consent/agreement checkbox or button, check it and accept. If there is a demographics or intake form, fill in age {age}, select {gender}, and submit.';
-const DEFAULT_CHAT = 'Find the chat input field, type the message and send it (press Enter or click send).';
-const DEFAULT_OVERLAY = 'Only capture NEW modals or popups that appeared AFTER you sent the message (e.g. a modal telling the user to call 911). Do NOT include persistent banners, disclaimers, or static text that was already on the page.';
-
-function buildSystemMessageExtension(
-  profile: BrowserProfile,
-  persona: Record<string, unknown> | null,
-): string {
-  const p = persona || {};
-  let age = String(p.age_range || '35');
-  if (age.includes('-')) age = age.split('-')[0];
-  const gender = String(p.gender || p.sex || 'male');
-
-  const overlayHint = profile.browser_overlay_hint || DEFAULT_OVERLAY;
-  const chatInstructions = profile.browser_chat_instructions || DEFAULT_CHAT;
-  const setupInstructions = (profile.browser_setup_instructions || DEFAULT_SETUP)
-    .replace(/\{age\}/g, age).replace(/\{gender\}/g, gender);
-
-  return [
-    '## Chat interaction rules',
-    `- To send messages: ${chatInstructions}`,
-    `- After sending, wait for the chatbot to fully respond (the response may stream in gradually — wait until it stops changing).`,
-    `- Setup/intake: ${setupInstructions}`,
-    '',
-    '## Response extraction rules',
-    `- Extract the COMPLETE text of the chatbot\'s latest response only (not previous messages).`,
-    `- Overlay detection: ${overlayHint}`,
-    `- Return structured output with bot_response (full text) and overlay_text (new popups only, empty if none).`,
-  ].join('\n');
-}
-
-function buildTaskPrompt(
-  profile: BrowserProfile,
-  message: string,
-  targetUrl: string,
-  turn: number,
-  agentConfig: Record<string, unknown>,
-  inboxAddress?: string,
-  profileCredentials?: { email?: string; password?: string },
-): string {
-  const email = String(profileCredentials?.email || agentConfig.email || config.browserEmail || '');
-  const password = String(profileCredentials?.password || agentConfig.password || config.browserPassword || '');
-  const hasCredentials = !!(email && password);
-  const hasBrowserbaseContext = !!String(agentConfig.browserbase_context_id || '').trim();
-  const extraInstructions = String(agentConfig.instructions || '').trim();
-  const extraStep = extraInstructions ? ` ${extraInstructions}` : '';
-
-  // AgentMail signup flow — fresh disposable email, bypasses Cloudflare login issues
-  const useAgentMailSignup = !!(inboxAddress && profile.email_verification);
-
-  let authStep = '';
-  if (turn === 1 && hasBrowserbaseContext) {
-    // Pre-authenticated context — skip login entirely, cookies already present
-  } else if (turn === 1 && useAgentMailSignup) {
-    // Signup flow with AgentMail: use get_email_address + get_latest_email tools
-    if (profile.browser_signup_instructions) {
-      authStep = profile.browser_signup_instructions
-        .replace(/\{url\}/g, targetUrl)
-        .replace(/\{email\}/g, '%email%')
-        .replace(/\{password\}/g, '%password%') + ' ';
-    } else {
-      authStep = `Go to ${targetUrl}. Sign up for a new account. Use the get_email_address tool to get your email address, and use %password% as the password. `;
-    }
-    // Add verification step
-    if (profile.browser_verify_instructions) {
-      const verifyStep = profile.browser_verify_instructions
-        .replace(/\{otp\}/g, 'THE_CODE_FROM_EMAIL');
-      authStep += `After submitting signup, ${verifyStep} `;
-    } else {
-      authStep += 'After submitting signup, use the get_latest_email tool to retrieve the verification email. Find the code or link in the email and use it to complete verification. ';
-    }
-  } else if (turn === 1 && hasCredentials) {
-    // Standard login flow (existing behavior)
-    if (profile.browser_login_instructions) {
-      authStep = profile.browser_login_instructions
-        .replace(/\{url\}/g, targetUrl)
-        .replace(/\{email\}/g, '%email%')
-        .replace(/\{password\}/g, '%password%') + ' ';
-    } else {
-      authStep = `Go to ${targetUrl}. If a login or sign-in page appears, sign in with the provided credentials. Complete any verification steps. Once logged in, dismiss any popups or banners. `;
-    }
-  }
-
-  if (turn === 1) {
-    const nav = authStep || `Go to ${targetUrl}. `;
-    return `${nav}${extraStep} Send this message in the chat: "${message}". Then extract the chatbot's response.`;
-  }
-  return `In the chat that is already open, send this message: "${message}". Then extract the chatbot's latest response only.`;
-}
-
-function buildSensitiveData(
-  domain: string,
-  agentConfig: Record<string, unknown>,
-  inboxAddress?: string,
-  profileCredentials?: { email?: string; password?: string },
-): Record<string, string> | undefined {
-  // Priority: inbox (AgentMail signup) > profile credentials (DB) > agent config > env vars
-  const email = inboxAddress || String(profileCredentials?.email || agentConfig.email || config.browserEmail || '');
-  const password = String(profileCredentials?.password || agentConfig.password || config.browserPassword || '');
-  if (!email && !password) return undefined;
-
-  const data: Record<string, string> = {};
-  if (email) data.email = email;
-  if (password) data.password = password;
-  return data;
-}
-
-// =============================================================================
-// DISCOVERY — explore a URL and produce a browser profile
-// =============================================================================
-
-export interface DiscoveryResult {
-  profile: BrowserProfile & { domain: string; name: string };
-  discovery: Record<string, unknown>;
-  validated: boolean;
-  validationResponse: string;
-}
-
-export async function discoverProfile(
-  targetUrl: string,
-  credentials?: { email?: string; password?: string },
-  validate = true,
-): Promise<DiscoveryResult> {
-  const apiKey = config.browserUseApiKey;
-
-  const body: Record<string, unknown> = {
-    url: targetUrl,
-    validate,
-  };
-  if (credentials?.email) body.email = credentials.email;
-  if (credentials?.password) body.password = credentials.password;
-
-  const response = await fetch(`${BROWSER_USE_API_BASE}/discover`, {
-    method: 'POST',
-    headers: apiHeaders(apiKey),
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Discovery failed (${response.status}): ${text}`);
-  }
-
-  const data = await response.json() as any;
-
-  return {
-    profile: data.profile,
-    discovery: data.discovery,
-    validated: !!data.validated,
-    validationResponse: data.validation_response || '',
-  };
 }
 
 // =============================================================================
@@ -431,15 +81,12 @@ const browserProvider: Provider = {
     const state = session.state as BrowserState;
     const headers = apiHeaders(state.apiKey);
 
-    // BrowserUse Cloud runtime is not yet implemented — profile setup is ready but runtime needs more work
-    if (state.agentConfig.browser_backend === 'browseruse_cloud') {
-      throw new Error('BrowserUse Cloud runtime not yet implemented — use Browserbase or Local Chrome');
-    }
-
-    // Load browser profile + domain credentials (cache after first load)
+    // Load browser profile + domain credentials + cached login actions (cache after first load)
+    let profileLoginActions: Array<Record<string, unknown>> | null = null;
     if (!state.profile) {
       const loaded = await loadBrowserProfile(state.targetUrl, state.agentConfig);
       state.profile = loaded.profile;
+      profileLoginActions = loaded.loginActions;
       // Domain credentials from browser_profiles table (saved from previous AgentMail signups)
       if (loaded.credentials.email) {
         state.credentials = loaded.credentials as { email?: string; password?: string };
@@ -484,13 +131,21 @@ const browserProvider: Provider = {
       context.turn > 1
     );
 
-    const taskPrompt = buildTaskPrompt(
-      state.profile, message, state.targetUrl, context.turn, state.agentConfig, state.inboxAddress, state.credentials,
-    );
+    // Check for cached login actions on turn 1 (skip LLM for login replay)
+    // Skip when using a pre-authenticated Browserbase context (already logged in)
+    let cachedLoginActions: Array<Record<string, unknown>> | null = null;
+    if (context.turn === 1 && !browserbaseContextId && profileLoginActions?.length) {
+      cachedLoginActions = profileLoginActions;
+      logger.info('Using cached login actions from DB', { domain: state.domain, actionCount: cachedLoginActions.length });
+    }
+
+    const taskPrompt = cachedLoginActions
+      ? `The browser is already logged in and on the site. Send this message in the chat: "${message}". Then wait for and extract the chatbot's complete response.`
+      : buildTaskPrompt(state.profile, message, state.targetUrl, context.turn, state.agentConfig, state.inboxAddress, state.credentials);
     const systemExt = buildSystemMessageExtension(state.profile, context.persona || null);
     const sensitiveData = buildSensitiveData(state.domain, state.agentConfig, state.inboxAddress, state.credentials);
 
-    async function createAndPollTask(activeSessionId: string, prompt: string, sd: Record<string, string> | undefined, maxSteps: number): Promise<Record<string, unknown>> {
+    async function createAndPollTask(activeSessionId: string, prompt: string, sd: Record<string, string> | undefined, maxSteps: number, opts?: { initialActions?: Array<Record<string, unknown>>; saveHistory?: boolean; flashMode?: boolean }): Promise<Record<string, unknown>> {
       const taskBody: Record<string, unknown> = {
         task: prompt,
         sessionId: activeSessionId,
@@ -507,6 +162,9 @@ const browserProvider: Provider = {
 
       if (sd) taskBody.sensitive_data = sd;
       if (context.turn === 1) taskBody.startUrl = state.targetUrl;
+      if (opts?.initialActions) taskBody.initial_actions = opts.initialActions;
+      if (opts?.saveHistory) taskBody.save_action_history = true;
+      if (opts?.flashMode) taskBody.flash_mode = true;
 
       const taskResponse = await fetch(`${BROWSER_USE_API_BASE}/tasks`, {
         method: 'POST',
@@ -536,8 +194,30 @@ const browserProvider: Provider = {
     // Attempt the task — login first, AgentMail signup as fallback
     let result: Record<string, unknown>;
     let authFailed = false;
+    const turn1Steps = cachedLoginActions ? 6 : 12; // fewer LLM steps when login is replayed
     try {
-      result = await createAndPollTask(state.sessionId, taskPrompt, sensitiveData, context.turn === 1 ? 12 : 8);
+      result = await createAndPollTask(
+        state.sessionId, taskPrompt, sensitiveData,
+        context.turn === 1 ? turn1Steps : 8,
+        context.turn === 1 ? {
+          initialActions: cachedLoginActions || undefined,
+          saveHistory: !cachedLoginActions, // record history only on first (non-replay) run
+          flashMode: !!cachedLoginActions,  // flash mode when replaying (only message-sending needs LLM)
+        } : undefined,
+      );
+
+      // Replay failure: cached login actions didn't work (site changed, stale DOM, etc.)
+      // Invalidate cache and retry with full LLM-driven login
+      if (!result.isSuccess && cachedLoginActions && context.turn === 1) {
+        logger.info('Login replay failed — invalidating cache and retrying with LLM', { domain: state.domain });
+        await clearLoginActions(state.domain).catch(() => {});
+        cachedLoginActions = null;
+        await closeOldSession();
+        const freshSession = await createSession(state.apiKey, state.domain, allowedDomains, undefined, browserbaseContextId);
+        state.sessionId = freshSession.id;
+        const fullPrompt = buildTaskPrompt(state.profile!, message, state.targetUrl, 1, state.agentConfig, state.inboxAddress, state.credentials);
+        result = await createAndPollTask(freshSession.id, fullPrompt, sensitiveData, 12, { saveHistory: true });
+      }
 
       // Check if task finished but failed to get a response (likely auth/Cloudflare issue).
       // Only trigger fallback on hard failures — task explicitly !isSuccess.
@@ -624,6 +304,20 @@ const browserProvider: Provider = {
     if (result.status !== 'finished' || !result.isSuccess) {
       const output = String(result.output || '').slice(0, 500);
       throw new Error(`BrowserUse task failed: status=${result.status}, output=${output}`);
+    }
+
+    // Extract login actions from first successful non-replay run and persist to DB
+    if (context.turn === 1 && !cachedLoginActions && result.action_history_path) {
+      extractLoginActions(state.apiKey, state.domain, String(result.action_history_path), message)
+        .then(async (actions) => {
+          if (actions?.length) {
+            await upsertLoginActions(state.domain, actions);
+            logger.info('Cached login actions to DB', { domain: state.domain, actionCount: actions.length });
+          }
+        })
+        .catch(err => {
+          logger.warn('Failed to extract/cache login actions', { domain: state.domain, error: err });
+        });
     }
 
     // Extract response

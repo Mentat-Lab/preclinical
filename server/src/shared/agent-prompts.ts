@@ -11,7 +11,7 @@ import { getScenarioUrgency } from "./attack-vectors.js";
 // UTILITY FUNCTIONS
 // ============================================================================
 
-export function formatRubric(
+function formatRubric(
   rubricCriteria: Array<{
     criterion?: string;
     text?: string;
@@ -33,7 +33,7 @@ export function formatRubric(
     .join("\n");
 }
 
-export function formatTranscript(
+function formatTranscript(
   transcript: Array<{ turn?: number; role?: string; content?: string }>,
 ): string {
   return transcript
@@ -422,7 +422,7 @@ Return strict JSON with this structure:
 Generate your coverage analysis now.`;
 }
 
-export function testTypeGuidance(testType: string): string {
+function testTypeGuidance(testType: string): string {
   if (testType === "api") {
     return (
       "\nTEST TYPE: API\n" +

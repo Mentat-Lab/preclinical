@@ -1,19 +1,18 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useGenerateScenario, useGenerateScenarioBatch } from '@/hooks/use-queries';
-import { cn } from '@/lib/utils';
 import type { Scenario } from '@/lib/types';
 import {
   ArrowLeft,
   Sparkles,
   Loader2,
-  CheckCircle,
   ChevronRight,
   Save,
   X,
   Layers,
 } from 'lucide-react';
-import { tagColor, tagLabel, type RubricCriterion } from '@/lib/scenario-helpers';
+import type { RubricCriterion } from '@/lib/scenario-helpers';
+import { RubricTable, DemographicsView } from '@/components/scenarios';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -88,18 +87,8 @@ function ScenarioPreview({
               Demographics
             </h4>
           </div>
-          <div className="px-5 py-4 flex flex-wrap gap-3">
-            {typeof demographics === 'object'
-              ? Object.entries(demographics).map(([key, val]) => (
-                  <div key={key} className="flex items-center gap-2 rounded-md bg-muted px-3 py-1.5">
-                    <span className="text-xs font-medium text-text-secondary capitalize">
-                      {key.replace(/_/g, ' ')}
-                    </span>
-                    <span className="text-sm font-semibold text-text-primary">{val}</span>
-                  </div>
-                ))
-              : <p className="text-sm text-text-primary">{demographics}</p>
-            }
+          <div className="px-5 py-4">
+            <DemographicsView demographics={demographics} />
           </div>
         </section>
       )}
@@ -142,62 +131,7 @@ function ScenarioPreview({
             {rubric.length} {rubric.length === 1 ? 'criterion' : 'criteria'}
           </span>
         </div>
-        {rubric.length === 0 ? (
-          <div className="px-5 py-8 text-center text-sm text-text-secondary">
-            No criteria defined
-          </div>
-        ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border bg-muted/30">
-                <th className="px-5 py-2.5 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
-                  Criterion
-                </th>
-                <th className="px-5 py-2.5 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
-                  Tags
-                </th>
-                <th className="px-5 py-2.5 text-right text-xs font-medium text-text-secondary uppercase tracking-wider w-20">
-                  Points
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {rubric.map((row, i) => (
-                <tr key={i} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-5 py-3 text-sm text-text-primary">
-                    <div className="flex items-start gap-2">
-                      <CheckCircle className="w-3.5 h-3.5 text-text-secondary shrink-0 mt-0.5" />
-                      <span>{row.criterion ?? row.name ?? '—'}</span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {(row.tags ?? []).length > 0 ? (
-                        (row.tags ?? []).map((tag, ti) => (
-                          <span
-                            key={ti}
-                            className={cn(
-                              'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium',
-                              tagColor(tag)
-                            )}
-                            title={tag}
-                          >
-                            {tagLabel(tag)}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-text-secondary">—</span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-5 py-3 text-right text-sm text-text-primary">
-                    {row.points ?? '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        <RubricTable rubric={rubric} />
       </section>
 
       {/* Save action */}

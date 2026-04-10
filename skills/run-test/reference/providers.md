@@ -39,9 +39,8 @@ Web-based chat UIs tested via browser automation (BrowserUse).
 - Automates real chat interfaces (ChatGPT, Claude, Gemini, custom apps)
 - Runs ~1-2 min/turn with Chrome pool
 
-**Three backend modes:**
+**Two backend modes:**
 - **Local CDP** (default): Chrome pool on host via `make chrome` (ports 9222-9226)
-- **BrowserUse Cloud**: Set `BROWSER_USE_API_KEY` + `BROWSER_USE_API_BASE` in `.env`
 - **Browserbase** (cloud Chrome): Set `BROWSERBASE_API_KEY` in `.env` — no local Chrome needed
 
 **Auth support:**

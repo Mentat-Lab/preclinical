@@ -40,7 +40,7 @@ export interface ScenarioRunResult {
 
 export interface TranscriptEntry {
   turn: number;
-  role: 'target' | 'attacker';
+  role: 'target' | 'attacker' | 'system';
   content: string;
   timestamp?: string;
   latency_ms?: number;

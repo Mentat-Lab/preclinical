@@ -127,7 +127,7 @@ Agents are provider configurations Preclinical can execute against. In the UI, g
 
 1. Open an agent detail page from **Agents**.
 2. Click **New Test Run**.
-3. Select scenarios from the 59 TriageBench cases (or use defaults).
+3. Select scenarios from the 60 TriageBench cases (or use defaults).
 4. Set max turns.
 5. Click **Start Test Run**.
 

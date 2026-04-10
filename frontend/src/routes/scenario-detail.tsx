@@ -4,24 +4,24 @@ import { useScenario, useUpdateScenario, queryKeys } from '@/hooks/use-queries';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import {
-  tagColor,
-  tagLabel,
   inputCls,
-  SCENARIO_TYPES,
   TEST_TYPES,
   type RubricCriterion,
 } from '@/lib/scenario-helpers';
 import {
+  RubricTable,
+  RubricEditor,
+  DemographicsView,
+  ScenarioSettingsEditor,
+} from '@/components/scenarios';
+import {
   ArrowLeft,
-  CheckCircle,
   Loader2,
   ChevronDown,
   ChevronRight,
   Pencil,
   Save,
   X,
-  Plus,
-  Trash2,
 } from 'lucide-react';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -49,7 +49,6 @@ export default function ScenarioDetailPage() {
   const [editApproved, setEditApproved] = useState(true);
   const [editPriority, setEditPriority] = useState('');
   const [editTags, setEditTags] = useState<string[]>([]);
-  const [editTagInput, setEditTagInput] = useState('');
   const [editChiefComplaint, setEditChiefComplaint] = useState('');
   const [editSopInstructions, setEditSopInstructions] = useState('');
   const [editTestType, setEditTestType] = useState('');
@@ -133,23 +132,6 @@ export default function ScenarioDetailPage() {
     );
   }
 
-  function addTag() {
-    const t = editTagInput.trim().toLowerCase().replace(/\s+/g, '-');
-    if (t && !editTags.includes(t)) setEditTags([...editTags, t]);
-    setEditTagInput('');
-  }
-
-  function addCriterion() {
-    setEditRubric([...editRubric, { criterion: '', points: 3, tags: [] }]);
-  }
-
-  function updateCriterion(i: number, patch: Partial<RubricCriterion>) {
-    setEditRubric(editRubric.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
-  }
-
-  function removeCriterion(i: number) {
-    setEditRubric(editRubric.filter((_, idx) => idx !== i));
-  }
 
   // ── Loading ──
   if (isLoading) {
@@ -308,117 +290,20 @@ export default function ScenarioDetailPage() {
 
         {/* Metadata (edit mode) */}
         {editing && (
-          <section className="rounded-lg border border-border bg-card overflow-hidden">
-            <div className="px-5 py-3.5 border-b border-border">
-              <h2 className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-                Scenario Settings
-              </h2>
-            </div>
-            <div className="px-5 py-4 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-secondary">Category</label>
-                  <input
-                    type="text"
-                    value={editCategory}
-                    onChange={(e) => setEditCategory(e.target.value)}
-                    placeholder="e.g. cardiac, dental"
-                    className={inputCls}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-secondary">Scenario Type</label>
-                  <select
-                    value={editScenarioType}
-                    onChange={(e) => setEditScenarioType(e.target.value)}
-                    className={cn(inputCls, 'appearance-none')}
-                  >
-                    {SCENARIO_TYPES.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-text-secondary">Priority</label>
-                  <input
-                    type="number"
-                    value={editPriority}
-                    onChange={(e) => setEditPriority(e.target.value)}
-                    placeholder="None"
-                    className={inputCls}
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-6">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editIsActive}
-                    onChange={(e) => setEditIsActive(e.target.checked)}
-                    className="w-4 h-4 rounded border-border text-accent focus:ring-accent"
-                  />
-                  <span className="text-sm text-text-primary">Active</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editApproved}
-                    onChange={(e) => setEditApproved(e.target.checked)}
-                    className="w-4 h-4 rounded border-border text-accent focus:ring-accent"
-                  />
-                  <span className="text-sm text-text-primary">Approved</span>
-                </label>
-              </div>
-              {/* Tags */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-text-secondary">Tags</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={editTagInput}
-                    onChange={(e) => setEditTagInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addTag();
-                      }
-                    }}
-                    placeholder="Add a tag..."
-                    className={cn(inputCls, 'flex-1')}
-                  />
-                  <button
-                    type="button"
-                    onClick={addTag}
-                    disabled={!editTagInput.trim()}
-                    className="px-3 py-2 text-sm rounded-md border border-border bg-muted text-text-primary hover:bg-muted/80 disabled:opacity-50"
-                  >
-                    Add
-                  </button>
-                </div>
-                {editTags.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-1">
-                    {editTags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-accent/10 text-accent border border-accent/20"
-                      >
-                        {tag}
-                        <button
-                          type="button"
-                          onClick={() => setEditTags(editTags.filter((t) => t !== tag))}
-                          className="hover:text-red-500"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
+          <ScenarioSettingsEditor
+            category={editCategory}
+            onCategoryChange={setEditCategory}
+            scenarioType={editScenarioType}
+            onScenarioTypeChange={setEditScenarioType}
+            priority={editPriority}
+            onPriorityChange={setEditPriority}
+            isActive={editIsActive}
+            onIsActiveChange={setEditIsActive}
+            approved={editApproved}
+            onApprovedChange={setEditApproved}
+            tags={editTags}
+            onTagsChange={setEditTags}
+          />
         )}
 
         {/* Metadata (view mode) */}
@@ -516,18 +401,7 @@ export default function ScenarioDetailPage() {
                 </div>
               </div>
             ) : demographics ? (
-              <div className="flex flex-wrap gap-3">
-                {typeof demographics === 'object'
-                  ? Object.entries(demographics).map(([key, val]) => (
-                      <div key={key} className="flex items-center gap-2 rounded-md bg-muted px-3 py-1.5">
-                        <span className="text-xs font-medium text-text-secondary capitalize">
-                          {key.replace(/_/g, ' ')}
-                        </span>
-                        <span className="text-sm font-semibold text-text-primary">{String(val)}</span>
-                      </div>
-                    ))
-                  : <p className="text-sm text-text-primary">{demographics}</p>}
-              </div>
+              <DemographicsView demographics={demographics} />
             ) : (
               <p className="text-sm text-text-secondary">No demographics set</p>
             )}
@@ -638,131 +512,9 @@ export default function ScenarioDetailPage() {
           </div>
 
           {editing ? (
-            <div className="divide-y divide-border">
-              {editRubric.map((row, i) => (
-                <div key={i} className="px-5 py-3 space-y-2">
-                  <div className="flex items-start gap-3">
-                    <span className="text-xs text-text-secondary mt-2.5 w-4 shrink-0">
-                      {i + 1}.
-                    </span>
-                    <div className="flex-1 space-y-2">
-                      <input
-                        type="text"
-                        value={row.criterion ?? row.name ?? ''}
-                        onChange={(e) => updateCriterion(i, { criterion: e.target.value })}
-                        placeholder="Specific, observable behaviour..."
-                        className={inputCls}
-                      />
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1.5">
-                          <label className="text-xs text-text-secondary">Points</label>
-                          <select
-                            value={row.points ?? 3}
-                            onChange={(e) =>
-                              updateCriterion(i, { points: parseInt(e.target.value) })
-                            }
-                            className="px-2 py-1 text-sm rounded border border-border bg-background text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/50 appearance-none"
-                          >
-                            {[1, 2, 3, 4, 5].map((v) => (
-                              <option key={v} value={v}>{v}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="flex items-center gap-1.5 flex-1">
-                          <label className="text-xs text-text-secondary">Tags</label>
-                          <input
-                            type="text"
-                            value={(row.tags ?? []).join(', ')}
-                            onChange={(e) =>
-                              updateCriterion(i, {
-                                tags: e.target.value
-                                  .split(',')
-                                  .map((t) => t.trim())
-                                  .filter(Boolean),
-                              })
-                            }
-                            placeholder="axis:accuracy, ..."
-                            className={cn(inputCls, 'flex-1')}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeCriterion(i)}
-                      className="mt-2 p-1 rounded hover:bg-red-500/10 text-text-secondary hover:text-red-500 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-              <div className="px-5 py-3">
-                <button
-                  type="button"
-                  onClick={addCriterion}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md border border-dashed border-border text-text-secondary hover:text-text-primary hover:border-accent/50 transition-colors"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add Criterion
-                </button>
-              </div>
-            </div>
-          ) : rubric.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-text-secondary">
-              No criteria defined
-            </div>
+            <RubricEditor rubric={editRubric} onChange={setEditRubric} />
           ) : (
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border bg-muted/30">
-                  <th className="px-5 py-2.5 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
-                    Criterion
-                  </th>
-                  <th className="px-5 py-2.5 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
-                    Tags
-                  </th>
-                  <th className="px-5 py-2.5 text-right text-xs font-medium text-text-secondary uppercase tracking-wider w-20">
-                    Points
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {rubric.map((row, i) => (
-                  <tr key={i} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-5 py-3 text-sm text-text-primary">
-                      <div className="flex items-start gap-2">
-                        <CheckCircle className="w-3.5 h-3.5 text-text-secondary shrink-0 mt-0.5" />
-                        <span>{row.criterion ?? row.name ?? '—'}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {(row.tags ?? []).length > 0 ? (
-                          (row.tags ?? []).map((tag, ti) => (
-                            <span
-                              key={ti}
-                              className={cn(
-                                'inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium',
-                                tagColor(tag),
-                              )}
-                              title={tag}
-                            >
-                              {tagLabel(tag)}
-                            </span>
-                          ))
-                        ) : (
-                          <span className="text-xs text-text-secondary">—</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3 text-right text-sm text-text-primary">
-                      {row.points ?? '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <RubricTable rubric={rubric} />
           )}
         </section>
 

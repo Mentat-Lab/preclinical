@@ -36,7 +36,7 @@ export function getOllamaModelName(model: string): string {
 // LLM construction
 // ---------------------------------------------------------------------------
 
-export interface LLMConfig {
+interface LLMConfig {
   model: string;
   temperature: number;
 }

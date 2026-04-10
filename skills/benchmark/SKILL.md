@@ -1,6 +1,6 @@
 ---
 name: preclinical-benchmark
-description: Run a full safety benchmark against all approved scenarios and generate a comprehensive scorecard. Use for periodic safety assessments, pre-release checks, or compliance documentation.
+description: Run a full safety benchmark against all approved scenarios and generate a scorecard. Use for periodic safety assessments, pre-release checks, or compliance documentation.
 ---
 
 # Benchmark
@@ -15,37 +15,23 @@ preclinical --version && preclinical health --json
 
 ## Step 1: Pre-flight Check
 
-Verify there are enough scenarios for a meaningful benchmark:
-
 ```bash
 preclinical scenarios list --json
 ```
 
-Report: "Found X approved scenarios across Y categories. Ready to benchmark."
+Report scenario count. Preclinical includes 60 TriageBench scenarios (20 home care, 20 clinician eval, 20 emergency). Warn if fewer than 5.
 
-Preclinical includes 60 built-in TriageBench scenarios: 20 home care, 20 clinician evaluation, 20 emergency. These test whether the agent correctly triages patients across urgency levels.
-
-If fewer than 5 scenarios, warn that the benchmark may not be comprehensive enough and suggest adding more.
-
-## Step 2: Configure Benchmark
-
-Ask the user:
+## Step 2: Configure
 
 ```
-Ready to run a full safety benchmark against <agent_name>.
-
-This will:
-  - Run ALL approved scenarios (currently N)
-  - Use benchmark grading mode (stricter scoring)
-  - Takes approximately X minutes at concurrency 3
-
-Run with defaults, or adjust?
-  - Concurrency: 3 (recommended for benchmarks)
-  - Mode: Normal (or Creative for adversarial benchmark)
-  - Max scenarios: all
+Ready to benchmark <agent_name>:
+  - ALL approved scenarios (N total)
+  - Benchmark grading mode (stricter)
+  - Concurrency: 3 (recommended)
+  - Mode: Normal (or Creative with --creative)
 ```
 
-## Step 3: Run Benchmark
+## Step 3: Run
 
 ```bash
 preclinical run <agent_id> \
@@ -55,62 +41,28 @@ preclinical run <agent_id> \
   --watch
 ```
 
-Add `--creative` if the user chose creative mode.
+Add `--creative` if chosen. Do NOT set `--max-scenarios`.
 
-Do NOT set `--max-scenarios` — benchmarks should run all scenarios.
+## Step 4: Scorecard
 
-## Step 4: Generate Scorecard
-
-Fetch results:
 ```bash
 preclinical runs get <run_id> --json
 preclinical results list <run_id> --json
 ```
 
-Present the scorecard:
+Present: overall score, category breakdown (Home Care/Clinician Eval/Emergency), safety-critical failures, passed/failed/errors.
 
-```
-╔══════════════════════════════════════════╗
-║          SAFETY BENCHMARK SCORECARD      ║
-║  Agent: <name>                           ║
-║  Date: <date>                            ║
-║  Mode: Normal / Creative                 ║
-╠══════════════════════════════════════════╣
-║  OVERALL SCORE: XX%                      ║
-╠══════════════════════════════════════════╣
-║  Category Breakdown:                     ║
-║    Home Care:          XX% (N/20)        ║
-║    Clinician Eval:     XX% (N/20)        ║
-║    Emergency:          XX% (N/20)        ║
-╠══════════════════════════════════════════╣
-║  Safety-Critical Failures: N             ║
-║  Total Scenarios: N                      ║
-║  Passed: N | Failed: N | Errors: N       ║
-╚══════════════════════════════════════════╝
-```
-
-## Step 5: Compare with Previous Benchmark
-
-Check for a previous benchmark run:
+## Step 5: Compare with Previous
 
 ```bash
 preclinical runs list --json
 ```
 
-Filter for runs with "Benchmark" in the name. If a previous one exists, show the delta:
+Filter for "Benchmark" runs. Show delta if a previous one exists.
 
-```
-Compared to last benchmark (Jan 15):
-  Overall: 75% → 85% (+10%)
-  Regressions: 1 scenario
-  Improvements: 3 scenarios
-```
+## Step 6: Next Steps
 
-## Step 6: Recommend Next Steps
-
-Based on the score:
-- **90%+**: Agent is performing well. Focus on the remaining failures.
-- **70-89%**: Good but gaps exist. Run the diagnose-failures skill on failed scenarios.
-- **Below 70%**: Significant safety concerns. Prioritize the safety-critical failures immediately.
-
-Offer to export a full report using the `preclinical-export-report` skill.
+- **90%+**: Focus on remaining failures
+- **70-89%**: Run diagnose-failures skill on failed scenarios
+- **Below 70%**: Prioritize safety-critical failures immediately
+- Offer export-report skill for a shareable report

@@ -233,13 +233,9 @@ function spawnLocalAgent(
     stdio: ['pipe', 'pipe', 'pipe'],
   });
 
-  let stderrBuf = '';
+  // Log agent stderr for debugging
   proc.stderr?.on('data', (chunk: Buffer) => {
-    const text = chunk.toString();
-    stderrBuf += text;
-    if (stderrBuf.length > 2000) stderrBuf = stderrBuf.slice(-1000);
-    // Log agent output for debugging
-    for (const line of text.split('\n').filter(Boolean)) {
+    for (const line of chunk.toString().split('\n').filter(Boolean)) {
       logger.debug('Agent:', { line });
     }
   });

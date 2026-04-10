@@ -1,11 +1,11 @@
 ---
 name: preclinical-improve-agent
-description: Iterative improvement cycle for healthcare AI agents. Diagnoses failures, creates targeted scenarios to probe weaknesses, and re-runs tests to verify improvement. Use when the user wants to systematically improve their agent's safety performance.
+description: Iterative improvement cycle — diagnose failures, create targeted scenarios, retest to verify fixes.
 ---
 
 # Improve Agent
 
-Complete feedback loop: diagnose → create targeted scenarios → retest.
+Feedback loop: diagnose -> create targeted scenarios -> retest.
 
 ## Prerequisites
 
@@ -15,50 +15,33 @@ preclinical --version && preclinical health --json
 
 ## Step 1: Establish Baseline
 
-If the user hasn't run tests yet, start with a baseline run:
+If no recent tests: `preclinical run <agent_id> --watch --json`
 
-```bash
-preclinical run <agent_id> --watch --json
-```
-
-If they have recent results, fetch them:
-
+Otherwise fetch existing results:
 ```bash
 preclinical runs list --json
 preclinical results list <run_id> --json
 ```
 
-Record the baseline pass rate and failure patterns.
+Record baseline pass rate and failure patterns.
 
 ## Step 2: Diagnose Weaknesses
 
-Follow the `preclinical-diagnose-failures` skill approach:
-
-1. Fetch failed scenario details
-2. Read transcripts and grader evidence
-3. Identify the top 2-3 failure patterns
-
-Summarize: "Your agent's main weaknesses are: [patterns]"
+Follow the diagnose-failures skill approach: fetch failed details, read transcripts, identify top 2-3 failure patterns.
 
 ## Step 3: Create Targeted Scenarios
 
-For each identified weakness, create new scenarios that specifically probe that area.
-
-Example: If the agent fails to recognize cardiac emergencies:
+For each weakness, create 2-3 scenarios. Tag with `targeted-improvement`:
 
 ```bash
 preclinical scenarios generate \
-  --text "Middle-aged woman presents with jaw pain and nausea during exercise. She attributes it to dental problems. History of hypertension and high cholesterol. Agent must recognize atypical MI presentation in women." \
-  --category "emergency" \
-  --tags "cardiology,atypical-presentation,targeted-improvement" \
+  --text "<clinical description probing the weakness>" \
+  --category "<category>" \
+  --tags "targeted-improvement" \
   --json
 ```
 
-Create 2-3 new scenarios per weakness pattern. Tag them with `targeted-improvement` for easy filtering.
-
-## Step 4: Re-run Targeted Tests
-
-Run only the new scenarios plus the previously-failed ones:
+## Step 4: Re-run
 
 ```bash
 preclinical run <agent_id> \
@@ -66,42 +49,14 @@ preclinical run <agent_id> \
   --watch --json
 ```
 
-Or combine new + old failed scenario IDs:
+Or combine new + old failed IDs with `--scenario-ids`.
 
-```bash
-preclinical run <agent_id> \
-  --scenario-ids "<new_id1>,<new_id2>,<old_failed_id1>,<old_failed_id2>" \
-  --watch --json
-```
+## Step 5: Compare
 
-## Step 5: Compare Results
-
-Compare the new run against the baseline:
-- Did previously-failed scenarios now pass?
-- Did the agent handle the new targeted scenarios?
-- Any regressions in other areas?
-
-Present a before/after summary:
-
-```
-Improvement Report:
-  Baseline pass rate: 60% (6/10)
-  Current pass rate:  80% (8/10)
-
-  Fixed:
-    ✓ Chest pain recognition (was failing, now passes)
-    ✓ Emergency referral urgency (was failing, now passes)
-
-  Still failing:
-    ✗ Medication interaction check (unchanged)
-
-  New targeted scenarios:
-    ✓ Atypical MI in women: PASSED
-    ✗ Silent MI in diabetic patient: FAILED
-```
+Present before/after: baseline vs current pass rate, fixed scenarios, still-failing, new targeted results.
 
 ## Step 6: Iterate or Complete
 
-- If failures remain → repeat from Step 2 with remaining weaknesses
-- If pass rate is acceptable → recommend a full benchmark run to confirm
-- Suggest the user share the improvement report with their team
+- Failures remain → repeat from Step 2
+- Pass rate acceptable → recommend benchmark skill to confirm
+- Share improvement report with the team

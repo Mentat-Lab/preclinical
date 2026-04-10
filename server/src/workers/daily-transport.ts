@@ -21,6 +21,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { log } from '../lib/logger.js';
 import { MessageQueue } from '../lib/message-queue.js';
+import { sendAndReceiveVia, collectStderr, gracefulShutdown } from './voice-transport-base.js';
 
 const logger = log.child({ component: 'daily-transport' });
 
@@ -258,11 +259,7 @@ export async function connectDaily(
   const rl = createInterface({ input: proc.stdout! });
 
   // Collect stderr for debugging
-  let stderrBuf = '';
-  proc.stderr?.on('data', (chunk) => {
-    stderrBuf += chunk.toString();
-    if (stderrBuf.length > 2000) stderrBuf = stderrBuf.slice(-1000);
-  });
+  const getStderr = collectStderr(proc);
 
   // Wait for "ready" event
   const session: DailySession = {
@@ -275,7 +272,7 @@ export async function connectDaily(
 
   await new Promise<void>((resolve, reject) => {
     const timeout = setTimeout(() => {
-      reject(new Error(`Daily bridge did not become ready within 20s. stderr: ${stderrBuf.slice(-500)}`));
+      reject(new Error(`Daily bridge did not become ready within 20s. stderr: ${getStderr().slice(-500)}`));
     }, 20_000);
 
     rl.on('line', function onLine(line) {
@@ -297,7 +294,7 @@ export async function connectDaily(
     proc!.on('exit', (code) => {
       clearTimeout(timeout);
       if (!session.connected) {
-        reject(new Error(`Daily bridge exited (code ${code}) before ready. stderr: ${stderrBuf.slice(-500)}`));
+        reject(new Error(`Daily bridge exited (code ${code}) before ready. stderr: ${getStderr().slice(-500)}`));
       }
     });
   });
@@ -330,9 +327,11 @@ export async function sendAndReceiveDaily(
   message: string,
   timeoutMs: number = 30_000,
 ): Promise<string> {
-  const responseFuture = session.messageQueue.nextMessage(timeoutMs);
-  session.process.stdin!.write(JSON.stringify({ cmd: 'send', text: message }) + '\n');
-  return await responseFuture;
+  return sendAndReceiveVia(
+    session.messageQueue,
+    () => { session.process.stdin!.write(JSON.stringify({ cmd: 'send', text: message }) + '\n'); },
+    timeoutMs,
+  );
 }
 
 /**
@@ -341,18 +340,11 @@ export async function sendAndReceiveDaily(
 export async function disconnectDaily(session: DailySession): Promise<void> {
   try {
     if (session.connected) {
-      session.process.stdin!.write(JSON.stringify({ cmd: 'quit' }) + '\n');
-      // Give it a moment to leave cleanly
-      await new Promise<void>((resolve) => {
-        const timer = setTimeout(() => {
-          session.process.kill();
-          resolve();
-        }, 3000);
-        session.process.on('exit', () => {
-          clearTimeout(timer);
-          resolve();
-        });
-      });
+      await gracefulShutdown(
+        session.process,
+        JSON.stringify({ cmd: 'quit' }) + '\n',
+        3000,
+      );
     }
   } catch (err) {
     logger.warn('Daily disconnect error', err);

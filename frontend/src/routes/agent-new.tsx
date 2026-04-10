@@ -11,15 +11,13 @@ import {
   PROVIDER_HELP,
   PROVIDER_READINESS,
   applyProviderDefaults,
-  type ProviderField,
   validateProviderConfig,
 } from '@/lib/provider-config';
-import { Check, Eye, EyeOff, ExternalLink, Globe, Info, Monitor } from 'lucide-react';
+import { Check, Info } from 'lucide-react';
 import { ProviderIcon } from '@/components/ProviderIcon';
 import { cn } from '@/lib/utils';
-
-const inputCls =
-  'w-full px-3 py-2 text-sm rounded-md border border-border bg-background text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50';
+import { ProviderConfigFields, inputCls } from '@/components/agents/ProviderConfigFields';
+import { BrowserbaseContextField, LocalChromeAuthField } from '@/components/agents/BrowserAuthSetup';
 
 const providerCards: AgentProvider[] = ['vapi', 'livekit', 'pipecat', 'openai', 'browser', 'elevenlabs'];
 
@@ -34,36 +32,11 @@ export default function NewAgentPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [showPasswordFields, setShowPasswordFields] = useState<Record<string, boolean>>({});
 
-  // Browserbase context setup state
-  const [contextSetup, setContextSetup] = useState<{
-    sessionId: string;
-    liveUrl: string;
-    contextId: string;
-  } | null>(null);
-
-  // BrowserUse Cloud profile setup state
-  const [profileSetup, setProfileSetup] = useState<{
-    sessionId: string;
-    liveUrl: string;
-    profileId: string;
-  } | null>(null);
-
-  // Local Chrome auth setup state
-  const [localAuthSetup, setLocalAuthSetup] = useState<{
-    sessionId: string;
-    domain: string;
-  } | null>(null);
-  const [localAuthDone, setLocalAuthDone] = useState<string | null>(null); // domain when complete
-
   const handleProviderChange = (newProvider: AgentProvider) => {
     setProvider(newProvider);
     setConfig(applyProviderDefaults(newProvider, PROVIDER_DEFAULTS[newProvider] ?? {}));
     setFormError(null);
     setShowPasswordFields({});
-    setContextSetup(null);
-    setProfileSetup(null);
-    setLocalAuthSetup(null);
-    setLocalAuthDone(null);
   };
 
   /** Shared URL validation for all browser setup flows */
@@ -80,80 +53,6 @@ export default function NewAgentPage() {
     setFormError(null);
     return true;
   };
-
-  // ---- Browserbase context setup ----
-  const handleSetupContext = () => {
-    if (!validateBrowserUrl()) return;
-    setupContextMutation.mutate();
-  };
-
-  const setupContextMutation = useMutation({
-    mutationFn: () => api.setupBrowserbaseContextStandalone(config.url),
-    onSuccess: (data) => {
-      setContextSetup({
-        sessionId: data.session_id,
-        liveUrl: data.live_url,
-        contextId: data.context_id,
-      });
-      setConfig((prev) => ({ ...prev, browserbase_context_id: data.context_id }));
-    },
-  });
-
-  const completeContextMutation = useMutation({
-    mutationFn: () => api.completeBrowserbaseContextSetupStandalone(contextSetup!.sessionId),
-    onSuccess: () => {
-      setContextSetup(null);
-    },
-  });
-
-  // ---- BrowserUse Cloud profile setup ----
-  const handleSetupProfile = () => {
-    if (!validateBrowserUrl()) return;
-    setupProfileMutation.mutate();
-  };
-
-  const setupProfileMutation = useMutation({
-    mutationFn: () => api.setupBrowserUseCloudProfile(config.url),
-    onSuccess: (data) => {
-      setProfileSetup({
-        sessionId: data.session_id,
-        liveUrl: data.live_url,
-        profileId: data.profile_id,
-      });
-      setConfig((prev) => ({ ...prev, browseruse_profile_id: data.profile_id }));
-    },
-  });
-
-  const completeProfileMutation = useMutation({
-    mutationFn: () => api.completeBrowserUseCloudProfileSetup(profileSetup!.sessionId),
-    onSuccess: () => {
-      setProfileSetup(null);
-    },
-  });
-
-  // ---- Local Chrome auth setup ----
-  const handleSetupLocalAuth = () => {
-    if (!validateBrowserUrl()) return;
-    setupLocalAuthMutation.mutate();
-  };
-
-  const setupLocalAuthMutation = useMutation({
-    mutationFn: () => api.setupLocalChromeAuth(config.url!),
-    onSuccess: (data) => {
-      setLocalAuthSetup({
-        sessionId: data.session_id,
-        domain: data.domain,
-      });
-    },
-  });
-
-  const completeLocalAuthMutation = useMutation({
-    mutationFn: () => api.completeLocalChromeAuth(localAuthSetup!.sessionId),
-    onSuccess: () => {
-      setLocalAuthDone(localAuthSetup!.domain);
-      setLocalAuthSetup(null);
-    },
-  });
 
   const createMutation = useMutation({
     mutationFn: (payloadConfig: Record<string, string>) => {
@@ -196,7 +95,7 @@ export default function NewAgentPage() {
     createMutation.mutate(normalizedConfig);
   };
 
-  const fields: ProviderField[] = provider ? PROVIDER_FIELDS[provider] : [];
+  const fields = provider ? PROVIDER_FIELDS[provider] : [];
   const help = provider ? PROVIDER_HELP[provider] : null;
   const displayError =
     formError ??
@@ -328,353 +227,47 @@ export default function NewAgentPage() {
 
             {/* Provider-specific config */}
             {provider && fields.length > 0 && (
-              <div className="border-t border-border pt-6 space-y-4">
-                <h3 className="text-sm font-medium text-text-primary">Configuration</h3>
-                {fields.map((field) => {
-                  // Conditional visibility
-                  if (field.showWhen && config[field.showWhen.key] !== field.showWhen.value) {
-                    return null;
-                  }
-
-                  // Browserbase context setup flow
+              <ProviderConfigFields
+                fields={fields}
+                config={config}
+                onConfigChange={(key, value) => setConfig((prev) => ({ ...prev, [key]: value }))}
+                disabled={submitting}
+                showPasswordToggle
+                showPasswordFields={showPasswordFields}
+                onTogglePassword={(key) =>
+                  setShowPasswordFields((prev) => ({ ...prev, [key]: !prev[key] }))
+                }
+                renderFieldOverride={(field) => {
                   if (field.key === 'browserbase_context_id') {
                     return (
                       <div key={field.key} className="space-y-2">
                         <label className="block text-sm font-medium text-text-primary">
                           {field.label}
                         </label>
-
-                        {contextSetup ? (
-                          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
-                            <p className="text-sm text-blue-800">
-                              A browser is ready. Open the live view, navigate to <strong>{config.url}</strong>, log in, then click "Done".
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <code className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">
-                                {contextSetup.contextId}
-                              </code>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <a
-                                href={contextSetup.liveUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                              >
-                                <ExternalLink className="w-3.5 h-3.5" />
-                                Open Live View
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() => completeContextMutation.mutate()}
-                                disabled={completeContextMutation.isPending}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                                {completeContextMutation.isPending ? 'Saving...' : 'Done'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setContextSetup(null);
-                                  setConfig((prev) => ({ ...prev, browserbase_context_id: '' }));
-                                }}
-                                className="px-3 py-1.5 text-sm text-blue-700 hover:text-blue-900 transition-colors"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                            {completeContextMutation.isError && (
-                              <p className="text-sm text-destructive">
-                                {completeContextMutation.error instanceof Error ? completeContextMutation.error.message : 'Failed'}
-                              </p>
-                            )}
-                          </div>
-                        ) : config.browserbase_context_id ? (
-                          <div className="flex items-center gap-3">
-                            <code className="text-sm bg-muted text-text-primary px-3 py-2 rounded font-mono border border-border flex-1">
-                              {config.browserbase_context_id}
-                            </code>
-                            <button
-                              type="button"
-                              onClick={() => setConfig((prev) => ({ ...prev, browserbase_context_id: '' }))}
-                              className="px-3 py-1.5 text-sm text-text-secondary hover:text-destructive transition-colors"
-                            >
-                              Clear
-                            </button>
-                          </div>
-                        ) : (
-                          <div>
-                            <button
-                              type="button"
-                              onClick={handleSetupContext}
-                              disabled={setupContextMutation.isPending}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-border rounded-md bg-card hover:bg-muted transition-colors text-text-primary disabled:opacity-50"
-                            >
-                              <Globe className="w-3.5 h-3.5" />
-                              {setupContextMutation.isPending ? 'Creating context...' : 'Setup Browserbase Context'}
-                            </button>
-                            <p className="text-xs text-text-secondary mt-1.5">
-                              Creates a cloud browser session where you can log in. Cookies are saved so tests skip the login step.
-                            </p>
-                            {setupContextMutation.isError && (
-                              <p className="text-sm text-destructive mt-1">
-                                {setupContextMutation.error instanceof Error ? setupContextMutation.error.message : 'Setup failed'}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }
-
-                  // BrowserUse Cloud profile setup flow
-                  if (field.key === 'browseruse_profile_id') {
-                    return (
-                      <div key={field.key} className="space-y-2">
-                        <label className="block text-sm font-medium text-text-primary">
-                          {field.label}
-                        </label>
-
-                        {profileSetup ? (
-                          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
-                            <p className="text-sm text-blue-800">
-                              A browser is ready. Open the live view, navigate to <strong>{config.url}</strong>, log in, then click "Done".
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <code className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">
-                                {profileSetup.profileId}
-                              </code>
-                            </div>
-                            <div className="flex items-center gap-3">
-                              <a
-                                href={profileSetup.liveUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                              >
-                                <ExternalLink className="w-3.5 h-3.5" />
-                                Open Live View
-                              </a>
-                              <button
-                                type="button"
-                                onClick={() => completeProfileMutation.mutate()}
-                                disabled={completeProfileMutation.isPending}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                                {completeProfileMutation.isPending ? 'Saving...' : 'Done'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setProfileSetup(null);
-                                  setConfig((prev) => ({ ...prev, browseruse_profile_id: '' }));
-                                }}
-                                className="px-3 py-1.5 text-sm text-blue-700 hover:text-blue-900 transition-colors"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                            {completeProfileMutation.isError && (
-                              <p className="text-sm text-destructive">
-                                {completeProfileMutation.error instanceof Error ? completeProfileMutation.error.message : 'Failed'}
-                              </p>
-                            )}
-                          </div>
-                        ) : config.browseruse_profile_id ? (
-                          <div className="flex items-center gap-3">
-                            <code className="text-sm bg-muted text-text-primary px-3 py-2 rounded font-mono border border-border flex-1">
-                              {config.browseruse_profile_id}
-                            </code>
-                            <button
-                              type="button"
-                              onClick={() => setConfig((prev) => ({ ...prev, browseruse_profile_id: '' }))}
-                              className="px-3 py-1.5 text-sm text-text-secondary hover:text-destructive transition-colors"
-                            >
-                              Clear
-                            </button>
-                          </div>
-                        ) : (
-                          <div>
-                            <button
-                              type="button"
-                              onClick={handleSetupProfile}
-                              disabled={setupProfileMutation.isPending}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-border rounded-md bg-card hover:bg-muted transition-colors text-text-primary disabled:opacity-50"
-                            >
-                              <Globe className="w-3.5 h-3.5" />
-                              {setupProfileMutation.isPending ? 'Creating profile...' : 'Setup BrowserUse Profile'}
-                            </button>
-                            <p className="text-xs text-text-secondary mt-1.5">
-                              Creates a cloud browser session where you can log in. Cookies are saved so tests skip the login step.
-                            </p>
-                            {setupProfileMutation.isError && (
-                              <p className="text-sm text-destructive mt-1">
-                                {setupProfileMutation.error instanceof Error ? setupProfileMutation.error.message : 'Setup failed'}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  }
-
-                  // Standard field rendering
-                  return (
-                    <div key={field.key} className="space-y-1.5">
-                      <label className="block text-sm font-medium text-text-primary">
-                        {field.label}
-                        {field.required && <span className="text-red-500 ml-1">*</span>}
-                      </label>
-                      {field.type === 'select' && field.options ? (
-                        <select
-                          value={config[field.key] ?? ''}
-                          onChange={(e) =>
-                            setConfig((prev) => ({ ...prev, [field.key]: e.target.value }))
-                          }
-                          disabled={submitting}
-                          className={inputCls}
-                        >
-                          <option value="">Select...</option>
-                          {field.options.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                      ) : field.type === 'password' ? (
-                        <div className="relative">
-                          <input
-                            type={showPasswordFields[field.key] ? 'text' : 'password'}
-                            name={field.key}
-                            id={`config-${field.key}`}
-                            autoComplete="off"
-                            value={config[field.key] ?? ''}
-                            onChange={(e) =>
-                              setConfig((prev) => ({ ...prev, [field.key]: e.target.value }))
-                            }
-                            placeholder={field.placeholder}
-                            disabled={submitting}
-                            className={`${inputCls} pr-10`}
-                          />
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setShowPasswordFields((prev) => ({ ...prev, [field.key]: !prev[field.key] }))
-                            }
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text-primary"
-                            tabIndex={-1}
-                          >
-                            {showPasswordFields[field.key] ? (
-                              <EyeOff className="h-4 w-4" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
-                          </button>
-                        </div>
-                      ) : (
-                        <input
-                          type="text"
-                          name={field.key}
-                          id={`config-${field.key}`}
-                          autoComplete="off"
-                          value={config[field.key] ?? ''}
-                          onChange={(e) =>
-                            setConfig((prev) => ({ ...prev, [field.key]: e.target.value }))
-                          }
-                          placeholder={field.placeholder}
-                          disabled={submitting}
-                          className={inputCls}
+                        <BrowserbaseContextField
+                          config={config}
+                          onConfigChange={(key, value) => setConfig((prev) => ({ ...prev, [key]: value }))}
+                          validateUrl={validateBrowserUrl}
+                          mode="standalone"
                         />
-                      )}
-                      {field.hint && (
-                        <p className="text-xs text-text-secondary mt-1">
-                          {field.hint}
-                          {field.hintLink && (
-                            <>
-                              {' '}
-                              <a
-                                href={field.hintLink.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-0.5 text-accent hover:underline"
-                              >
-                                {field.hintLink.label}
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            </>
-                          )}
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+            )}
 
-                {/* Local Chrome auth setup section */}
-                {provider === 'browser' && config.browser_backend === 'local' && (
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-text-primary">
-                      Local Chrome Auth
-                    </label>
-
-                    {localAuthSetup ? (
-                      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-3">
-                        <p className="text-sm text-blue-800">
-                          Log in to <strong>{config.url}</strong> in the Chrome window on your machine, then click "Done".
-                        </p>
-                        <div className="flex items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => completeLocalAuthMutation.mutate()}
-                            disabled={completeLocalAuthMutation.isPending}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                            {completeLocalAuthMutation.isPending ? 'Saving...' : 'Done'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setLocalAuthSetup(null)}
-                            className="px-3 py-1.5 text-sm text-blue-700 hover:text-blue-900 transition-colors"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                        {completeLocalAuthMutation.isError && (
-                          <p className="text-sm text-destructive">
-                            {completeLocalAuthMutation.error instanceof Error ? completeLocalAuthMutation.error.message : 'Failed'}
-                          </p>
-                        )}
-                      </div>
-                    ) : localAuthDone ? (
-                      <div className="flex items-center gap-2 text-sm text-green-700">
-                        <Check className="w-4 h-4" />
-                        Auth saved for {localAuthDone}
-                      </div>
-                    ) : (
-                      <div>
-                        <button
-                          type="button"
-                          onClick={handleSetupLocalAuth}
-                          disabled={setupLocalAuthMutation.isPending}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-border rounded-md bg-card hover:bg-muted transition-colors text-text-primary disabled:opacity-50"
-                        >
-                          <Monitor className="w-3.5 h-3.5" />
-                          {setupLocalAuthMutation.isPending ? 'Launching Chrome...' : 'Setup Auth'}
-                        </button>
-                        <p className="text-xs text-text-secondary mt-1.5">
-                          Opens a Chrome window on your machine so you can log in. Cookies are exported for test runs.
-                        </p>
-                        {setupLocalAuthMutation.isError && (
-                          <p className="text-sm text-destructive mt-1">
-                            {setupLocalAuthMutation.error instanceof Error ? setupLocalAuthMutation.error.message : 'Setup failed'}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
+            {/* Local Chrome auth setup section */}
+            {provider === 'browser' && config.browser_backend === 'local' && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-text-primary">
+                  Local Chrome Auth
+                </label>
+                <LocalChromeAuthField
+                  url={config.url ?? ''}
+                  validateUrl={validateBrowserUrl}
+                />
               </div>
             )}
 

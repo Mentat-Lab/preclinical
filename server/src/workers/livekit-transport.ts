@@ -11,6 +11,7 @@ import { Room, RoomEvent, RemoteParticipant, TextStreamReader } from '@livekit/r
 import { randomBytes } from 'crypto';
 import { log } from '../lib/logger.js';
 import { MessageQueue } from '../lib/message-queue.js';
+import { sendAndReceiveVia } from './voice-transport-base.js';
 
 const logger = log.child({ component: 'livekit-transport' });
 
@@ -314,11 +315,13 @@ export async function sendAndReceive(
   message: string,
   timeoutMs: number = 30_000,
 ): Promise<string> {
-  const responseFuture = session.messageQueue.nextMessage(timeoutMs);
   const lp = session.room.localParticipant;
   if (!lp) throw new Error('Not connected to LiveKit room');
-  await lp.sendText(message, { topic: 'lk.chat' });
-  return await responseFuture;
+  return sendAndReceiveVia(
+    session.messageQueue,
+    () => lp.sendText(message, { topic: 'lk.chat' }),
+    timeoutMs,
+  );
 }
 
 /**

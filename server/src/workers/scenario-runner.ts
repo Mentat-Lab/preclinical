@@ -210,6 +210,12 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
       throw new Error('Tester graph failed before producing a result');
     }
     if (testerResult.error) {
+      // Save the partial transcript so it's visible in the UI even on error
+      if (testerResult.transcript?.length) {
+        await updateScenarioRun(scenario_run_id, {
+          transcript: JSON.stringify(testerResult.transcript),
+        }).catch(() => {});
+      }
       throw new Error(testerResult.error);
     }
 

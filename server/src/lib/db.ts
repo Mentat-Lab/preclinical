@@ -122,3 +122,24 @@ export async function upsertBrowserProfileCredentials(
   `;
 }
 
+export async function upsertLoginActions(
+  domain: string,
+  loginActions: Record<string, unknown>[],
+) {
+  const actions = loginActions as unknown as Record<string, string>;
+  await sql`
+    INSERT INTO browser_profiles (domain, login_actions, source)
+    VALUES (${domain}, ${sql.json(actions)}, 'auto')
+    ON CONFLICT (domain) DO UPDATE SET
+      login_actions = ${sql.json(actions)}::jsonb,
+      updated_at = NOW()
+  `;
+}
+
+export async function clearLoginActions(domain: string) {
+  await sql`
+    UPDATE browser_profiles SET login_actions = NULL, updated_at = NOW()
+    WHERE domain = ${domain}
+  `;
+}
+

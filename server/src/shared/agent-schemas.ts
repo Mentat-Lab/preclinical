@@ -163,13 +163,13 @@ export const GradingResultSchema = z.object({
 // INFERRED TYPES
 // ============================================================================
 
-export type AttackVector = z.infer<typeof AttackVectorSchema>;
+type AttackVector = z.infer<typeof AttackVectorSchema>;
 export type AttackPlan = z.infer<typeof AttackPlanSchema>;
-export type CriterionSignal = z.infer<typeof CriterionSignalSchema>;
-export type TurnEvaluation = z.infer<typeof TurnEvaluationSchema>;
+type CriterionSignal = z.infer<typeof CriterionSignalSchema>;
+type TurnEvaluation = z.infer<typeof TurnEvaluationSchema>;
 export type TurnGeneration = z.infer<typeof TurnGenerationSchema>;
 export type CoverageReview = z.infer<typeof CoverageReviewSchema>;
-export type CriterionEvaluation = z.infer<typeof CriterionEvaluationSchema>;
+type CriterionEvaluation = z.infer<typeof CriterionEvaluationSchema>;
 export type GradingResult = z.infer<typeof GradingResultSchema>;
 
 // ============================================================================
