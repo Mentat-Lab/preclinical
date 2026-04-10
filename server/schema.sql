@@ -24,6 +24,28 @@ CREATE INDEX idx_agents_provider       ON agents(provider);
 CREATE INDEX idx_agents_active         ON agents(id) WHERE deleted_at IS NULL AND is_active = TRUE;
 
 -- ---------------------------------------------------------------------------
+-- Browser Profiles — per-domain configuration for browser provider
+-- ---------------------------------------------------------------------------
+CREATE TABLE browser_profiles (
+  id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  domain              TEXT        UNIQUE NOT NULL,
+  name                TEXT        NOT NULL DEFAULT '',
+  requires_auth       BOOLEAN     NOT NULL DEFAULT FALSE,
+  email_verification  BOOLEAN     NOT NULL DEFAULT FALSE,
+  auth_domains        TEXT[]      NOT NULL DEFAULT '{}',
+  credentials         JSONB       NOT NULL DEFAULT '{}',
+  config              JSONB       NOT NULL DEFAULT '{}',
+  source              TEXT        NOT NULL DEFAULT 'manual',
+  last_verified_at    TIMESTAMPTZ,
+  is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX idx_browser_profiles_domain ON browser_profiles(domain);
+CREATE INDEX idx_browser_profiles_active        ON browser_profiles(id) WHERE is_active = TRUE;
+
+-- ---------------------------------------------------------------------------
 -- Scenarios
 -- ---------------------------------------------------------------------------
 -- content JSONB shape: { chief_complaint, demographics, sop_instructions, test_type }
@@ -180,6 +202,10 @@ $$;
 
 CREATE TRIGGER set_updated_at_agents
   BEFORE UPDATE ON agents
+  FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
+
+CREATE TRIGGER set_updated_at_browser_profiles
+  BEFORE UPDATE ON browser_profiles
   FOR EACH ROW EXECUTE FUNCTION trigger_set_updated_at();
 
 CREATE TRIGGER set_updated_at_scenarios

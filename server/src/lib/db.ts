@@ -103,3 +103,22 @@ export async function getAgentById(agentId: string) {
   return rows[0] ?? null;
 }
 
+export async function getBrowserProfileByDomain(domain: string) {
+  const rows = await sql`SELECT * FROM browser_profiles WHERE domain = ${domain} AND is_active = TRUE`;
+  return rows[0] ?? null;
+}
+
+export async function upsertBrowserProfileCredentials(
+  domain: string,
+  credentials: Record<string, string>,
+) {
+  await sql`
+    INSERT INTO browser_profiles (domain, credentials, source)
+    VALUES (${domain}, ${sql.json(credentials)}, 'auto')
+    ON CONFLICT (domain) DO UPDATE SET
+      credentials = browser_profiles.credentials || ${sql.json(credentials)}::jsonb,
+      last_verified_at = NOW(),
+      updated_at = NOW()
+  `;
+}
+

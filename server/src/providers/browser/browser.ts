@@ -21,7 +21,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { registerProvider, type Provider, type ProviderSession, type MessageContext } from '../base.js';
 import { config } from '../../lib/config.js';
-import { sql } from '../../lib/db.js';
+import { sql, getBrowserProfileByDomain, upsertBrowserProfileCredentials } from '../../lib/db.js';
 import { log } from '../../lib/logger.js';
 
 const logger = log.child({ component: 'browser' });
@@ -64,6 +64,7 @@ interface BrowserState {
   sessionId?: string;
   liveUrl?: string;
   profile?: BrowserProfile;
+  credentials?: { email?: string; password?: string };
   scenarioRunId: string;
   inboxAddress?: string; // AgentMail disposable email for signup flows
 }
@@ -93,38 +94,66 @@ const PROFILE_KEYS: (keyof BrowserProfile)[] = [
   'email_subject_hint',
 ];
 
+function dbRowToProfile(row: Record<string, unknown>): { profile: BrowserProfile; credentials: Record<string, string> } {
+  const cfg = (row.config || {}) as Record<string, unknown>;
+  return {
+    profile: {
+      ...Object.fromEntries(PROFILE_KEYS.map(k => [k, String(cfg[k] || '')])),
+      requires_auth: !!row.requires_auth,
+      email_verification: !!row.email_verification,
+      auth_domains: Array.isArray(row.auth_domains) ? row.auth_domains as string[] : [],
+    } as BrowserProfile,
+    credentials: (row.credentials || {}) as Record<string, string>,
+  };
+}
+
 async function loadBrowserProfile(
   targetUrl: string,
   agentConfig: Record<string, unknown>,
-): Promise<BrowserProfile> {
-  const basePath = join(sharedDir, 'browser-profiles');
-
+): Promise<{ profile: BrowserProfile; credentials: Record<string, string> }> {
   let domain = '';
   try { domain = new URL(targetUrl).hostname.replace(/^www\./, ''); } catch { /* skip */ }
 
+  // 1. Try DB — domain match, then _default
+  for (const d of domain ? [domain, '_default'] : ['_default']) {
+    const row = await getBrowserProfileByDomain(d);
+    if (row) {
+      logger.info('Loaded profile from DB', { domain: d });
+      return dbRowToProfile(row as Record<string, unknown>);
+    }
+  }
+
+  // 2. Fallback: JSON files on disk (backwards compat)
+  const basePath = join(sharedDir, 'browser-profiles');
   const candidates = domain
     ? [join(basePath, `${domain}.json`), join(basePath, '_default.json')]
     : [join(basePath, '_default.json')];
 
   for (const filePath of candidates) {
     try {
-      const profile = JSON.parse(await readFile(filePath, 'utf-8'));
-      logger.info('Loaded profile', { filePath });
+      const fileProfile = JSON.parse(await readFile(filePath, 'utf-8'));
+      logger.info('Loaded profile from file', { filePath });
       return {
-        ...Object.fromEntries(PROFILE_KEYS.map(k => [k, profile[k] || ''])),
-        requires_auth: !!profile.requires_auth,
-        email_verification: !!profile.email_verification,
-        auth_domains: Array.isArray(profile.auth_domains) ? profile.auth_domains : [],
-      } as BrowserProfile;
+        profile: {
+          ...Object.fromEntries(PROFILE_KEYS.map(k => [k, fileProfile[k] || ''])),
+          requires_auth: !!fileProfile.requires_auth,
+          email_verification: !!fileProfile.email_verification,
+          auth_domains: Array.isArray(fileProfile.auth_domains) ? fileProfile.auth_domains : [],
+        } as BrowserProfile,
+        credentials: {},
+      };
     } catch { /* file not found, try next */ }
   }
 
-  // Fallback: build from agent config
+  // 3. Final fallback: build from agent config
   return {
-    ...Object.fromEntries(PROFILE_KEYS.map(k => [k, String(agentConfig[k] || '')])),
-    requires_auth: agentConfig.requires_auth === 'true' || agentConfig.requires_auth === true,
-    email_verification: agentConfig.email_verification === 'true' || agentConfig.email_verification === true,
-  } as BrowserProfile;
+    profile: {
+      ...Object.fromEntries(PROFILE_KEYS.map(k => [k, String(agentConfig[k] || '')])),
+      requires_auth: agentConfig.requires_auth === 'true' || agentConfig.requires_auth === true,
+      email_verification: agentConfig.email_verification === 'true' || agentConfig.email_verification === true,
+    } as BrowserProfile,
+    credentials: {},
+  };
 }
 
 // =============================================================================
@@ -256,9 +285,10 @@ function buildTaskPrompt(
   turn: number,
   agentConfig: Record<string, unknown>,
   inboxAddress?: string,
+  profileCredentials?: { email?: string; password?: string },
 ): string {
-  const email = String(agentConfig.email || config.browserEmail || '');
-  const password = String(agentConfig.password || config.browserPassword || '');
+  const email = String(profileCredentials?.email || agentConfig.email || config.browserEmail || '');
+  const password = String(profileCredentials?.password || agentConfig.password || config.browserPassword || '');
   const hasCredentials = !!(email && password);
   const hasBrowserbaseContext = !!String(agentConfig.browserbase_context_id || '').trim();
   const extraInstructions = String(agentConfig.instructions || '').trim();
@@ -311,10 +341,11 @@ function buildSensitiveData(
   domain: string,
   agentConfig: Record<string, unknown>,
   inboxAddress?: string,
+  profileCredentials?: { email?: string; password?: string },
 ): Record<string, string> | undefined {
-  // AgentMail signup: use disposable inbox as email, keep password from config
-  const email = inboxAddress || String(agentConfig.email || config.browserEmail || '');
-  const password = String(agentConfig.password || config.browserPassword || '');
+  // Priority: inbox (AgentMail signup) > profile credentials (DB) > agent config > env vars
+  const email = inboxAddress || String(profileCredentials?.email || agentConfig.email || config.browserEmail || '');
+  const password = String(profileCredentials?.password || agentConfig.password || config.browserPassword || '');
   if (!email && !password) return undefined;
 
   const data: Record<string, string> = {};
@@ -405,9 +436,14 @@ const browserProvider: Provider = {
       throw new Error('BrowserUse Cloud runtime not yet implemented — use Browserbase or Local Chrome');
     }
 
-    // Load browser profile (cache after first load) — needed before session creation for auth_domains
+    // Load browser profile + domain credentials (cache after first load)
     if (!state.profile) {
-      state.profile = await loadBrowserProfile(state.targetUrl, state.agentConfig);
+      const loaded = await loadBrowserProfile(state.targetUrl, state.agentConfig);
+      state.profile = loaded.profile;
+      // Domain credentials from browser_profiles table (saved from previous AgentMail signups)
+      if (loaded.credentials.email) {
+        state.credentials = loaded.credentials as { email?: string; password?: string };
+      }
     }
 
     // Build allowed domains: target domain + auth domains from profile (e.g. auth.openai.com for chatgpt.com)
@@ -426,11 +462,10 @@ const browserProvider: Provider = {
 
     if (!state.sessionId) throw new Error('No browser session ID available');
 
-    // Check if agent already has credentials (from previous AgentMail signup or manual config)
-    const hasExistingCredentials = !!(
-      String(state.agentConfig.email || '').trim() &&
-      String(state.agentConfig.password || config.browserPassword || '').trim()
-    );
+    // Check if credentials exist — profile credentials (DB) take priority over agent config
+    const credEmail = String(state.credentials?.email || state.agentConfig.email || '').trim();
+    const credPassword = String(state.credentials?.password || state.agentConfig.password || config.browserPassword || '').trim();
+    const hasExistingCredentials = !!(credEmail && credPassword);
 
     // Check if AgentMail fallback is available for this profile
     // Skip fallback when using a pre-authenticated Browserbase context
@@ -450,10 +485,10 @@ const browserProvider: Provider = {
     );
 
     const taskPrompt = buildTaskPrompt(
-      state.profile, message, state.targetUrl, context.turn, state.agentConfig, state.inboxAddress,
+      state.profile, message, state.targetUrl, context.turn, state.agentConfig, state.inboxAddress, state.credentials,
     );
     const systemExt = buildSystemMessageExtension(state.profile, context.persona || null);
-    const sensitiveData = buildSensitiveData(state.domain, state.agentConfig, state.inboxAddress);
+    const sensitiveData = buildSensitiveData(state.domain, state.agentConfig, state.inboxAddress, state.credentials);
 
     async function createAndPollTask(activeSessionId: string, prompt: string, sd: Record<string, string> | undefined, maxSteps: number): Promise<Record<string, unknown>> {
       const taskBody: Record<string, unknown> = {
@@ -543,9 +578,9 @@ const browserProvider: Provider = {
       state.sessionId = freshSession.id;
       // Build a turn-1 style prompt with login + the current message
       const loginPrompt = buildTaskPrompt(
-        state.profile!, message, state.targetUrl, 1, state.agentConfig,
+        state.profile!, message, state.targetUrl, 1, state.agentConfig, undefined, state.credentials,
       );
-      const loginSensitiveData = buildSensitiveData(state.domain, state.agentConfig);
+      const loginSensitiveData = buildSensitiveData(state.domain, state.agentConfig, undefined, state.credentials);
       result = await createAndPollTask(freshSession.id, loginPrompt, loginSensitiveData, 15);
     }
 
@@ -563,25 +598,22 @@ const browserProvider: Provider = {
         const signupPrompt = buildTaskPrompt(
           state.profile!, message, state.targetUrl, 1, state.agentConfig, state.inboxAddress,
         );
-        const signupSensitiveData = buildSensitiveData(state.domain, state.agentConfig, state.inboxAddress);
+        const signupSensitiveData = buildSensitiveData(state.domain, state.agentConfig, state.inboxAddress, state.credentials);
         result = await createAndPollTask(freshSession.id, signupPrompt, signupSensitiveData, 20);
 
-        // Persist credentials to agent config so future runs reuse this account
-        const agentId = String(state.agentConfig._agent_id || '');
-        const password = String(state.agentConfig.password || config.browserPassword || '');
-        if (agentId && result.isSuccess) {
+        // Persist credentials to browser_profiles table so ALL agents for this domain reuse this account
+        if (result.isSuccess && state.domain) {
           try {
-            await sql`
-              UPDATE agents
-              SET config = config || ${sql.json({ email: state.inboxAddress, password })}::jsonb,
-                  updated_at = NOW()
-              WHERE id = ${agentId}
-            `;
-            // Also update in-memory config so subsequent turns use login instead of signup
-            state.agentConfig.email = state.inboxAddress;
-            logger.info('Saved AgentMail credentials to agent', { agentId, email: state.inboxAddress, domain: state.domain });
+            const password = String(state.agentConfig.password || config.browserPassword || '');
+            await upsertBrowserProfileCredentials(state.domain, {
+              email: state.inboxAddress,
+              ...(password ? { password } : {}),
+            });
+            // Update in-memory state so subsequent turns use login instead of signup
+            state.credentials = { email: state.inboxAddress, password };
+            logger.info('Saved credentials to browser profile', { email: state.inboxAddress, domain: state.domain });
           } catch (err) {
-            logger.warn('Failed to persist AgentMail credentials', { error: err });
+            logger.warn('Failed to persist credentials to browser profile', { error: err });
           }
         }
       } else {
