@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Annotated, Optional
 
 import typer
 
 from preclinical.cli.formatters import (
+    console,
     error_console,
     print_json,
     print_scenario_run_detail,
@@ -57,3 +59,26 @@ def get_result(
         print_json(sr)
     else:
         print_scenario_run_detail(sr)
+
+
+@app.command("export")
+def export_results(
+    run_id: Annotated[str, typer.Argument(help="Test run ID to export")],
+    output: Annotated[Optional[str], typer.Option("--output", "-o", help="Output file path (default: auto-generated)")] = None,
+) -> None:
+    """Export test run results as CSV."""
+    from preclinical.cli.app import get_client
+    client = get_client()
+    try:
+        csv_data = client.export_csv(run_id)
+    except PreclinicalAPIError as e:
+        error_console.print(f"[red]Error:[/red] {e.message}")
+        raise typer.Exit(1)
+
+    if output:
+        filepath = Path(output)
+    else:
+        filepath = Path(f"preclinical-export-{run_id}.csv")
+
+    filepath.write_text(csv_data)
+    console.print(f"[green]Exported to {filepath}[/green]")

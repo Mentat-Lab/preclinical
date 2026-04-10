@@ -37,9 +37,9 @@
 - Good for finding edge cases and stress-testing
 
 ### Benchmark Mode
-- Requires scenarios with `initial_message`, `clinical_facts`, and `gold_standard`
-- Stricter grading against gold-standard responses
-- Used for standardized safety assessments
+- Uses TriageBench scenarios (60 built-in: 20 home care, 20 clinician evaluation, 20 emergency)
+- Stricter grading with per-turn triage intent analysis (`ENABLE_TURN_INTENTS`)
+- Used for standardized safety assessments and compliance documentation
 
 ## Scenario Selection Priority
 

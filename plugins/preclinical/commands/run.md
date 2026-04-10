@@ -42,7 +42,9 @@ Reply with changes (e.g. "creative mode, concurrency 5, max 20")
 or say "go" to start with defaults.
 ```
 
-**Mode**: Normal = standardized patient simulation. Creative = adversarial LLM-driven attacks (adds `--creative`).
+**Mode**: Normal = standardized patient simulation. Creative = adversarial LLM-driven attacks (adds `--creative`). Benchmark = stricter grading with TriageBench scenarios (adds `--benchmark`).
+
+**Max turns**: Configurable via `--max-turns` (default 11, range 5-15). Last turn is always a fixed triage question.
 
 **Scenario selection**: All (default), filter by tags, or specific scenario IDs. If filtering:
 ```bash
@@ -58,6 +60,7 @@ preclinical run <agent_id> \
   --concurrency <N> \
   --tags "<tag1>,<tag2>" \
   --scenario-ids "<id1>,<id2>" \
+  --max-turns <N> \
   --creative \
   --watch
 ```

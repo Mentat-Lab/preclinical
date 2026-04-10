@@ -58,9 +58,41 @@ def get_agent(
         print_agent_detail(agent)
 
 
+@app.command("discover")
+def discover_agent(
+    agent_id: Annotated[str, typer.Argument(help="Agent ID (must be a browser agent)")],
+    no_validate: Annotated[bool, typer.Option("--no-validate", help="Skip validation after discovery")] = False,
+    output_json: Annotated[bool, typer.Option("--json", help="Output raw JSON")] = False,
+) -> None:
+    """Discover browser profile for a browser agent. Learns site-specific interaction instructions."""
+    from preclinical.cli.app import get_client
+    client = get_client()
+    try:
+        console.print(f"[dim]Discovering profile for agent {agent_id}...[/dim]")
+        result = client.discover_agent(agent_id, validate=not no_validate)
+    except PreclinicalAPIError as e:
+        error_console.print(f"[red]Error:[/red] {e.message}")
+        raise typer.Exit(1)
+
+    if output_json:
+        print_json(result)
+    else:
+        console.print(f"[green]Discovery complete[/green]")
+        if result.get("profile"):
+            profile = result["profile"]
+            if profile.get("page_type"):
+                console.print(f"  Page type: {profile['page_type']}")
+            if profile.get("requires_auth") is not None:
+                console.print(f"  Requires auth: {profile['requires_auth']}")
+        if result.get("validated"):
+            console.print(f"  Validated: {result['validated']}")
+        if result.get("agent"):
+            console.print(f"  Agent config updated with discovered profile")
+
+
 @app.command("create")
 def create_agent(
-    provider: Annotated[str, typer.Option("--provider", "-p", help="Provider type (openai, vapi, browser, livekit, pipecat)")],
+    provider: Annotated[str, typer.Option("--provider", "-p", help="Provider type (openai, vapi, browser, livekit, pipecat, elevenlabs)")],
     name: Annotated[str, typer.Option("--name", "-n", help="Agent name")],
     description: Annotated[Optional[str], typer.Option("--description", "-d", help="Agent description")] = None,
     config: Annotated[Optional[str], typer.Option("--config", "-c", help="Agent config as JSON string")] = None,

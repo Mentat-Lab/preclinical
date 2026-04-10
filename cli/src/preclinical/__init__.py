@@ -11,6 +11,7 @@ from preclinical.exceptions import (
 )
 from preclinical.models import (
     Agent,
+    BrowserProfile,
     HealthCheck,
     RunsList,
     Scenario,
@@ -29,6 +30,7 @@ __all__ = [
     "NotFoundError",
     "APIValidationError",
     "Agent",
+    "BrowserProfile",
     "TestRun",
     "ScenarioRun",
     "Scenario",

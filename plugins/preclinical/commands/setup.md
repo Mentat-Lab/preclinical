@@ -56,8 +56,10 @@ If Docker is available, clone and start:
 ```bash
 git clone https://github.com/Mentat-Lab/preclinical.git
 cd preclinical
-docker compose up -d
+make setup
 ```
+
+This copies `.env.example` to `.env` and starts services (database, API server, worker, BrowserUse).
 
 Wait for services to be healthy (typically 30-60 seconds):
 ```bash
@@ -66,8 +68,13 @@ docker compose ps --format json
 
 Tell the user:
 ```
-Starting Preclinical services... this runs a database, API server, and worker.
+Starting Preclinical services... this runs a database, API server, worker, and BrowserUse.
 First startup downloads images (~2 GB) and may take a few minutes.
+```
+
+For browser testing against sites like ChatGPT/Claude/Gemini, also launch the Chrome pool:
+```bash
+make chrome
 ```
 
 ### Path B: Remote Server
@@ -144,7 +151,7 @@ No agents configured yet. You need at least one agent to run tests.
 
 Create one now? You'll need:
   - Agent name (e.g. "My Health Bot")
-  - Provider type (openai, vapi, browser, livekit, pipecat)
+  - Provider type (openai, vapi, browser, livekit, pipecat, elevenlabs)
   - Connection config (API key, URL, etc.)
 
 Or create one in the UI at http://localhost:3000

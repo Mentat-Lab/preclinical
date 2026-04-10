@@ -23,4 +23,7 @@ You have access to the Preclinical plugin for healthcare AI safety testing. When
 - Preclinical requires **Docker Compose** running locally (or a remote server URL)
 - The `preclinical` CLI must be installed (`pipx install preclinical`)
 - If either is missing, suggest `/preclinical:setup` first
-- This is a resource-heavy platform — Docker services include a database, API server, and worker processes
+- Docker services include a database, API server, worker, and BrowserUse
+- Supports 6 provider types: openai, vapi, browser, livekit, pipecat, elevenlabs
+- Includes 60 built-in TriageBench scenarios (20 home care, 20 clinician eval, 20 emergency)
+- Browser testing requires Chrome pool (`make chrome`) or Browserbase cloud Chrome

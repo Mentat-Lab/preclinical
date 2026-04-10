@@ -85,4 +85,4 @@ After configuring, re-run `preclinical health --json` to verify.
 preclinical agents list --json
 ```
 
-If no agents are configured, let the user know they need to create one before running tests. Guide them to use the `create-agent` flow or point them to the Preclinical UI.
+If no agents are configured, let the user know they need to create one before running tests. Supported providers: `openai`, `vapi`, `browser`, `livekit`, `pipecat`, `elevenlabs`. Guide them to use the CLI or the Preclinical UI at http://localhost:3000.

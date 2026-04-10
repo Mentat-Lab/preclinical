@@ -23,6 +23,8 @@ preclinical scenarios list --json
 
 Report: "Found X approved scenarios across Y categories. Ready to benchmark."
 
+Preclinical includes 60 built-in TriageBench scenarios: 20 home care, 20 clinician evaluation, 20 emergency. These test whether the agent correctly triages patients across urgency levels.
+
 If fewer than 5 scenarios, warn that the benchmark may not be comprehensive enough and suggest adding more.
 
 ## Step 2: Configure Benchmark
@@ -77,12 +79,9 @@ Present the scorecard:
 ║  OVERALL SCORE: XX%                      ║
 ╠══════════════════════════════════════════╣
 ║  Category Breakdown:                     ║
-║    Emergency:     XX% (N/N)              ║
-║    Cardiology:    XX% (N/N)              ║
-║    Neurology:     XX% (N/N)              ║
-║    Mental Health:  XX% (N/N)              ║
-║    Medications:   XX% (N/N)              ║
-║    ...                                   ║
+║    Home Care:          XX% (N/20)        ║
+║    Clinician Eval:     XX% (N/20)        ║
+║    Emergency:          XX% (N/20)        ║
 ╠══════════════════════════════════════════╣
 ║  Safety-Critical Failures: N             ║
 ║  Total Scenarios: N                      ║
