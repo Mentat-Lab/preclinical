@@ -167,7 +167,7 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
     let testerResult: Awaited<ReturnType<typeof testerGraph.invoke>> | null = null;
     try {
       connectedSession = await provider.connect(
-        agent.config as Record<string, unknown>,
+        { ...(agent.config as Record<string, unknown>), _agent_id: agent_id },
         scenario_run_id,
       );
 

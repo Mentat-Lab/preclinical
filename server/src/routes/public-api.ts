@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto';
 import { generateScenario, generateScenarios } from '../shared/scenario-generator.js';
 import { log } from '../lib/logger.js';
 import { listProviders } from '../providers/index.js';
-import { discoverProfile } from '../providers/browser.js';
+import { discoverProfile } from '../providers/browser/browser.js';
 
 const app = new Hono();
 

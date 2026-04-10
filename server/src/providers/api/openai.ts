@@ -6,8 +6,8 @@
  * OpenAI, Azure OpenAI, Anthropic (via proxy), local models (Ollama, vLLM), etc.
  */
 
-import { registerProvider, type Provider, type ProviderSession, type MessageContext } from './base.js';
-import { config } from '../lib/config.js';
+import { registerProvider, type Provider, type ProviderSession, type MessageContext } from '../base.js';
+import { config } from '../../lib/config.js';
 
 interface OpenAIState {
   apiKey: string;

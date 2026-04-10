@@ -9,21 +9,21 @@
  * Uses lazy imports to avoid loading native binaries at startup.
  */
 
-import { registerProvider, type Provider, type ProviderSession } from './base.js';
-import { log } from '../lib/logger.js';
+import { registerProvider, type Provider, type ProviderSession } from '../base.js';
+import { log } from '../../lib/logger.js';
 
 const logger = log.child({ component: 'pipecat' });
 
 async function getPipecatTransport() {
-  return await import('../workers/pipecat-transport.js');
+  return await import('../../workers/pipecat-transport.js');
 }
 
 async function getLiveKitTransport() {
-  return await import('../workers/livekit-transport.js');
+  return await import('../../workers/livekit-transport.js');
 }
 
 async function getDailyTransport() {
-  return await import('../workers/daily-transport.js');
+  return await import('../../workers/daily-transport.js');
 }
 
 const pipecatProvider: Provider = {

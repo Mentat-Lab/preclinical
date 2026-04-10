@@ -5,7 +5,7 @@
  * Uses Vapi's chat API for text-based testing of voice agents.
  */
 
-import { registerProvider, type Provider, type ProviderSession, type MessageContext } from './base.js';
+import { registerProvider, type Provider, type ProviderSession, type MessageContext } from '../base.js';
 
 interface VapiState {
   apiKey: string;

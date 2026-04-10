@@ -9,13 +9,13 @@
  * at startup — it's only loaded when a LiveKit agent is actually tested.
  */
 
-import { registerProvider, type Provider, type ProviderSession } from './base.js';
-import { log } from '../lib/logger.js';
+import { registerProvider, type Provider, type ProviderSession } from '../base.js';
+import { log } from '../../lib/logger.js';
 
 const logger = log.child({ component: 'livekit' });
 
 async function getLiveKitTransport() {
-  return await import('../workers/livekit-transport.js');
+  return await import('../../workers/livekit-transport.js');
 }
 
 const livekitProvider: Provider = {

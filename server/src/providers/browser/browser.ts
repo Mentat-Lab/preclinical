@@ -19,9 +19,10 @@
 import { readFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { registerProvider, type Provider, type ProviderSession, type MessageContext } from './base.js';
-import { config } from '../lib/config.js';
-import { log } from '../lib/logger.js';
+import { registerProvider, type Provider, type ProviderSession, type MessageContext } from '../base.js';
+import { config } from '../../lib/config.js';
+import { sql } from '../../lib/db.js';
+import { log } from '../../lib/logger.js';
 
 const logger = log.child({ component: 'browser' });
 
@@ -49,6 +50,7 @@ interface BrowserProfile {
   requires_auth?: boolean;
   email_verification?: boolean;
   email_subject_hint?: string;
+  auth_domains?: string[];
   browser_signup_instructions?: string;
   browser_login_instructions?: string;
   browser_verify_instructions?: string;
@@ -112,6 +114,7 @@ async function loadBrowserProfile(
         ...Object.fromEntries(PROFILE_KEYS.map(k => [k, profile[k] || ''])),
         requires_auth: !!profile.requires_auth,
         email_verification: !!profile.email_verification,
+        auth_domains: Array.isArray(profile.auth_domains) ? profile.auth_domains : [],
       } as BrowserProfile;
     } catch { /* file not found, try next */ }
   }
@@ -402,10 +405,19 @@ const browserProvider: Provider = {
       throw new Error('BrowserUse Cloud runtime not yet implemented — use Browserbase or Local Chrome');
     }
 
+    // Load browser profile (cache after first load) — needed before session creation for auth_domains
+    if (!state.profile) {
+      state.profile = await loadBrowserProfile(state.targetUrl, state.agentConfig);
+    }
+
+    // Build allowed domains: target domain + auth domains from profile (e.g. auth.openai.com for chatgpt.com)
+    const allowedDomains = state.domain
+      ? [state.domain, ...(state.profile.auth_domains || [])]
+      : undefined;
+
     // Create session on first turn — no AgentMail yet (try login/cookies first)
     const browserbaseContextId = String(state.agentConfig.browserbase_context_id || '').trim() || undefined;
     if (context.turn === 1) {
-      const allowedDomains = state.domain ? [state.domain] : undefined;
       const browserSession = await createSession(state.apiKey, state.domain, allowedDomains, undefined, browserbaseContextId);
       state.sessionId = browserSession.id;
       state.liveUrl = browserSession.liveUrl;
@@ -414,19 +426,27 @@ const browserProvider: Provider = {
 
     if (!state.sessionId) throw new Error('No browser session ID available');
 
-    // Load browser profile (cache after first load)
-    if (!state.profile) {
-      state.profile = await loadBrowserProfile(state.targetUrl, state.agentConfig);
-    }
+    // Check if agent already has credentials (from previous AgentMail signup or manual config)
+    const hasExistingCredentials = !!(
+      String(state.agentConfig.email || '').trim() &&
+      String(state.agentConfig.password || config.browserPassword || '').trim()
+    );
 
     // Check if AgentMail fallback is available for this profile
     // Skip fallback when using a pre-authenticated Browserbase context
+    // Skip if agent already has credentials (use login recovery instead)
     const canFallbackToAgentMail = !!(
-      context.turn === 1 &&
       !state.inboxAddress &&
+      !hasExistingCredentials &&
       !browserbaseContextId &&
       config.agentmailApiKey &&
       state.profile.email_verification
+    );
+
+    // Can recover from mid-conversation auth failures with a fresh login session
+    const canRecoverWithLogin = !!(
+      hasExistingCredentials &&
+      context.turn > 1
     );
 
     const taskPrompt = buildTaskPrompt(
@@ -480,15 +500,16 @@ const browserProvider: Provider = {
 
     // Attempt the task — login first, AgentMail signup as fallback
     let result: Record<string, unknown>;
-    let loginFailed = false;
+    let authFailed = false;
     try {
       result = await createAndPollTask(state.sessionId, taskPrompt, sensitiveData, context.turn === 1 ? 12 : 8);
 
-      // Check if turn 1 task finished but failed to get a response (likely auth/Cloudflare issue).
+      // Check if task finished but failed to get a response (likely auth/Cloudflare issue).
       // Only trigger fallback on hard failures — task explicitly !isSuccess.
       // An empty bot_response alone is NOT enough (chatbot might just be down).
-      if (context.turn === 1 && canFallbackToAgentMail && !result.isSuccess) {
-        loginFailed = true;
+      if (!result.isSuccess && (canFallbackToAgentMail || canRecoverWithLogin)) {
+        authFailed = true;
+        logger.info('Task failed — auth issue suspected', { turn: context.turn, isSuccess: result.isSuccess, hasCredentials: hasExistingCredentials });
       }
     } catch (taskError) {
       const errMsg = taskError instanceof Error ? taskError.message : String(taskError);
@@ -496,39 +517,73 @@ const browserProvider: Provider = {
         errMsg.includes('session is closed') ||
         (errMsg.includes('task creation failed') && errMsg.includes('400'));
 
-      if (isDeadSession && !canFallbackToAgentMail) {
-        // Dead session, no AgentMail — just get a fresh session and retry login
+      if (isDeadSession && !canFallbackToAgentMail && !canRecoverWithLogin) {
+        // Dead session, no recovery options — just get a fresh session and retry
         logger.info('Session dead, creating fresh session');
         await closeOldSession();
-        const allowedDomains = state.domain ? [state.domain] : undefined;
         const freshSession = await createSession(state.apiKey, state.domain, allowedDomains, undefined, browserbaseContextId);
         state.sessionId = freshSession.id;
         result = await createAndPollTask(freshSession.id, taskPrompt, sensitiveData, 12);
-      } else if (canFallbackToAgentMail) {
-        // Turn 1 threw — Cloudflare, timeout, dead session, etc.
-        loginFailed = true;
+      } else if (canFallbackToAgentMail || canRecoverWithLogin) {
+        // Task threw — Cloudflare, timeout, dead session, etc.
+        authFailed = true;
         result = {} as Record<string, unknown>;
+        logger.info('Task threw — auth recovery will activate', { turn: context.turn, hasCredentials: hasExistingCredentials, error: errMsg.slice(0, 200) });
       } else {
         throw taskError;
       }
     }
 
-    // AgentMail fallback: turn 1 login failed, retry with fresh account signup
-    if (loginFailed && canFallbackToAgentMail) {
-      logger.info('Turn 1 login failed, falling back to AgentMail signup');
+    // Login recovery: auth failed mid-conversation, but agent has saved credentials — fresh session + login
+    if (authFailed && canRecoverWithLogin) {
+      logger.info('Mid-conversation auth gate — recovering with login', { turn: context.turn, email: String(state.agentConfig.email || '').slice(0, 20) });
       await closeOldSession();
       const allowedDomains = state.domain ? [state.domain] : undefined;
+      const freshSession = await createSession(state.apiKey, state.domain, allowedDomains, undefined, browserbaseContextId);
+      state.sessionId = freshSession.id;
+      // Build a turn-1 style prompt with login + the current message
+      const loginPrompt = buildTaskPrompt(
+        state.profile!, message, state.targetUrl, 1, state.agentConfig,
+      );
+      const loginSensitiveData = buildSensitiveData(state.domain, state.agentConfig);
+      result = await createAndPollTask(freshSession.id, loginPrompt, loginSensitiveData, 15);
+    }
+
+    // AgentMail fallback: auth failed, no existing credentials — fresh session + signup
+    if (authFailed && !canRecoverWithLogin && canFallbackToAgentMail) {
+      logger.info('Auth failed, falling back to AgentMail signup', { turn: context.turn });
+      await closeOldSession();
       const freshSession = await createSession(state.apiKey, state.domain, allowedDomains, config.agentmailApiKey, browserbaseContextId);
       state.sessionId = freshSession.id;
       state.inboxAddress = freshSession.inboxAddress || undefined;
 
       if (state.inboxAddress) {
-        logger.info('AgentMail fallback activated', { inbox: state.inboxAddress });
+        logger.info('AgentMail fallback activated', { inbox: state.inboxAddress, turn: context.turn });
+        // For mid-conversation fallback, re-navigate and send the same message
         const signupPrompt = buildTaskPrompt(
           state.profile!, message, state.targetUrl, 1, state.agentConfig, state.inboxAddress,
         );
         const signupSensitiveData = buildSensitiveData(state.domain, state.agentConfig, state.inboxAddress);
         result = await createAndPollTask(freshSession.id, signupPrompt, signupSensitiveData, 20);
+
+        // Persist credentials to agent config so future runs reuse this account
+        const agentId = String(state.agentConfig._agent_id || '');
+        const password = String(state.agentConfig.password || config.browserPassword || '');
+        if (agentId && result.isSuccess) {
+          try {
+            await sql`
+              UPDATE agents
+              SET config = config || ${sql.json({ email: state.inboxAddress, password })}::jsonb,
+                  updated_at = NOW()
+              WHERE id = ${agentId}
+            `;
+            // Also update in-memory config so subsequent turns use login instead of signup
+            state.agentConfig.email = state.inboxAddress;
+            logger.info('Saved AgentMail credentials to agent', { agentId, email: state.inboxAddress, domain: state.domain });
+          } catch (err) {
+            logger.warn('Failed to persist AgentMail credentials', { error: err });
+          }
+        }
       } else {
         throw new Error('AgentMail fallback failed — could not create inbox');
       }

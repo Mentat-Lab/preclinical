@@ -1,4 +1,4 @@
-.PHONY: setup up down restart chrome logs status clean nuke
+.PHONY: setup up down restart chrome chrome-local browseruse-local logs status clean nuke
 
 CHROME_INSTANCES ?= 5
 CHROME_BASE_PORT ?= 9222
@@ -51,12 +51,20 @@ chrome:
 					--remote-debugging-port=$$port --remote-debugging-address=0.0.0.0 --remote-allow-origins=* \
 					--user-data-dir="$$(pwd)/.chrome-cdp-profile-$$port" \
 					--no-first-run --no-default-browser-check \
+					--disable-background-timer-throttling \
+					--disable-renderer-backgrounding \
+					--disable-backgrounding-occluded-windows \
+					--disable-ipc-flooding-protection \
 					>/dev/null 2>&1 & \
 			else \
 				google-chrome \
 					--remote-debugging-port=$$port --remote-debugging-address=0.0.0.0 --remote-allow-origins=* \
 					--user-data-dir="$$(pwd)/.chrome-cdp-profile-$$port" \
 					--no-first-run --no-default-browser-check \
+					--disable-background-timer-throttling \
+					--disable-renderer-backgrounding \
+					--disable-backgrounding-occluded-windows \
+					--disable-ipc-flooding-protection \
 					>/dev/null 2>&1 & \
 			fi; \
 			launched=$$((launched + 1)); \
@@ -70,6 +78,14 @@ chrome:
 		fi; \
 	done; \
 	echo "✓ Chrome pool: $$ready/$(CHROME_INSTANCES) instances ready"
+
+## Run BrowserUse worker locally (outside Docker — stable CDP)
+browseruse-local:
+	@echo "Starting BrowserUse worker locally (no Docker)..."
+	@./scripts/run-browseruse-local.sh
+
+## Start Chrome pool + local BrowserUse (no Docker browseruse container needed)
+chrome-local: chrome browseruse-local
 
 ## Tail logs
 logs:

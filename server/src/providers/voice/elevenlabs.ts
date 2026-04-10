@@ -6,8 +6,8 @@
  * of voice agents. Connects via signed URL, exchanges messages in text mode.
  */
 
-import { registerProvider, type Provider, type ProviderSession } from './base.js';
-import { log } from '../lib/logger.js';
+import { registerProvider, type Provider, type ProviderSession } from '../base.js';
+import { log } from '../../lib/logger.js';
 
 const logger = log.child({ component: 'elevenlabs' });
 
