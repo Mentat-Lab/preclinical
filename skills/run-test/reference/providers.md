@@ -39,10 +39,6 @@ Web-based chat UIs tested via browser automation (BrowserUse).
 - Automates real chat interfaces (ChatGPT, Claude, Gemini, custom apps)
 - Runs ~1-2 min/turn with Chrome pool
 
-**Two backend modes:**
-- **Local CDP** (default): Chrome pool on host via `make chrome` (ports 9222-9226)
-- **Browserbase** (cloud Chrome): Set `BROWSERBASE_API_KEY` in `.env` — no local Chrome needed
-
 **Auth support:**
 - Sites like claude.ai and gemini.google.com require login — pass `email` and `password` in config
 - AgentMail integration: Set `AGENTMAIL_API_KEY` for automated email verification (Cloudflare, Clerk-based auth)

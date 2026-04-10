@@ -18,7 +18,7 @@
 
 import { registerProvider, type Provider, type ProviderSession } from '../base.js';
 import { config } from '../../lib/config.js';
-import { upsertBrowserProfileCredentials, upsertLoginActions, clearLoginActions } from '../../lib/db.js';
+import { upsertBrowserProfileCredentials, upsertCachedActions, clearCachedActions } from '../../lib/db.js';
 import { log } from '../../lib/logger.js';
 import type { BrowserState } from './types.js';
 import { EXTRACTION_SCHEMA } from './types.js';
@@ -81,12 +81,14 @@ const browserProvider: Provider = {
     const state = session.state as BrowserState;
     const headers = apiHeaders(state.apiKey);
 
-    // Load browser profile + domain credentials + cached login actions (cache after first load)
+    // Load browser profile + domain credentials + cached actions (cache after first load)
     let profileLoginActions: Array<Record<string, unknown>> | null = null;
+    let profileChatActions: Array<Record<string, unknown>> | null = null;
     if (!state.profile) {
       const loaded = await loadBrowserProfile(state.targetUrl, state.agentConfig);
       state.profile = loaded.profile;
       profileLoginActions = loaded.loginActions;
+      profileChatActions = loaded.chatActions;
       // Domain credentials from browser_profiles table (saved from previous AgentMail signups)
       if (loaded.credentials.email) {
         state.credentials = loaded.credentials as { email?: string; password?: string };
@@ -99,12 +101,11 @@ const browserProvider: Provider = {
       : undefined;
 
     // Create session on first turn — no AgentMail yet (try login/cookies first)
-    const browserbaseContextId = String(state.agentConfig.browserbase_context_id || '').trim() || undefined;
     if (context.turn === 1) {
-      const browserSession = await createSession(state.apiKey, state.domain, allowedDomains, undefined, browserbaseContextId);
+      const browserSession = await createSession(state.apiKey, state.domain, allowedDomains);
       state.sessionId = browserSession.id;
       state.liveUrl = browserSession.liveUrl;
-      logger.info('Session created', { sessionId: browserSession.id, domain: state.domain, browserbaseContext: !!browserbaseContextId });
+      logger.info('Session created', { sessionId: browserSession.id, domain: state.domain });
     }
 
     if (!state.sessionId) throw new Error('No browser session ID available');
@@ -115,12 +116,10 @@ const browserProvider: Provider = {
     const hasExistingCredentials = !!(credEmail && credPassword);
 
     // Check if AgentMail fallback is available for this profile
-    // Skip fallback when using a pre-authenticated Browserbase context
     // Skip if agent already has credentials (use login recovery instead)
     const canFallbackToAgentMail = !!(
       !state.inboxAddress &&
       !hasExistingCredentials &&
-      !browserbaseContextId &&
       config.agentmailApiKey &&
       state.profile.email_verification
     );
@@ -131,16 +130,37 @@ const browserProvider: Provider = {
       context.turn > 1
     );
 
-    // Check for cached login actions on turn 1 (skip LLM for login replay)
-    // Skip when using a pre-authenticated Browserbase context (already logged in)
-    let cachedLoginActions: Array<Record<string, unknown>> | null = null;
-    if (context.turn === 1 && !browserbaseContextId && profileLoginActions?.length) {
-      cachedLoginActions = profileLoginActions;
-      logger.info('Using cached login actions from DB', { domain: state.domain, actionCount: cachedLoginActions.length });
+    // Check for cached actions (setup + chat) — skip LLM for everything except extraction
+    const hasCache = profileLoginActions?.length && profileChatActions?.length;
+    let cachedSetupActions: Array<Record<string, unknown>> | null = hasCache ? profileLoginActions : null;
+    let cachedChatActions: Array<Record<string, unknown>> | null = hasCache ? profileChatActions : null;
+
+    if (hasCache) {
+      logger.info('Using cached actions from DB', {
+        domain: state.domain,
+        setupActions: cachedSetupActions!.length,
+        chatActions: cachedChatActions!.length,
+        turn: context.turn,
+      });
     }
 
-    const taskPrompt = cachedLoginActions
-      ? `The browser is already logged in and on the site. Send this message in the chat: "${message}". Then wait for and extract the chatbot's complete response.`
+    // Build initial_actions: setup (turn 1 only) + chat with message substituted (every turn)
+    let replayActions: Array<Record<string, unknown>> | undefined;
+    if (cachedChatActions) {
+      const chatWithMessage = cachedChatActions.map(a => {
+        const action = a as Record<string, any>;
+        if (action.input_text && action.input_text.text === '@@MESSAGE@@') {
+          return { input_text: { ...action.input_text, text: message } };
+        }
+        return a;
+      });
+      replayActions = context.turn === 1
+        ? [...(cachedSetupActions || []), ...chatWithMessage]
+        : chatWithMessage;
+    }
+
+    const taskPrompt = replayActions
+      ? 'Wait for the chatbot to finish responding, then extract the complete response text.'
       : buildTaskPrompt(state.profile, message, state.targetUrl, context.turn, state.agentConfig, state.inboxAddress, state.credentials);
     const systemExt = buildSystemMessageExtension(state.profile, context.persona || null);
     const sensitiveData = buildSensitiveData(state.domain, state.agentConfig, state.inboxAddress, state.credentials);
@@ -191,29 +211,30 @@ const browserProvider: Provider = {
       }
     }
 
-    // Attempt the task — login first, AgentMail signup as fallback
+    // Attempt the task — replay if cached, full LLM otherwise
     let result: Record<string, unknown>;
     let authFailed = false;
-    const turn1Steps = cachedLoginActions ? 6 : 12; // fewer LLM steps when login is replayed
+    const maxSteps = replayActions ? 3 : (context.turn === 1 ? 12 : 8);
     try {
       result = await createAndPollTask(
-        state.sessionId, taskPrompt, sensitiveData,
-        context.turn === 1 ? turn1Steps : 8,
-        context.turn === 1 ? {
-          initialActions: cachedLoginActions || undefined,
-          saveHistory: !cachedLoginActions, // record history only on first (non-replay) run
-          flashMode: !!cachedLoginActions,  // flash mode when replaying (only message-sending needs LLM)
-        } : undefined,
+        state.sessionId, taskPrompt, sensitiveData, maxSteps,
+        {
+          initialActions: replayActions,
+          saveHistory: !replayActions && context.turn === 1, // record on first-ever LLM run
+          flashMode: !!replayActions,
+        },
       );
 
-      // Replay failure: cached login actions didn't work (site changed, stale DOM, etc.)
-      // Invalidate cache and retry with full LLM-driven login
-      if (!result.isSuccess && cachedLoginActions && context.turn === 1) {
-        logger.info('Login replay failed — invalidating cache and retrying with LLM', { domain: state.domain });
-        await clearLoginActions(state.domain).catch(() => {});
-        cachedLoginActions = null;
+      // Replay failure: cached actions didn't work (site changed, stale DOM, etc.)
+      // Invalidate cache and retry with full LLM-driven flow
+      if (!result.isSuccess && replayActions) {
+        logger.info('Action replay failed — invalidating cache and retrying with LLM', { domain: state.domain, turn: context.turn });
+        await clearCachedActions(state.domain).catch(() => {});
+        cachedSetupActions = null;
+        cachedChatActions = null;
+        replayActions = undefined;
         await closeOldSession();
-        const freshSession = await createSession(state.apiKey, state.domain, allowedDomains, undefined, browserbaseContextId);
+        const freshSession = await createSession(state.apiKey, state.domain, allowedDomains);
         state.sessionId = freshSession.id;
         const fullPrompt = buildTaskPrompt(state.profile!, message, state.targetUrl, 1, state.agentConfig, state.inboxAddress, state.credentials);
         result = await createAndPollTask(freshSession.id, fullPrompt, sensitiveData, 12, { saveHistory: true });
@@ -236,7 +257,7 @@ const browserProvider: Provider = {
         // Dead session, no recovery options — just get a fresh session and retry
         logger.info('Session dead, creating fresh session');
         await closeOldSession();
-        const freshSession = await createSession(state.apiKey, state.domain, allowedDomains, undefined, browserbaseContextId);
+        const freshSession = await createSession(state.apiKey, state.domain, allowedDomains);
         state.sessionId = freshSession.id;
         result = await createAndPollTask(freshSession.id, taskPrompt, sensitiveData, 12);
       } else if (canFallbackToAgentMail || canRecoverWithLogin) {
@@ -254,7 +275,7 @@ const browserProvider: Provider = {
       logger.info('Mid-conversation auth gate — recovering with login', { turn: context.turn, email: String(state.agentConfig.email || '').slice(0, 20) });
       await closeOldSession();
       const allowedDomains = state.domain ? [state.domain] : undefined;
-      const freshSession = await createSession(state.apiKey, state.domain, allowedDomains, undefined, browserbaseContextId);
+      const freshSession = await createSession(state.apiKey, state.domain, allowedDomains);
       state.sessionId = freshSession.id;
       // Build a turn-1 style prompt with login + the current message
       const loginPrompt = buildTaskPrompt(
@@ -268,7 +289,7 @@ const browserProvider: Provider = {
     if (authFailed && !canRecoverWithLogin && canFallbackToAgentMail) {
       logger.info('Auth failed, falling back to AgentMail signup', { turn: context.turn });
       await closeOldSession();
-      const freshSession = await createSession(state.apiKey, state.domain, allowedDomains, config.agentmailApiKey, browserbaseContextId);
+      const freshSession = await createSession(state.apiKey, state.domain, allowedDomains, config.agentmailApiKey);
       state.sessionId = freshSession.id;
       state.inboxAddress = freshSession.inboxAddress || undefined;
 
@@ -306,17 +327,24 @@ const browserProvider: Provider = {
       throw new Error(`BrowserUse task failed: status=${result.status}, output=${output}`);
     }
 
-    // Extract login actions from first successful non-replay run and persist to DB
-    if (context.turn === 1 && !cachedLoginActions && result.action_history_path) {
+    // Extract setup + chat actions from first successful non-replay run and persist to DB
+    if (context.turn === 1 && !cachedSetupActions && result.action_history_path) {
       extractLoginActions(state.apiKey, state.domain, String(result.action_history_path), message)
-        .then(async (actions) => {
-          if (actions?.length) {
-            await upsertLoginActions(state.domain, actions);
-            logger.info('Cached login actions to DB', { domain: state.domain, actionCount: actions.length });
+        .then(async (data) => {
+          // The extract endpoint now returns { setup_actions, chat_actions }
+          const setupActions = (data as any)?.setup_actions;
+          const chatActions = (data as any)?.chat_actions;
+          if (setupActions?.length || chatActions?.length) {
+            await upsertCachedActions(state.domain, setupActions || [], chatActions || []);
+            logger.info('Cached actions to DB', {
+              domain: state.domain,
+              setupActions: setupActions?.length || 0,
+              chatActions: chatActions?.length || 0,
+            });
           }
         })
         .catch(err => {
-          logger.warn('Failed to extract/cache login actions', { domain: state.domain, error: err });
+          logger.warn('Failed to extract/cache actions', { domain: state.domain, error: err });
         });
     }
 

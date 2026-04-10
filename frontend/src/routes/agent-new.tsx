@@ -17,7 +17,7 @@ import { Check, Info } from 'lucide-react';
 import { ProviderIcon } from '@/components/ProviderIcon';
 import { cn } from '@/lib/utils';
 import { ProviderConfigFields, inputCls } from '@/components/agents/ProviderConfigFields';
-import { BrowserbaseContextField, LocalChromeAuthField } from '@/components/agents/BrowserAuthSetup';
+import { LocalChromeAuthField } from '@/components/agents/BrowserAuthSetup';
 
 const providerCards: AgentProvider[] = ['vapi', 'livekit', 'pipecat', 'openai', 'browser', 'elevenlabs'];
 
@@ -237,29 +237,11 @@ export default function NewAgentPage() {
                 onTogglePassword={(key) =>
                   setShowPasswordFields((prev) => ({ ...prev, [key]: !prev[key] }))
                 }
-                renderFieldOverride={(field) => {
-                  if (field.key === 'browserbase_context_id') {
-                    return (
-                      <div key={field.key} className="space-y-2">
-                        <label className="block text-sm font-medium text-text-primary">
-                          {field.label}
-                        </label>
-                        <BrowserbaseContextField
-                          config={config}
-                          onConfigChange={(key, value) => setConfig((prev) => ({ ...prev, [key]: value }))}
-                          validateUrl={validateBrowserUrl}
-                          mode="standalone"
-                        />
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
               />
             )}
 
             {/* Local Chrome auth setup section */}
-            {provider === 'browser' && config.browser_backend === 'local' && (
+            {provider === 'browser' && (
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-text-primary">
                   Local Chrome Auth

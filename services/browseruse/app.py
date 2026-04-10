@@ -47,13 +47,6 @@ try:
 except ImportError:
     AGENTMAIL_AVAILABLE = False
 
-# Browserbase — optional, cloud Chrome instances via CDP
-try:
-    from browserbase import Browserbase
-    BROWSERBASE_AVAILABLE = True
-except ImportError:
-    BROWSERBASE_AVAILABLE = False
-
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
@@ -63,11 +56,6 @@ LLM_BASE_URL = os.getenv("LLM_BASE_URL", None)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 _CDP_URL_RAW = os.getenv("CDP_URL", None)  # e.g. http://host.docker.internal:9222
 MAX_CHROME_INSTANCES = int(os.getenv("MAX_CHROME_INSTANCES", "5"))
-
-# Browserbase — cloud Chrome (feature flag: set BROWSERBASE_API_KEY to enable)
-BROWSERBASE_API_KEY = os.getenv("BROWSERBASE_API_KEY", "")
-BROWSERBASE_PROJECT_ID = os.getenv("BROWSERBASE_PROJECT_ID", "")
-USE_BROWSERBASE = bool(BROWSERBASE_API_KEY) and BROWSERBASE_AVAILABLE
 
 BROWSER_DATA_DIR = os.getenv("BROWSER_DATA_DIR", "/data/browser-profiles")
 STORAGE_STATE_DIR = os.getenv("STORAGE_STATE_DIR", "/data/storage-states")
@@ -178,141 +166,15 @@ class ChromePool:
 
 
 # ---------------------------------------------------------------------------
-# Browserbase Backend — cloud Chrome instances via CDP
-# ---------------------------------------------------------------------------
-
-@dataclass
-class BrowserbaseSlot:
-    """Represents a Browserbase cloud browser session."""
-    bb_session_id: str
-    connect_url: str  # CDP WebSocket URL
-    context_id: str | None = None
-    session_id: str | None = None  # our internal session_id
-
-
-BROWSERBASE_CONTEXTS_PATH = os.path.join(STORAGE_STATE_DIR, "browserbase-contexts.json")
-
-
-class BrowserbaseBackend:
-    """Cloud browser backend via Browserbase API.
-
-    Persists domain → {context_id, email} to a JSON file so logins
-    survive container restarts. First run uses AgentMail to sign up;
-    subsequent runs reuse the saved Browserbase Context (already authenticated).
-    """
-
-    def __init__(self, api_key: str, project_id: str):
-        self.client = Browserbase(api_key=api_key)
-        self.project_id = project_id
-        self._contexts: dict[str, dict[str, str]] = {}  # domain -> {context_id, email}
-        self._lock = asyncio.Lock()
-        self._load()
-
-    def _load(self):
-        """Load persisted contexts from disk."""
-        if os.path.exists(BROWSERBASE_CONTEXTS_PATH):
-            try:
-                with open(BROWSERBASE_CONTEXTS_PATH, "r") as f:
-                    self._contexts = json.load(f)
-                print(f"[browserbase] Loaded {len(self._contexts)} saved context(s)")
-            except Exception as e:
-                print(f"[browserbase] Failed to load contexts: {e}")
-
-    def _save(self):
-        """Persist contexts to disk."""
-        try:
-            with open(BROWSERBASE_CONTEXTS_PATH, "w") as f:
-                json.dump(self._contexts, f, indent=2)
-        except Exception as e:
-            print(f"[browserbase] Failed to save contexts: {e}")
-
-    def has_context(self, domain: str) -> bool:
-        """Check if a domain already has a saved context (i.e. already signed up)."""
-        return domain in self._contexts
-
-    def get_email(self, domain: str) -> str:
-        """Get the saved email for a domain, if any."""
-        return self._contexts.get(domain, {}).get("email", "")
-
-    async def acquire(self, session_id: str, domain: str | None = None, context_id: str | None = None) -> BrowserbaseSlot:
-        """Create a Browserbase session and return the CDP connect URL.
-
-        If context_id is provided explicitly (from agent config), use it directly
-        with persist=False (read-only — safe for parallel test runs).
-        Auto-created contexts use persist=True (need to save login cookies).
-        """
-        explicit_context = bool(context_id)
-        if not context_id and domain:
-            context_id = await self._get_or_create_context(domain)
-
-        create_kwargs: dict[str, Any] = {}
-        if self.project_id:
-            create_kwargs["project_id"] = self.project_id
-        if context_id:
-            # Pre-authenticated contexts: persist=False (read-only, safe for parallel runs)
-            # Auto-created contexts: persist=True (need to save login state)
-            create_kwargs["browser_settings"] = {
-                "context": {"id": context_id, "persist": not explicit_context}
-            }
-
-        bb_session = self.client.sessions.create(**create_kwargs)
-        slot = BrowserbaseSlot(
-            bb_session_id=bb_session.id,
-            connect_url=bb_session.connect_url,
-            context_id=context_id,
-            session_id=session_id,
-        )
-        print(f"[browserbase] Created session {bb_session.id} for {session_id[:8]}")
-        return slot
-
-    async def release(self, slot: BrowserbaseSlot):
-        """Release a Browserbase session (stops billing)."""
-        try:
-            self.client.sessions.update(
-                slot.bb_session_id,
-                status="REQUEST_RELEASE",
-            )
-            print(f"[browserbase] Released session {slot.bb_session_id}")
-        except Exception as e:
-            print(f"[browserbase] Failed to release session {slot.bb_session_id}: {e}")
-
-    async def save_context_email(self, domain: str, email: str):
-        """Save the email used for signup so we know this domain is authenticated."""
-        async with self._lock:
-            if domain in self._contexts:
-                self._contexts[domain]["email"] = email
-                self._save()
-                print(f"[browserbase] Saved email {email} for {domain}")
-
-    async def _get_or_create_context(self, domain: str) -> str:
-        """Get or create a Browserbase Context for persistent auth per domain."""
-        async with self._lock:
-            if domain in self._contexts:
-                ctx_id = self._contexts[domain]["context_id"]
-                print(f"[browserbase] Reusing context {ctx_id} for {domain}")
-                return ctx_id
-            create_kwargs: dict[str, Any] = {}
-            if self.project_id:
-                create_kwargs["project_id"] = self.project_id
-            ctx = self.client.contexts.create(**create_kwargs)
-            self._contexts[domain] = {"context_id": ctx.id, "email": ""}
-            self._save()
-            print(f"[browserbase] Created context {ctx.id} for {domain}")
-            return ctx.id
-
-
-# ---------------------------------------------------------------------------
 # State
 # ---------------------------------------------------------------------------
 
 sessions: dict[str, BrowserSession] = {}
 tasks: dict[str, dict[str, Any]] = {}
 session_slots: dict[str, ChromeSlot] = {}  # session_id → pool slot
-session_bb_slots: dict[str, BrowserbaseSlot] = {}  # session_id → Browserbase slot
 session_email_tools: dict[str, "EmailTools"] = {}  # session_id → EmailTools (AgentMail)
 session_domains: dict[str, str] = {}  # session_id → domain
 chrome_pool: ChromePool | None = None
-browserbase_backend: BrowserbaseBackend | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -321,14 +183,9 @@ browserbase_backend: BrowserbaseBackend | None = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global chrome_pool, browserbase_backend
+    global chrome_pool
 
-    if USE_BROWSERBASE:
-        # Browserbase mode — cloud Chrome, no local Chrome needed
-        browserbase_backend = BrowserbaseBackend(BROWSERBASE_API_KEY, BROWSERBASE_PROJECT_ID)
-        print("[browserbase] Browserbase backend enabled — cloud Chrome sessions")
-    elif _CDP_URL_RAW:
-        # Local Chrome pool mode (existing behavior)
+    if _CDP_URL_RAW:
         pool = ChromePool(_CDP_URL_RAW, max_instances=MAX_CHROME_INSTANCES)
         # Retry discovery a few times — Chrome may still be starting
         for attempt in range(3):
@@ -346,19 +203,10 @@ async def lifespan(app: FastAPI):
                     print("[pool] ⚠ No Chrome available — browser tests will fail.")
                     print("[pool] Run 'make chrome' on the host to start Chrome instances.")
     else:
-        print("[pool] ⚠ CDP_URL not set and BROWSERBASE_API_KEY not set — browser tests will fail.")
-        print("[pool] Set CDP_URL + run 'make chrome', or set BROWSERBASE_API_KEY for cloud Chrome.")
+        print("[pool] ⚠ CDP_URL not set — browser tests will fail.")
+        print("[pool] Set CDP_URL + run 'make chrome' to start Chrome instances.")
 
     yield
-
-    # Cleanup Browserbase sessions
-    if browserbase_backend:
-        for sid, bb_slot in list(session_bb_slots.items()):
-            try:
-                await browserbase_backend.release(bb_slot)
-            except Exception:
-                pass
-        session_bb_slots.clear()
 
     for sid, session in list(sessions.items()):
         try:
@@ -370,7 +218,6 @@ async def lifespan(app: FastAPI):
     session_email_tools.clear()
     session_domains.clear()
     chrome_pool = None
-    browserbase_backend = None
 
 
 app = FastAPI(title="BrowserUse Local", lifespan=lifespan)
@@ -384,7 +231,6 @@ class CreateSessionRequest(BaseModel):
     domain: str | None = None
     allowed_domains: list[str] | None = None
     agentmail_api_key: str | None = None  # creates a disposable inbox for signup flows
-    browserbase_context_id: str | None = None  # pre-authenticated Browserbase context (skips login)
 
 
 class CreateTaskRequest(BaseModel):
@@ -468,9 +314,8 @@ async def create_browser_session(
     session_id: str,
     domain: str | None = None,
     allowed_domains: list[str] | None = None,
-    browserbase_context_id: str | None = None,
 ) -> BrowserSession:
-    """Create a BrowserSession — Browserbase cloud or local Chrome pool."""
+    """Create a BrowserSession using the local Chrome pool."""
     profile_kwargs: dict[str, Any] = {
         "keep_alive": True,
         "highlight_elements": False,
@@ -479,26 +324,19 @@ async def create_browser_session(
     if allowed_domains:
         profile_kwargs["allowed_domains"] = allowed_domains
 
-    if browserbase_backend:
-        # Browserbase mode — cloud Chrome via CDP
-        bb_slot = await browserbase_backend.acquire(session_id, domain, browserbase_context_id)
-        session_bb_slots[session_id] = bb_slot
-        profile_kwargs["cdp_url"] = bb_slot.connect_url
-    else:
-        # Local Chrome pool mode
-        restored_state = load_storage_state(domain) if domain else None
-        if restored_state:
-            profile_kwargs["storage_state"] = restored_state
+    restored_state = load_storage_state(domain) if domain else None
+    if restored_state:
+        profile_kwargs["storage_state"] = restored_state
 
-        if not chrome_pool:
-            raise HTTPException(
-                status_code=503,
-                detail="No Chrome instances available. Run 'make chrome' on the host first.",
-            )
+    if not chrome_pool:
+        raise HTTPException(
+            status_code=503,
+            detail="No Chrome instances available. Run 'make chrome' on the host first.",
+        )
 
-        slot = await chrome_pool.acquire(session_id)
-        session_slots[session_id] = slot
-        profile_kwargs["cdp_url"] = slot.ws_url
+    slot = await chrome_pool.acquire(session_id)
+    session_slots[session_id] = slot
+    profile_kwargs["cdp_url"] = slot.ws_url
 
     profile = BrowserProfile(**profile_kwargs)
     return BrowserSession(browser_profile=profile)
@@ -513,26 +351,15 @@ async def create_session(body: CreateSessionRequest | None = None):
     session_id = str(uuid.uuid4())
     domain = body.domain if body else None
     allowed_domains = body.allowed_domains if body else None
-    bb_context_id = body.browserbase_context_id if body else None
-    browser_session = await create_browser_session(session_id, domain, allowed_domains, bb_context_id)
+    browser_session = await create_browser_session(session_id, domain, allowed_domains)
     sessions[session_id] = browser_session
     if domain:
         session_domains[session_id] = domain
 
-    # Skip AgentMail when using a pre-authenticated Browserbase context
-    already_authenticated = bool(bb_context_id) or (
-        browserbase_backend
-        and domain
-        and browserbase_backend.has_context(domain)
-        and browserbase_backend.get_email(domain)
-    )
-
     # Create AgentMail inbox for this session (optional — for signup/email-verification flows)
     inbox_address = ""
     agentmail_key = body.agentmail_api_key if body else None
-    if already_authenticated:
-        print(f"[browserbase] Domain {domain} already authenticated — skipping AgentMail signup")
-    elif agentmail_key and AGENTMAIL_AVAILABLE:
+    if agentmail_key and AGENTMAIL_AVAILABLE:
         try:
             client = AsyncAgentMail(api_key=agentmail_key)
             inbox = await client.inboxes.create()
@@ -540,9 +367,6 @@ async def create_session(body: CreateSessionRequest | None = None):
             session_email_tools[session_id] = tools
             inbox_address = inbox.inbox_id
             print(f"[agentmail] Created inbox {inbox_address} for session {session_id[:8]}")
-            # Save the email to the Browserbase context so future runs skip signup
-            if browserbase_backend and domain:
-                await browserbase_backend.save_context_email(domain, inbox_address)
         except Exception as e:
             print(f"[agentmail] Failed to create inbox: {e}")
     elif agentmail_key and not AGENTMAIL_AVAILABLE:
@@ -708,8 +532,7 @@ async def _run_agent(task_id: str, browser_session: BrowserSession, body: Create
         }
     finally:
         # Always save cookies — even if the task failed, login may have succeeded.
-        # Skip when using Browserbase (Contexts handle persistence cloud-side).
-        if domain and not browserbase_backend:
+        if domain:
             await _save_storage_state(browser_session, domain)
 
 
@@ -727,13 +550,23 @@ async def _save_storage_state(browser_session: BrowserSession, domain: str):
 # Action History — record-once / replay-forever login flows
 # ---------------------------------------------------------------------------
 
-def _extract_login_actions(history_path: str, message_text: str) -> list[dict]:
-    """Extract login/setup actions from a full history, stopping before message sending."""
+MESSAGE_PLACEHOLDER = "@@MESSAGE@@"
+
+
+def _extract_action_sets(history_path: str, message_text: str) -> dict:
+    """Extract setup_actions and chat_actions from a full history.
+
+    setup_actions: everything before the first input_text matching the message (navigate, login, popups)
+    chat_actions: the input_text + send + wait actions for the chat interaction pattern,
+                  with the message text replaced by @@MESSAGE@@ placeholder
+    """
     with open(history_path) as f:
         data = json.load(f)
 
-    login_actions: list[dict] = []
+    setup_actions: list[dict] = []
+    chat_actions: list[dict] = []
     history_items = data.get("history", [])
+    found_message = False
 
     for item in history_items:
         model_output = item.get("model_output")
@@ -743,30 +576,40 @@ def _extract_login_actions(history_path: str, message_text: str) -> list[dict]:
         if not isinstance(actions, list):
             actions = [actions]
 
-        # Check if any action in this step is sending the user's message or finishing
-        is_message_step = False
         for action in actions:
             if not isinstance(action, dict):
                 continue
-            if "input_text" in action:
-                text = action["input_text"].get("text", "")
-                # Match if the message text appears in the input (first 50 chars to handle truncation)
-                if message_text and message_text[:50] in text:
-                    is_message_step = True
-                    break
+
+            # Skip done/extract actions — the LLM will handle extraction
             if "done" in action:
-                is_message_step = True
-                break
+                continue
 
-        if is_message_step:
-            break
+            if not found_message:
+                # Check if this is the message input
+                if "input_text" in action:
+                    text = action["input_text"].get("text", "")
+                    if message_text and message_text[:50] in text:
+                        # This is the chat input — start collecting chat_actions
+                        found_message = True
+                        # Replace message with placeholder
+                        chat_action = dict(action)
+                        chat_action["input_text"] = {
+                            **action["input_text"],
+                            "text": MESSAGE_PLACEHOLDER,
+                        }
+                        chat_actions.append(chat_action)
+                        continue
+                # Still in setup phase
+                setup_actions.append(action)
+            else:
+                # After the message input — collect remaining chat actions (send, wait)
+                # Stop at done/extract (already filtered above)
+                chat_actions.append(action)
 
-        # Collect actions from this step
-        for action in actions:
-            if isinstance(action, dict):
-                login_actions.append(action)
-
-    return login_actions
+    return {
+        "setup_actions": setup_actions,
+        "chat_actions": chat_actions,
+    }
 
 
 class ExtractLoginRequest(BaseModel):
@@ -776,27 +619,35 @@ class ExtractLoginRequest(BaseModel):
 
 
 @app.post("/api/v2/action-histories/extract")
-async def extract_login_actions(body: ExtractLoginRequest):
-    """Extract login actions from a full history and cache them for a domain."""
+async def extract_action_sets(body: ExtractLoginRequest):
+    """Extract setup + chat actions from a full history and cache them for a domain."""
     if not os.path.exists(body.history_path):
         return JSONResponse(status_code=404, content={"error": "History file not found"})
 
-    actions = _extract_login_actions(body.history_path, body.message_text)
-    if not actions:
-        return JSONResponse(status_code=422, content={"error": "No login actions found in history"})
+    result = _extract_action_sets(body.history_path, body.message_text)
+    setup_actions = result["setup_actions"]
+    chat_actions = result["chat_actions"]
+
+    if not setup_actions and not chat_actions:
+        return JSONResponse(status_code=422, content={"error": "No actions found in history"})
 
     cache_path = os.path.join(ACTION_HISTORY_DIR, f"{body.domain}.json")
     cache_data = {
         "domain": body.domain,
         "recorded_at": datetime.now(timezone.utc).isoformat(),
         "source_history": body.history_path,
-        "login_actions": actions,
+        "setup_actions": setup_actions,
+        "chat_actions": chat_actions,
     }
     with open(cache_path, "w") as f:
         json.dump(cache_data, f, indent=2)
 
-    print(f"[action-history] Extracted {len(actions)} login actions for {body.domain} → {cache_path}")
-    return {"domain": body.domain, "action_count": len(actions), "login_actions": actions, "path": cache_path}
+    print(f"[action-history] Extracted {len(setup_actions)} setup + {len(chat_actions)} chat actions for {body.domain}")
+    return {
+        "domain": body.domain,
+        "setup_actions": setup_actions,
+        "chat_actions": chat_actions,
+    }
 
 
 @app.get("/api/v2/action-histories/{domain}")
@@ -826,21 +677,17 @@ async def delete_login_actions(domain: str):
 async def patch_session(session_id: str, body: PatchSessionRequest):
     if body.action == "stop" and session_id in sessions:
         browser_session = sessions.pop(session_id)
-        # Export cookies for local Chrome sessions (not Browserbase — contexts handle that)
+        # Export cookies before closing
         domain = session_domains.pop(session_id, "")
-        if domain and session_id not in session_bb_slots:
+        if domain:
             await _save_storage_state(browser_session, domain)
         try:
             # Force close to clean up tabs in CDP mode
             await browser_session.close(force=True)
         except Exception:
             pass
-        # Release Browserbase session or Chrome pool slot
-        if session_id in session_bb_slots:
-            bb_slot = session_bb_slots.pop(session_id)
-            if browserbase_backend:
-                await browserbase_backend.release(bb_slot)
-        elif session_id in session_slots:
+        # Release Chrome pool slot
+        if session_id in session_slots:
             await chrome_pool.release(session_id)
             del session_slots[session_id]
         # Clean up AgentMail tools
@@ -1287,95 +1134,15 @@ async def discover_site(body: DiscoverRequest):
                 await browser_session.close(force=True)
             except Exception:
                 pass
-            if session_id in session_bb_slots:
-                bb_slot = session_bb_slots.pop(session_id)
-                if browserbase_backend:
-                    await browserbase_backend.release(bb_slot)
-            elif session_id in session_slots and chrome_pool:
+            if session_id in session_slots and chrome_pool:
                 await chrome_pool.release(session_id)
                 del session_slots[session_id]
-
-
-# ---------------------------------------------------------------------------
-# Context Setup — create a Browserbase context + session for manual login
-# ---------------------------------------------------------------------------
-
-class SetupContextRequest(BaseModel):
-    domain: str | None = None
-
-
-@app.post("/api/v2/setup-context")
-async def setup_context(body: SetupContextRequest | None = None):
-    """Create a Browserbase context and session for manual login via live view.
-
-    Returns the context_id and Browserbase session URL so the user can
-    log in manually. Call /api/v2/setup-context/{session_id}/complete
-    when done to close the session and persist cookies.
-    """
-    if not browserbase_backend:
-        raise HTTPException(
-            status_code=400,
-            detail="Browserbase not configured. Set BROWSERBASE_API_KEY in .env",
-        )
-
-    domain = body.domain if body else None
-
-    # Create a fresh context (don't reuse existing ones)
-    create_kwargs: dict[str, Any] = {}
-    if browserbase_backend.project_id:
-        create_kwargs["project_id"] = browserbase_backend.project_id
-    ctx = browserbase_backend.client.contexts.create(**create_kwargs)
-    context_id = ctx.id
-    print(f"[setup-context] Created context {context_id} for domain {domain or 'unknown'}")
-
-    # Create a session with this context (persist=True so cookies are saved)
-    session_kwargs: dict[str, Any] = {
-        "browser_settings": {
-            "context": {"id": context_id, "persist": True}
-        }
-    }
-    if browserbase_backend.project_id:
-        session_kwargs["project_id"] = browserbase_backend.project_id
-
-    bb_session = browserbase_backend.client.sessions.create(**session_kwargs)
-    print(f"[setup-context] Created session {bb_session.id} with context {context_id}")
-
-    return {
-        "context_id": context_id,
-        "session_id": bb_session.id,
-        "live_url": f"https://www.browserbase.com/sessions/{bb_session.id}",
-        "connect_url": bb_session.connect_url,
-    }
-
-
-@app.post("/api/v2/setup-context/{session_id}/complete")
-async def complete_context_setup(session_id: str):
-    """Close the setup session so cookies persist to the context."""
-    if not browserbase_backend:
-        raise HTTPException(status_code=400, detail="Browserbase not configured")
-
-    try:
-        browserbase_backend.client.sessions.update(
-            session_id,
-            status="REQUEST_RELEASE",
-        )
-        print(f"[setup-context] Released session {session_id}")
-    except Exception as e:
-        print(f"[setup-context] Failed to release session {session_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to close session: {e}")
-
-    return {"status": "completed"}
 
 
 @app.get("/health")
 async def health():
     pool_info = {}
-    if browserbase_backend:
-        pool_info = {
-            "backend": "browserbase",
-            "active_sessions": len(session_bb_slots),
-        }
-    elif chrome_pool:
+    if chrome_pool:
         pool_info = {
             "backend": "chrome_pool",
             "pool_size": chrome_pool.size,
@@ -1383,7 +1150,7 @@ async def health():
         }
     return {
         "status": "ok",
-        "cdp_mode": bool(chrome_pool) or bool(browserbase_backend),
+        "cdp_mode": bool(chrome_pool),
         "version": "v2",
         **pool_info,
     }

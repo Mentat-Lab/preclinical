@@ -65,11 +65,6 @@ export const PROVIDER_FIELDS: Record<AgentProvider, ProviderField[]> = {
   ],
   browser: [
     { key: 'url', label: 'Target URL', type: 'text', placeholder: 'https://example.com/chat', required: true },
-    { key: 'browser_backend', label: 'Browser Backend', type: 'select', options: [
-      { label: 'Browserbase (Cloud)', value: 'browserbase' },
-      { label: 'Local Chrome', value: 'local' },
-    ] },
-    { key: 'browserbase_context_id', label: 'Browserbase Context ID', type: 'text', placeholder: 'Context ID', showWhen: { key: 'browser_backend', value: 'browserbase' } },
     { key: 'instructions', label: 'Additional Instructions', type: 'text', placeholder: 'Optional — e.g. "Click the Patient Chat tab first"' },
   ],
   elevenlabs: [
@@ -84,7 +79,6 @@ export const PROVIDER_DEFAULTS: Partial<Record<AgentProvider, Record<string, str
   openai: { target_model: 'gpt-4o', base_url: 'https://api.openai.com/v1' },
   vapi: { api_base: 'https://api.vapi.ai' },
   elevenlabs: { api_base: 'https://api.elevenlabs.io' },
-  browser: { browser_backend: 'browserbase' },
 };
 
 export const PROVIDER_READINESS: Record<AgentProvider, ProviderReadiness> = {

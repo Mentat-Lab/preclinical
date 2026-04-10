@@ -60,7 +60,6 @@ export function buildTaskPrompt(
   const email = String(profileCredentials?.email || agentConfig.email || config.browserEmail || '');
   const password = String(profileCredentials?.password || agentConfig.password || config.browserPassword || '');
   const hasCredentials = !!(email && password);
-  const hasBrowserbaseContext = !!String(agentConfig.browserbase_context_id || '').trim();
   const extraInstructions = String(agentConfig.instructions || '').trim();
   const extraStep = extraInstructions ? ` ${extraInstructions}` : '';
 
@@ -68,9 +67,7 @@ export function buildTaskPrompt(
   const useAgentMailSignup = !!(inboxAddress && profile.email_verification);
 
   let authStep = '';
-  if (turn === 1 && hasBrowserbaseContext) {
-    // Pre-authenticated context — skip login entirely, cookies already present
-  } else if (turn === 1 && useAgentMailSignup) {
+  if (turn === 1 && useAgentMailSignup) {
     // Signup flow with AgentMail: use get_email_address + get_latest_email tools
     if (profile.browser_signup_instructions) {
       authStep = profile.browser_signup_instructions

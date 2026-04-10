@@ -24,14 +24,12 @@ export async function createSession(
   domain: string,
   allowedDomains?: string[],
   agentmailApiKey?: string,
-  browserbaseContextId?: string,
 ): Promise<{ id: string; liveUrl: string; inboxAddress: string }> {
   const body: Record<string, unknown> = {
     domain,
     allowed_domains: allowedDomains,
   };
   if (agentmailApiKey) body.agentmail_api_key = agentmailApiKey;
-  if (browserbaseContextId) body.browserbase_context_id = browserbaseContextId;
 
   const response = await fetch(`${BROWSER_USE_API_BASE}/sessions`, {
     method: 'POST',
@@ -80,7 +78,7 @@ export async function extractLoginActions(
   domain: string,
   historyPath: string,
   messageText: string,
-): Promise<Array<Record<string, unknown>> | null> {
+): Promise<{ setup_actions?: unknown[]; chat_actions?: unknown[] } | null> {
   try {
     const response = await fetch(`${BROWSER_USE_API_BASE}/action-histories/extract`, {
       method: 'POST',
@@ -88,11 +86,9 @@ export async function extractLoginActions(
       body: JSON.stringify({ domain, history_path: historyPath, message_text: messageText }),
     });
     if (!response.ok) return null;
-    const data = await response.json() as any;
-    // The Python worker also saves to filesystem, but we persist to DB in the TS layer
-    return data.login_actions || null;
+    return await response.json() as any;
   } catch (err) {
-    logger.warn('Failed to extract login actions', { domain, error: err });
+    logger.warn('Failed to extract actions', { domain, error: err });
     return null;
   }
 }

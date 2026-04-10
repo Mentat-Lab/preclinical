@@ -182,14 +182,6 @@ class Preclinical:
             body["validate"] = False
         return self._post(f"/api/v1/agents/{agent_id}/discover", body, timeout=120)
 
-    def setup_agent_context(self, agent_id: str) -> dict[str, Any]:
-        """Create Browserbase context for a browser agent."""
-        return self._post(f"/api/v1/agents/{agent_id}/setup-context")
-
-    def complete_agent_context(self, agent_id: str, session_id: str) -> dict[str, Any]:
-        """Complete Browserbase context setup for a browser agent."""
-        return self._post(f"/api/v1/agents/{agent_id}/complete-context-setup", {"session_id": session_id})
-
     # ── Browser Profiles ─────────────────────────────────────────────
 
     def list_browser_profiles(self) -> list[BrowserProfile]:
@@ -218,16 +210,6 @@ class Preclinical:
 
     def delete_browser_profile(self, profile_id: str) -> None:
         self._delete(f"/api/v1/browser-profiles/{profile_id}")
-
-    # ── Browserbase Context (standalone) ─────────────────────────────
-
-    def setup_browserbase_context(self) -> dict[str, Any]:
-        """Create a standalone Browserbase context with live browser session."""
-        return self._post("/api/v1/browserbase/setup-context")
-
-    def complete_browserbase_context(self, session_id: str) -> dict[str, Any]:
-        """Release a Browserbase session after manual auth setup."""
-        return self._post("/api/v1/browserbase/complete-context-setup", {"session_id": session_id})
 
     # ── BrowserUse Cloud ─────────────────────────────────────────────
 
@@ -511,12 +493,6 @@ class AsyncPreclinical:
             body["validate"] = False
         return await self._post(f"/api/v1/agents/{agent_id}/discover", body, timeout=120)
 
-    async def setup_agent_context(self, agent_id: str) -> dict[str, Any]:
-        return await self._post(f"/api/v1/agents/{agent_id}/setup-context")
-
-    async def complete_agent_context(self, agent_id: str, session_id: str) -> dict[str, Any]:
-        return await self._post(f"/api/v1/agents/{agent_id}/complete-context-setup", {"session_id": session_id})
-
     # ── Browser Profiles ─────────────────────────────────────────────
 
     async def list_browser_profiles(self) -> list[BrowserProfile]:
@@ -545,14 +521,6 @@ class AsyncPreclinical:
 
     async def delete_browser_profile(self, profile_id: str) -> None:
         await self._delete(f"/api/v1/browser-profiles/{profile_id}")
-
-    # ── Browserbase Context (standalone) ─────────────────────────────
-
-    async def setup_browserbase_context(self) -> dict[str, Any]:
-        return await self._post("/api/v1/browserbase/setup-context")
-
-    async def complete_browserbase_context(self, session_id: str) -> dict[str, Any]:
-        return await self._post("/api/v1/browserbase/complete-context-setup", {"session_id": session_id})
 
     # ── BrowserUse Cloud ─────────────────────────────────────────────
 

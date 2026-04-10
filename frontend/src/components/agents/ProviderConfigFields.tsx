@@ -13,7 +13,7 @@ interface ProviderConfigFieldsProps {
   showPasswordToggle?: boolean;
   showPasswordFields?: Record<string, boolean>;
   onTogglePassword?: (key: string) => void;
-  /** Called for each field to allow custom rendering (e.g. browserbase context setup). Return a ReactNode to override, or null/undefined to use default. */
+  /** Called for each field to allow custom rendering. Return a ReactNode to override, or null/undefined to use default. */
   renderFieldOverride?: (field: ProviderField) => React.ReactNode | null | undefined;
 }
 

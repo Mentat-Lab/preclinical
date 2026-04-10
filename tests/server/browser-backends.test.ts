@@ -79,44 +79,14 @@ describe('Browser Backends — Local Chrome', () => {
       expect(cfg.browser_backend).toBe('local');
     });
 
-    it('creates browser agent with browserbase backend', async () => {
-      const res = await createBrowserAgent('Browserbase Agent', {
-        browser_backend: 'browserbase',
-      });
-
-      expect(res.status).toBe(201);
-      const cfg = getConfig(res.data);
-      expect(cfg.browser_backend).toBe('browserbase');
-    });
-
     it('creates browser agent with no explicit backend (defaults handled at runtime)', async () => {
       const res = await createBrowserAgent('No Backend Agent');
 
       expect(res.status).toBe(201);
       const cfg = getConfig(res.data);
       expect(cfg.url).toBe(TARGET_URL);
-      // browser_backend may be undefined — runtime defaults to browserbase
+      // browser_backend may be undefined — runtime defaults to local
       expect(cfg.browser_backend).toBeUndefined();
-    });
-
-    it('PATCH updates browser_backend without losing other config', async () => {
-      const created = await createBrowserAgent('Patch Backend Agent', {
-        browser_backend: 'browserbase',
-        instructions: 'some instructions',
-      });
-      expect(created.status).toBe(201);
-
-      const patched = await api.patch<{ config: Record<string, unknown> }>(
-        `/api/v1/agents/${created.data.id}`,
-        { config: { browser_backend: 'local' } }
-      );
-
-      expect(patched.status).toBe(200);
-      const cfg = getConfig(patched.data);
-      expect(cfg.browser_backend).toBe('local');
-      // Original fields preserved (JSONB merge)
-      expect(cfg.url).toBe(TARGET_URL);
-      expect(cfg.instructions).toBe('some instructions');
     });
 
     it('PATCH preserves browser_backend when updating other config fields', async () => {
@@ -401,9 +371,7 @@ describe('Browser Backends — Local Chrome', () => {
     });
 
     it('POST /agents/:id/complete-context-setup missing session_id → 400', async () => {
-      const agent = await createBrowserAgent('Context Complete Agent', {
-        browser_backend: 'browserbase',
-      });
+      const agent = await createBrowserAgent('Context Complete Agent');
       expect(agent.status).toBe(201);
 
       const res = await api.post<{ error: string }>(
@@ -421,26 +389,22 @@ describe('Browser Backends — Local Chrome', () => {
   // ═══════════════════════════════════════════════════════════════════════════
 
   describe('Data integrity', () => {
-    it('config JSONB merge preserves all fields when updating browser_backend', async () => {
+    it('config JSONB merge preserves all fields when updating config', async () => {
       const created = await createBrowserAgent('Integrity Agent', {
-        browser_backend: 'browserbase',
-        browserbase_context_id: 'ctx-123',
         instructions: 'be polite',
       });
       expect(created.status).toBe(201);
 
-      // Update only browser_backend
+      // Update only instructions
       const patched = await api.patch<{ config: Record<string, unknown> }>(
         `/api/v1/agents/${created.data.id}`,
-        { config: { browser_backend: 'local' } }
+        { config: { instructions: 'be very polite' } }
       );
 
       expect(patched.status).toBe(200);
       const cfg = getConfig(patched.data);
-      expect(cfg.browser_backend).toBe('local');
       expect(cfg.url).toBe(TARGET_URL);
-      expect(cfg.browserbase_context_id).toBe('ctx-123');
-      expect(cfg.instructions).toBe('be polite');
+      expect(cfg.instructions).toBe('be very polite');
     });
 
     it('sensitive keys in browser config are masked in GET response', async () => {
@@ -462,8 +426,6 @@ describe('Browser Backends — Local Chrome', () => {
 
     it('non-sensitive browser config fields are NOT masked', async () => {
       const created = await createBrowserAgent('NonSensitive Browser Agent', {
-        browser_backend: 'local',
-        browserbase_context_id: 'ctx-12345',
         instructions: 'test instructions',
       });
       expect(created.status).toBe(201);
@@ -475,7 +437,6 @@ describe('Browser Backends — Local Chrome', () => {
       expect(fetched.status).toBe(200);
       const cfg = getConfig(fetched.data);
       // These are not sensitive — should be visible
-      expect(cfg.browserbase_context_id).toBe('ctx-12345');
       expect(cfg.instructions).toBe('test instructions');
       expect(cfg.url).toBe(TARGET_URL);
     });
@@ -526,26 +487,6 @@ describe('Browser Backends — Local Chrome', () => {
       expect(fetched.status).toBe(200);
     });
 
-    it('switching backend after setup — new backend used in config', async () => {
-      const created = await createBrowserAgent('Switch Backend Agent', {
-        browser_backend: 'browserbase',
-        browserbase_context_id: 'ctx-old-123',
-      });
-      expect(created.status).toBe(201);
-
-      // Switch to local
-      const patched = await api.patch<{ config: Record<string, unknown> }>(
-        `/api/v1/agents/${created.data.id}`,
-        { config: { browser_backend: 'local' } }
-      );
-
-      expect(patched.status).toBe(200);
-      const cfg = getConfig(patched.data);
-      expect(cfg.browser_backend).toBe('local');
-      // Old context ID still in config (UI would clear it, but API does JSONB merge)
-      expect(cfg.browserbase_context_id).toBe('ctx-old-123');
-    });
-
     it('URL with special characters handled in local chrome setup', async () => {
       const res = await api.post<{ session_id: string; domain: string; error?: string }>(
         '/api/v1/local-chrome/setup-auth',
@@ -588,9 +529,7 @@ describe('Browser Backends — Local Chrome', () => {
     });
 
     it('deleted agent returns 404 on context setup', async () => {
-      const created = await createBrowserAgent('Delete Then Setup Agent', {
-        browser_backend: 'browserbase',
-      });
+      const created = await createBrowserAgent('Delete Then Setup Agent');
       expect(created.status).toBe(201);
 
       // Delete it
@@ -782,9 +721,7 @@ describe('Browser Backends — Local Chrome', () => {
   describe('Concurrent browser agent operations', () => {
     it('can create multiple browser agents concurrently', async () => {
       const promises = Array.from({ length: 3 }, (_, i) =>
-        createBrowserAgent(`Concurrent Agent ${i}`, {
-          browser_backend: i % 2 === 0 ? 'local' : 'browserbase',
-        })
+        createBrowserAgent(`Concurrent Agent ${i}`)
       );
 
       const results = await Promise.all(promises);
@@ -798,25 +735,21 @@ describe('Browser Backends — Local Chrome', () => {
       expect(new Set(ids).size).toBe(3);
     });
 
-    it('can start runs for different browser backends concurrently', async () => {
-      const localAgent = await createBrowserAgent('Concurrent Local', {
-        browser_backend: 'local',
-      });
-      const cloudAgent = await createBrowserAgent('Concurrent Browserbase', {
-        browser_backend: 'browserbase',
-      });
+    it('can start runs for different browser agents concurrently', async () => {
+      const agent1 = await createBrowserAgent('Concurrent Agent A');
+      const agent2 = await createBrowserAgent('Concurrent Agent B');
 
-      expect(localAgent.status).toBe(201);
-      expect(cloudAgent.status).toBe(201);
+      expect(agent1.status).toBe(201);
+      expect(agent2.status).toBe(201);
 
       const [run1, run2] = await Promise.all([
         api.post<{ id: string; status: string }>('/start-run', {
-          agent_id: localAgent.data.id,
+          agent_id: agent1.data.id,
           scenario_ids: [scenarioIds[0]],
           max_turns: 5,
         }),
         api.post<{ id: string; status: string }>('/start-run', {
-          agent_id: cloudAgent.data.id,
+          agent_id: agent2.data.id,
           scenario_ids: [scenarioIds[1]],
           max_turns: 5,
         }),

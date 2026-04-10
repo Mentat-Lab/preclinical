@@ -26,4 +26,4 @@ You have access to the Preclinical plugin for healthcare AI safety testing. When
 - Docker services include a database, API server, worker, and BrowserUse
 - Supports 6 provider types: openai, vapi, browser, livekit, pipecat, elevenlabs
 - Includes 60 built-in TriageBench scenarios (20 home care, 20 clinician eval, 20 emergency)
-- Browser testing requires Chrome pool (`make chrome`) or Browserbase cloud Chrome
+- Browser testing requires Chrome pool (`make chrome`)

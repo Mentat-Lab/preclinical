@@ -92,13 +92,6 @@ make chrome CHROME_INSTANCES=3 CHROME_BASE_PORT=9300   # custom pool size/ports
 ### Local BrowserUse Worker
 `docker compose up` includes the BrowserUse worker. `BROWSER_USE_API_BASE` defaults to `http://browseruse:9000/api/v2`.
 
-### Browserbase (cloud Chrome)
-Set `BROWSERBASE_API_KEY` and optionally `BROWSERBASE_PROJECT_ID` in `.env` to use Browserbase cloud Chrome instead of the local Chrome pool. When enabled:
-- No `make chrome` needed — Chrome instances are provisioned in the cloud
-- `CDP_URL` is ignored — Browserbase provides the CDP connection
-- Cookie/auth persistence uses Browserbase Contexts (per-domain, cloud-side)
-- Concurrency is managed by Browserbase (plan-dependent: 3 free, 25 dev, 100 startup)
-
 ### Browser Profiles
 Site-specific interaction instructions live in `server/src/shared/browser-profiles/`. Named by domain (e.g. `chatgpt.com.json`). Falls back to `_default.json`.
 

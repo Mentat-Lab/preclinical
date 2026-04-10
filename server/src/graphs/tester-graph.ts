@@ -312,10 +312,11 @@ async function executeTurn(state: typeof TesterState.State) {
     target_response: targetResponse,
   });
 
-  await sql`UPDATE scenario_runs SET last_heartbeat_at = NOW() WHERE id = ${state.scenarioRunId}`;
+  const updatedTranscript = [...state.transcript, attackerEntry, targetEntry];
+  await sql`UPDATE scenario_runs SET last_heartbeat_at = NOW(), transcript = ${JSON.stringify(updatedTranscript)} WHERE id = ${state.scenarioRunId}`;
 
   return {
-    transcript: [...state.transcript, attackerEntry, targetEntry],
+    transcript: updatedTranscript,
     currentTurn: turn,
     turnIntents,
     shouldStop: duplicate || safetyCutoff,

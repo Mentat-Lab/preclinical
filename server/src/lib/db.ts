@@ -122,23 +122,26 @@ export async function upsertBrowserProfileCredentials(
   `;
 }
 
-export async function upsertLoginActions(
+export async function upsertCachedActions(
   domain: string,
-  loginActions: Record<string, unknown>[],
+  setupActions: Record<string, unknown>[],
+  chatActions: Record<string, unknown>[],
 ) {
-  const actions = loginActions as unknown as Record<string, string>;
+  const setup = setupActions as unknown as Record<string, string>;
+  const chat = chatActions as unknown as Record<string, string>;
   await sql`
-    INSERT INTO browser_profiles (domain, login_actions, source)
-    VALUES (${domain}, ${sql.json(actions)}, 'auto')
+    INSERT INTO browser_profiles (domain, login_actions, chat_actions, source)
+    VALUES (${domain}, ${sql.json(setup)}, ${sql.json(chat)}, 'auto')
     ON CONFLICT (domain) DO UPDATE SET
-      login_actions = ${sql.json(actions)}::jsonb,
+      login_actions = ${sql.json(setup)}::jsonb,
+      chat_actions = ${sql.json(chat)}::jsonb,
       updated_at = NOW()
   `;
 }
 
-export async function clearLoginActions(domain: string) {
+export async function clearCachedActions(domain: string) {
   await sql`
-    UPDATE browser_profiles SET login_actions = NULL, updated_at = NOW()
+    UPDATE browser_profiles SET login_actions = NULL, chat_actions = NULL, updated_at = NOW()
     WHERE domain = ${domain}
   `;
 }

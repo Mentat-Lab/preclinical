@@ -3,12 +3,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAgent, useTestRuns, queryKeys } from '@/hooks/use-queries';
 import * as api from '@/lib/api';
 import type { TestRun } from '@/lib/types';
-import { Plus, Pencil, Trash2, Globe, Check, Monitor } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, Monitor } from 'lucide-react';
 import { ProviderIcon } from '@/components/ProviderIcon';
 import { PROVIDER_NAMES } from '@/lib/provider-config';
 import {
-  useBrowserbaseContextPanel,
-  BrowserbaseContextPanel,
   useLocalChromeAuthPanel,
   LocalChromeAuthPanel,
 } from '@/components/agents/BrowserAuthSetup';
@@ -82,15 +80,6 @@ export default function AgentDetailPage() {
   const agentRuns = runsData?.runs.filter((r) => r.agent_id === agentId) ?? [];
 
   const agentConfig = agent ? (typeof agent.config === 'string' ? (() => { try { return JSON.parse(agent.config as string); } catch { return {}; } })() : agent.config ?? {}) as Record<string, string> : {};
-  const browserBackend = agentConfig.browser_backend || 'browserbase';
-
-  const browserbase = useBrowserbaseContextPanel({
-    agentId: agentId!,
-    onInvalidate: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.agent(agentId!) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.agents() });
-    },
-  });
 
   const localAuth = useLocalChromeAuthPanel({ url: agentConfig.url });
 
@@ -160,24 +149,14 @@ export default function AgentDetailPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {agent.provider === 'browser' && !browserbase.contextSetup && !localAuth.localAuthSetup && browserBackend === 'browserbase' && (
-              <button
-                onClick={() => browserbase.setupMutation.mutate()}
-                disabled={browserbase.setupMutation.isPending}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-border rounded-md bg-card hover:bg-muted transition-colors text-text-primary disabled:opacity-50"
-              >
-                <Globe className="w-3.5 h-3.5" />
-                {browserbase.setupMutation.isPending ? 'Setting up...' : 'Setup Browserbase Context'}
-              </button>
-            )}
-            {agent.provider === 'browser' && !browserbase.contextSetup && !localAuth.localAuthSetup && !localAuth.localAuthDone && browserBackend === 'local' && (
+            {agent.provider === 'browser' && !localAuth.localAuthSetup && !localAuth.localAuthDone && (
               <button
                 onClick={() => localAuth.setupMutation.mutate()}
                 disabled={localAuth.setupMutation.isPending}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-border rounded-md bg-card hover:bg-muted transition-colors text-text-primary disabled:opacity-50"
               >
                 <Monitor className="w-3.5 h-3.5" />
-                {localAuth.setupMutation.isPending ? 'Setting up...' : 'Setup Local Auth'}
+                {localAuth.setupMutation.isPending ? 'Setting up...' : 'Setup Auth'}
               </button>
             )}
             <Link
@@ -206,23 +185,10 @@ export default function AgentDetailPage() {
       </header>
 
       {/* Browser Auth Setup Panels */}
-      {browserbase.setupMutation.isError && !browserbase.contextSetup && (
-        <div className="mx-8 mt-4 p-3 rounded bg-destructive/10 border border-destructive/20 text-destructive text-sm">
-          {browserbase.setupMutation.error instanceof Error ? browserbase.setupMutation.error.message : 'Context setup failed'}
-        </div>
-      )}
       {localAuth.setupMutation.isError && !localAuth.localAuthSetup && (
         <div className="mx-8 mt-4 p-3 rounded bg-destructive/10 border border-destructive/20 text-destructive text-sm">
           {localAuth.setupMutation.error instanceof Error ? localAuth.setupMutation.error.message : 'Auth setup failed'}
         </div>
-      )}
-
-      {browserbase.contextSetup && (
-        <BrowserbaseContextPanel
-          contextSetup={browserbase.contextSetup}
-          completeMutation={browserbase.completeMutation}
-          onCancel={() => browserbase.setContextSetup(null)}
-        />
       )}
 
       {localAuth.localAuthSetup && (

@@ -186,46 +186,6 @@ export async function deleteAgent(id: string): Promise<void> {
   return fetchJSON(`/api/v1/agents/${id}`, { method: 'DELETE' });
 }
 
-// Standalone context setup (no agent required — used from create form)
-export async function setupBrowserbaseContextStandalone(url?: string): Promise<{
-  context_id: string;
-  session_id: string;
-  live_url: string;
-}> {
-  return fetchJSON('/api/v1/browserbase/setup-context', {
-    method: 'POST',
-    body: JSON.stringify({ url }),
-  });
-}
-
-export async function completeBrowserbaseContextSetupStandalone(sessionId: string): Promise<{
-  status: string;
-}> {
-  return fetchJSON('/api/v1/browserbase/complete-context-setup', {
-    method: 'POST',
-    body: JSON.stringify({ session_id: sessionId }),
-  });
-}
-
-export async function setupBrowserbaseContext(agentId: string): Promise<{
-  agent: Agent;
-  context_id: string;
-  session_id: string;
-  live_url: string;
-}> {
-  return fetchJSON(`/api/v1/agents/${agentId}/setup-context`, { method: 'POST' });
-}
-
-export async function completeBrowserbaseContextSetup(agentId: string, sessionId: string): Promise<{
-  agent: Agent;
-  status: string;
-}> {
-  return fetchJSON(`/api/v1/agents/${agentId}/complete-context-setup`, {
-    method: 'POST',
-    body: JSON.stringify({ session_id: sessionId }),
-  });
-}
-
 // ==================== LOCAL CHROME ====================
 
 export async function setupLocalChromeAuth(url: string): Promise<{

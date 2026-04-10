@@ -25,6 +25,7 @@ export interface LoadedProfile {
   profile: BrowserProfile;
   credentials: Record<string, string>;
   loginActions: Array<Record<string, unknown>> | null;
+  chatActions: Array<Record<string, unknown>> | null;
 }
 
 export function dbRowToProfile(row: Record<string, unknown>): LoadedProfile {
@@ -38,6 +39,7 @@ export function dbRowToProfile(row: Record<string, unknown>): LoadedProfile {
     } as BrowserProfile,
     credentials: (row.credentials || {}) as Record<string, string>,
     loginActions: Array.isArray(row.login_actions) ? row.login_actions as Array<Record<string, unknown>> : null,
+    chatActions: Array.isArray(row.chat_actions) ? row.chat_actions as Array<Record<string, unknown>> : null,
   };
 }
 
@@ -76,6 +78,7 @@ export async function loadBrowserProfile(
         } as BrowserProfile,
         credentials: {},
         loginActions: null,
+        chatActions: null,
       };
     } catch { /* file not found, try next */ }
   }
@@ -89,5 +92,6 @@ export async function loadBrowserProfile(
     } as BrowserProfile,
     credentials: {},
     loginActions: null,
+    chatActions: null,
   };
 }

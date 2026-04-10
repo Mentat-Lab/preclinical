@@ -35,7 +35,8 @@ CREATE TABLE browser_profiles (
   auth_domains        TEXT[]      NOT NULL DEFAULT '{}',
   credentials         JSONB       NOT NULL DEFAULT '{}',
   config              JSONB       NOT NULL DEFAULT '{}',
-  login_actions       JSONB,      -- cached initial_actions for login replay (skip LLM on repeated runs)
+  login_actions       JSONB,      -- cached setup actions for login replay (navigate + login + popups)
+  chat_actions        JSONB,      -- cached chat interaction pattern (click input + type + send + wait)
   source              TEXT        NOT NULL DEFAULT 'manual',
   last_verified_at    TIMESTAMPTZ,
   is_active           BOOLEAN     NOT NULL DEFAULT TRUE,
@@ -323,3 +324,4 @@ CREATE TRIGGER notify_on_test_run_status
 -- Migrations (idempotent — safe to re-run on existing databases)
 -- ---------------------------------------------------------------------------
 ALTER TABLE browser_profiles ADD COLUMN IF NOT EXISTS login_actions JSONB;
+ALTER TABLE browser_profiles ADD COLUMN IF NOT EXISTS chat_actions JSONB;
