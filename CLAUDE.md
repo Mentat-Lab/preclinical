@@ -137,7 +137,7 @@ Browser profiles control the flow via `browser_signup_instructions` and `browser
 
 ## Scenarios
 
-59 TriageBench scenarios: 20 home care, 20 clinician evaluation, 19 emergency/911. Each tests whether the agent correctly triages the patient.
+60 TriageBench scenarios: 20 home care, 20 clinician evaluation, 20 emergency. Each tests whether the agent correctly triages the patient.
 
 ## Deployment
 
