@@ -3,41 +3,7 @@ import { sql } from '../lib/db.js';
 import { randomUUID } from 'crypto';
 import { RUNNABLE_PROVIDERS, maskAgent } from './route-utils.js';
 import { config } from '../lib/config.js';
-import { validateSession, closeSession, getClient } from '../providers/browser/api.js';
-import { log } from '../lib/logger.js';
-
-const logger = log.child({ component: 'agent-routes' });
-
-/**
- * Auto-create a Browser Use Cloud profile for a browser agent config
- * that has a URL but no profile_id. Mutates `agentConfig` in place.
- */
-async function ensureBrowserProfile(agentConfig: Record<string, unknown>): Promise<void> {
-  const profileId = String(agentConfig.profile_id || agentConfig.profileId || '').trim();
-  if (profileId) return; // already has one
-
-  const targetUrl = String(agentConfig.url || agentConfig.endpoint || '').trim();
-  if (!targetUrl) return; // no URL to derive domain from
-
-  const apiKey = config.browserUseApiKey.trim();
-  if (!apiKey) return; // can't create without API key
-
-  let domain: string;
-  try {
-    domain = new URL(targetUrl).hostname.replace(/^www\./, '');
-  } catch {
-    return; // invalid URL, skip
-  }
-
-  try {
-    const client = getClient(apiKey);
-    const profile = await client.profiles.create({ name: `preclinical-${domain}` });
-    agentConfig.profile_id = profile.id;
-    logger.info('Auto-created Browser Use Cloud profile', { profileId: profile.id, domain });
-  } catch (err) {
-    logger.warn('Failed to auto-create browser profile', { domain, error: err });
-  }
-}
+import { validateSession } from '../providers/browser/api.js';
 
 const app = new Hono();
 
@@ -46,6 +12,26 @@ const app = new Hono();
 app.get('/api/v1/agents', async (c) => {
   const agents = await sql`SELECT * FROM agents WHERE deleted_at IS NULL ORDER BY provider, name`;
   return c.json(agents.map((a) => maskAgent(a as Record<string, unknown>)));
+});
+
+// Validate a browser profile before creating an agent (no agent ID required).
+// Session is auto-closed after validation.
+app.post('/api/v1/agents/validate-browser', async (c) => {
+  const body = await c.req.json();
+  const targetUrl = String(body.url || '').trim();
+  const profileId = String(body.profile_id || '').trim() || undefined;
+
+  if (!targetUrl) return c.json({ error: 'url is required' }, 400);
+  if (!profileId) return c.json({ error: 'profile_id is required' }, 400);
+
+  const apiKey = config.browserUseApiKey.trim();
+  if (!apiKey) return c.json({ error: 'BROWSER_USE_API_KEY not configured' }, 500);
+
+  const result = await validateSession(apiKey, { profileId, targetUrl });
+  return c.json({
+    ok: result.ok,
+    error: result.error || null,
+  });
 });
 
 app.get('/api/v1/agents/:id', async (c) => {
@@ -68,10 +54,12 @@ app.post('/api/v1/agents', async (c) => {
     }, 400);
   }
 
-  // Auto-create a Browser Use Cloud profile if this is a browser agent without one
   const finalConfig = agentConfig || {};
   if (provider === 'browser') {
-    await ensureBrowserProfile(finalConfig as Record<string, unknown>);
+    const profileId = String((finalConfig as Record<string, unknown>).profile_id || (finalConfig as Record<string, unknown>).profileId || '').trim();
+    if (!profileId) {
+      return c.json({ error: 'Browser Use Profile ID is required. Create one at https://cloud.browser-use.com/settings?tab=profiles' }, 400);
+    }
   }
 
   const id = randomUUID();
@@ -92,13 +80,6 @@ app.patch('/api/v1/agents/:id', async (c) => {
   if (!existing) return c.json({ error: 'Agent not found' }, 404);
 
   if (body.config !== undefined) {
-    // Auto-create a Browser Use Cloud profile if updating a browser agent with a URL but no profile_id
-    if (existing.provider === 'browser') {
-      const mergedConfig = { ...((existing.config || {}) as Record<string, unknown>), ...(body.config as Record<string, unknown>) };
-      if (!mergedConfig.profile_id && !mergedConfig.profileId) {
-        await ensureBrowserProfile(body.config as Record<string, unknown>);
-      }
-    }
     // Merge partial config with existing config (so unedited secret fields are preserved)
     await sql`UPDATE agents SET updated_at = NOW(), config = config || ${sql.json(body.config as any)} WHERE id = ${id}`;
   }
@@ -118,8 +99,7 @@ app.patch('/api/v1/agents/:id', async (c) => {
   return c.json(maskAgent(agent as Record<string, unknown>));
 });
 
-// Validate a browser agent's profile — preflight check before running tests.
-// Returns { ok, live_url, session_id, error? }
+// Validate an existing browser agent's profile. Session is auto-closed after check.
 app.post('/api/v1/agents/:id/validate-browser', async (c) => {
   const id = c.req.param('id');
   const [agent] = await sql`SELECT * FROM agents WHERE id = ${id} AND deleted_at IS NULL`;
@@ -138,23 +118,8 @@ app.post('/api/v1/agents/:id/validate-browser', async (c) => {
   const result = await validateSession(apiKey, { profileId, targetUrl });
   return c.json({
     ok: result.ok,
-    live_url: result.liveUrl,
-    session_id: result.sessionId,
     error: result.error || null,
   });
-});
-
-// Close a validation session (called after user finishes manual auth).
-app.post('/api/v1/agents/:id/close-session', async (c) => {
-  const body = await c.req.json();
-  const sessionId = body.session_id;
-  if (!sessionId) return c.json({ error: 'session_id required' }, 400);
-
-  const apiKey = config.browserUseApiKey.trim();
-  if (!apiKey) return c.json({ error: 'BROWSER_USE_API_KEY not configured' }, 500);
-
-  await closeSession(apiKey, sessionId);
-  return c.json({ ok: true });
 });
 
 app.delete('/api/v1/agents/:id', async (c) => {

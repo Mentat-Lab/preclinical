@@ -10,6 +10,8 @@ import {
   validateProviderConfig,
 } from '@/lib/provider-config';
 import { ProviderConfigFields, inputCls } from '@/components/agents/ProviderConfigFields';
+import { ShieldCheck, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export default function AgentEditPage() {
   const { agentId } = useParams<{ agentId: string }>();
@@ -23,6 +25,7 @@ export default function AgentEditPage() {
   const [config, setConfig] = useState<Record<string, string>>({});
   const [editedConfigKeys, setEditedConfigKeys] = useState<Set<string>>(new Set());
   const [formError, setFormError] = useState<string | null>(null);
+  const [validationResult, setValidationResult] = useState<{ ok: boolean; error: string | null } | null>(null);
 
   useEffect(() => {
     if (agent) {
@@ -36,6 +39,11 @@ export default function AgentEditPage() {
       setConfig(applyProviderDefaults(agent.provider, cfg as Record<string, string>));
     }
   }, [agent]);
+
+  const validateMutation = useMutation({
+    mutationFn: () => api.validateBrowserAgent(agentId!),
+    onSuccess: (result) => setValidationResult(result),
+  });
 
   const updateMutation = useMutation({
     mutationFn: (data: { name: string; description?: string; config?: Record<string, string> }) =>
@@ -181,9 +189,46 @@ export default function AgentEditPage() {
                 onConfigChange={(key, value) => {
                   setConfig((prev) => ({ ...prev, [key]: value }));
                   setEditedConfigKeys((prev) => new Set(prev).add(key));
+                  if (agent.provider === 'browser' && (key === 'url' || key === 'profile_id')) {
+                    setValidationResult(null);
+                  }
                 }}
                 disabled={submitting}
               />
+            )}
+
+            {/* Browser profile validation */}
+            {agent.provider === 'browser' && (
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValidationResult(null);
+                    validateMutation.mutate();
+                  }}
+                  disabled={validateMutation.isPending || submitting}
+                  className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium border border-border rounded-md bg-card hover:bg-muted transition-colors text-text-primary disabled:opacity-50"
+                >
+                  {validateMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ShieldCheck className="h-4 w-4" />
+                  )}
+                  {validateMutation.isPending ? 'Validating...' : 'Validate Profile'}
+                </button>
+                {validationResult && (
+                  <div className={cn(
+                    'p-3 rounded text-sm border',
+                    validationResult.ok
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      : 'bg-destructive/10 border-destructive/20 text-destructive',
+                  )}>
+                    {validationResult.ok
+                      ? 'Profile validated — chat surface is accessible.'
+                      : validationResult.error || 'Validation failed.'}
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Actions */}

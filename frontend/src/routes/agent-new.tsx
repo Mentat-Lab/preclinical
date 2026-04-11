@@ -13,7 +13,7 @@ import {
   applyProviderDefaults,
   validateProviderConfig,
 } from '@/lib/provider-config';
-import { Check, Info } from 'lucide-react';
+import { Check, Info, ShieldCheck, Loader2 } from 'lucide-react';
 import { ProviderIcon } from '@/components/ProviderIcon';
 import { cn } from '@/lib/utils';
 import { ProviderConfigFields, inputCls } from '@/components/agents/ProviderConfigFields';
@@ -30,13 +30,23 @@ export default function NewAgentPage() {
   const [config, setConfig] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [showPasswordFields, setShowPasswordFields] = useState<Record<string, boolean>>({});
+  const [validationResult, setValidationResult] = useState<{ ok: boolean; error: string | null } | null>(null);
 
   const handleProviderChange = (newProvider: AgentProvider) => {
     setProvider(newProvider);
     setConfig(applyProviderDefaults(newProvider, PROVIDER_DEFAULTS[newProvider] ?? {}));
     setFormError(null);
     setShowPasswordFields({});
+    setValidationResult(null);
   };
+
+  const validateMutation = useMutation({
+    mutationFn: () => api.validateBrowserProfile({
+      url: config.url?.trim() || '',
+      profile_id: config.profile_id?.trim() || '',
+    }),
+    onSuccess: (result) => setValidationResult(result),
+  });
 
   const createMutation = useMutation({
     mutationFn: (payloadConfig: Record<string, string>) => {
@@ -54,7 +64,7 @@ export default function NewAgentPage() {
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
@@ -75,6 +85,20 @@ export default function NewAgentPage() {
       return;
     }
 
+    // For browser agents, validate the profile before creating (skip if already validated)
+    if (provider === 'browser' && !validationResult?.ok) {
+      try {
+        const result = await validateMutation.mutateAsync();
+        if (!result.ok) {
+          setFormError(result.error || 'Browser profile validation failed. Check your profile ID and URL.');
+          return;
+        }
+      } catch (err) {
+        setFormError(err instanceof Error ? err.message : 'Profile validation failed');
+        return;
+      }
+    }
+
     setConfig(normalizedConfig);
     createMutation.mutate(normalizedConfig);
   };
@@ -86,7 +110,7 @@ export default function NewAgentPage() {
     (createMutation.isError && createMutation.error instanceof Error
       ? createMutation.error.message
       : null);
-  const submitting = createMutation.isPending;
+  const submitting = createMutation.isPending || (provider === 'browser' && validateMutation.isPending);
 
   return (
     <div className="flex-1 min-h-screen bg-background">
@@ -214,7 +238,12 @@ export default function NewAgentPage() {
               <ProviderConfigFields
                 fields={fields}
                 config={config}
-                onConfigChange={(key, value) => setConfig((prev) => ({ ...prev, [key]: value }))}
+                onConfigChange={(key, value) => {
+                  setConfig((prev) => ({ ...prev, [key]: value }));
+                  if (provider === 'browser' && (key === 'url' || key === 'profile_id')) {
+                    setValidationResult(null);
+                  }
+                }}
                 disabled={submitting}
                 showPasswordToggle
                 showPasswordFields={showPasswordFields}
@@ -222,6 +251,40 @@ export default function NewAgentPage() {
                   setShowPasswordFields((prev) => ({ ...prev, [key]: !prev[key] }))
                 }
               />
+            )}
+
+            {/* Browser profile validation */}
+            {provider === 'browser' && config.url?.trim() && config.profile_id?.trim() && (
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValidationResult(null);
+                    validateMutation.mutate();
+                  }}
+                  disabled={validateMutation.isPending}
+                  className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium border border-border rounded-md bg-card hover:bg-muted transition-colors text-text-primary disabled:opacity-50"
+                >
+                  {validateMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ShieldCheck className="h-4 w-4" />
+                  )}
+                  {validateMutation.isPending ? 'Validating...' : 'Validate Profile'}
+                </button>
+                {validationResult && (
+                  <div className={cn(
+                    'p-3 rounded text-sm border',
+                    validationResult.ok
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      : 'bg-destructive/10 border-destructive/20 text-destructive',
+                  )}>
+                    {validationResult.ok
+                      ? 'Profile validated — chat surface is accessible.'
+                      : validationResult.error || 'Validation failed.'}
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Actions */}
@@ -237,7 +300,11 @@ export default function NewAgentPage() {
                 disabled={submitting}
                 className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
-                {submitting ? 'Creating...' : 'Create Agent'}
+                {validateMutation.isPending
+                  ? 'Validating...'
+                  : createMutation.isPending
+                    ? 'Creating...'
+                    : 'Create Agent'}
               </button>
             </div>
           </div>

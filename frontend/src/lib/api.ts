@@ -186,6 +186,22 @@ export async function deleteAgent(id: string): Promise<void> {
   return fetchJSON(`/api/v1/agents/${id}`, { method: 'DELETE' });
 }
 
+export async function validateBrowserProfile(params: {
+  url: string;
+  profile_id: string;
+}): Promise<{ ok: boolean; error: string | null }> {
+  return fetchJSON('/api/v1/agents/validate-browser', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+export async function validateBrowserAgent(agentId: string): Promise<{ ok: boolean; error: string | null }> {
+  return fetchJSON(`/api/v1/agents/${agentId}/validate-browser`, {
+    method: 'POST',
+  });
+}
+
 // ==================== HEALTH ====================
 
 export async function getHealth(): Promise<HealthResponse> {

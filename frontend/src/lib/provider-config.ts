@@ -70,7 +70,9 @@ export const PROVIDER_FIELDS: Record<AgentProvider, ProviderField[]> = {
       label: 'Browser Use Profile ID',
       type: 'text',
       placeholder: 'prof_...',
-      hint: 'Reuses cookies, localStorage, and login state across runs for the same site.',
+      required: true,
+      hint: 'Required for authenticated access. Create a profile in Browser Use Cloud to persist login state.',
+      hintLink: { label: 'Create Profile', url: 'https://cloud.browser-use.com/settings?tab=profiles' },
     },
     {
       key: 'instructions',
@@ -195,6 +197,7 @@ export function validateProviderConfig(
     case 'browser':
       if (!config.url?.trim()) return 'Target URL is required';
       if (!/^https?:\/\//i.test(config.url)) return 'Target URL must start with http:// or https://';
+      if (!config.profile_id?.trim()) return 'Browser Use Profile ID is required. Create one at cloud.browser-use.com/settings?tab=profiles';
       break;
     case 'pipecat':
       if (!config.api_key?.trim()) return 'Pipecat API key is required';

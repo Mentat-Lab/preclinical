@@ -1,11 +1,13 @@
+import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAgent, useTestRuns, queryKeys } from '@/hooks/use-queries';
 import * as api from '@/lib/api';
 import type { TestRun } from '@/lib/types';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, ShieldCheck, Loader2 } from 'lucide-react';
 import { ProviderIcon } from '@/components/ProviderIcon';
 import { PROVIDER_NAMES } from '@/lib/provider-config';
+import { cn } from '@/lib/utils';
 
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString('en-US', {
@@ -70,6 +72,8 @@ export default function AgentDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  const [validationResult, setValidationResult] = useState<{ ok: boolean; error: string | null } | null>(null);
+
   const { data: agent, isLoading: agentLoading, error: agentError } = useAgent(agentId!);
   const { data: runsData, isLoading: runsLoading } = useTestRuns({ limit: 50 });
   const agentConfig = agent
@@ -85,6 +89,11 @@ export default function AgentDetailPage() {
     : {};
 
   const agentRuns = runsData?.runs.filter((r) => r.agent_id === agentId) ?? [];
+
+  const validateMutation = useMutation({
+    mutationFn: () => api.validateBrowserAgent(agentId!),
+    onSuccess: (result) => setValidationResult(result),
+  });
 
   const deleteMutation = useMutation({
     mutationFn: () => api.deleteAgent(agentId!),
@@ -160,6 +169,34 @@ export default function AgentDetailPage() {
                     Profile ID: <code className="rounded bg-muted px-1 py-0.5">{agentConfig.profile_id}</code>
                   </p>
                 )}
+                <div className="mt-3 flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setValidationResult(null);
+                      validateMutation.mutate();
+                    }}
+                    disabled={validateMutation.isPending}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium border border-border rounded-md bg-card hover:bg-muted transition-colors text-text-primary disabled:opacity-50"
+                  >
+                    {validateMutation.isPending ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                    )}
+                    {validateMutation.isPending ? 'Validating...' : 'Validate Profile'}
+                  </button>
+                  {validationResult && (
+                    <span className={cn(
+                      'text-xs font-medium',
+                      validationResult.ok ? 'text-emerald-700' : 'text-destructive',
+                    )}>
+                      {validationResult.ok
+                        ? 'Chat surface accessible'
+                        : validationResult.error || 'Validation failed'}
+                    </span>
+                  )}
+                </div>
               </div>
             )}
           </div>

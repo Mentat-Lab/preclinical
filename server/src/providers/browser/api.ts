@@ -115,7 +115,7 @@ export async function validateSession(
   const session = await client.sessions.create({
     profileId: options.profileId,
     startUrl: options.targetUrl,
-    keepAlive: true,
+    keepAlive: false,
     persistMemory: true,
   });
 
@@ -162,14 +162,16 @@ export async function validateSession(
 
     return { ok: true, liveUrl: session.liveUrl || '', sessionId: session.id };
   } catch (err) {
-    // Session created but validation task failed — still return session info
-    // so the user can use the live URL for manual setup.
     return {
       ok: false,
       liveUrl: session.liveUrl || '',
       sessionId: session.id,
       error: err instanceof Error ? err.message : String(err),
     };
+  } finally {
+    // Always close the validation session — profiles persist auth state,
+    // so there's no need to keep sessions alive after the check.
+    closeSession(apiKey, session.id).catch(() => {});
   }
 }
 
