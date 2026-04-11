@@ -17,7 +17,6 @@ import { Check, Info } from 'lucide-react';
 import { ProviderIcon } from '@/components/ProviderIcon';
 import { cn } from '@/lib/utils';
 import { ProviderConfigFields, inputCls } from '@/components/agents/ProviderConfigFields';
-import { LocalChromeAuthField } from '@/components/agents/BrowserAuthSetup';
 
 const providerCards: AgentProvider[] = ['vapi', 'livekit', 'pipecat', 'openai', 'browser', 'elevenlabs'];
 
@@ -238,19 +237,6 @@ export default function NewAgentPage() {
                   setShowPasswordFields((prev) => ({ ...prev, [key]: !prev[key] }))
                 }
               />
-            )}
-
-            {/* Local Chrome auth setup section */}
-            {provider === 'browser' && (
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-text-primary">
-                  Local Chrome Auth
-                </label>
-                <LocalChromeAuthField
-                  url={config.url ?? ''}
-                  validateUrl={validateBrowserUrl}
-                />
-              </div>
             )}
 
             {/* Actions */}

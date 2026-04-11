@@ -186,27 +186,6 @@ export async function deleteAgent(id: string): Promise<void> {
   return fetchJSON(`/api/v1/agents/${id}`, { method: 'DELETE' });
 }
 
-// ==================== LOCAL CHROME ====================
-
-export async function setupLocalChromeAuth(url: string): Promise<{
-  session_id: string;
-  domain: string;
-}> {
-  return fetchJSON('/api/v1/local-chrome/setup-auth', {
-    method: 'POST',
-    body: JSON.stringify({ url }),
-  });
-}
-
-export async function completeLocalChromeAuth(sessionId: string): Promise<{
-  status: string;
-}> {
-  return fetchJSON('/api/v1/local-chrome/complete-auth', {
-    method: 'POST',
-    body: JSON.stringify({ session_id: sessionId }),
-  });
-}
-
 // ==================== HEALTH ====================
 
 export async function getHealth(): Promise<HealthResponse> {

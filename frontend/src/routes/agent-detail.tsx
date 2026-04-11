@@ -3,13 +3,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAgent, useTestRuns, queryKeys } from '@/hooks/use-queries';
 import * as api from '@/lib/api';
 import type { TestRun } from '@/lib/types';
-import { Plus, Pencil, Trash2, Check, Monitor } from 'lucide-react';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { ProviderIcon } from '@/components/ProviderIcon';
 import { PROVIDER_NAMES } from '@/lib/provider-config';
-import {
-  useLocalChromeAuthPanel,
-  LocalChromeAuthPanel,
-} from '@/components/agents/BrowserAuthSetup';
 
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString('en-US', {
@@ -79,10 +75,6 @@ export default function AgentDetailPage() {
 
   const agentRuns = runsData?.runs.filter((r) => r.agent_id === agentId) ?? [];
 
-  const agentConfig = agent ? (typeof agent.config === 'string' ? (() => { try { return JSON.parse(agent.config as string); } catch { return {}; } })() : agent.config ?? {}) as Record<string, string> : {};
-
-  const localAuth = useLocalChromeAuthPanel({ url: agentConfig.url });
-
   const deleteMutation = useMutation({
     mutationFn: () => api.deleteAgent(agentId!),
     onSuccess: () => {
@@ -149,16 +141,6 @@ export default function AgentDetailPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            {agent.provider === 'browser' && !localAuth.localAuthSetup && !localAuth.localAuthDone && (
-              <button
-                onClick={() => localAuth.setupMutation.mutate()}
-                disabled={localAuth.setupMutation.isPending}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-border rounded-md bg-card hover:bg-muted transition-colors text-text-primary disabled:opacity-50"
-              >
-                <Monitor className="w-3.5 h-3.5" />
-                {localAuth.setupMutation.isPending ? 'Setting up...' : 'Setup Auth'}
-              </button>
-            )}
             <Link
               to={`/agents/${agentId}/edit`}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border border-border rounded-md bg-card hover:bg-muted transition-colors text-text-primary"
@@ -183,28 +165,6 @@ export default function AgentDetailPage() {
           </p>
         )}
       </header>
-
-      {/* Browser Auth Setup Panels */}
-      {localAuth.setupMutation.isError && !localAuth.localAuthSetup && (
-        <div className="mx-8 mt-4 p-3 rounded bg-destructive/10 border border-destructive/20 text-destructive text-sm">
-          {localAuth.setupMutation.error instanceof Error ? localAuth.setupMutation.error.message : 'Auth setup failed'}
-        </div>
-      )}
-
-      {localAuth.localAuthSetup && (
-        <LocalChromeAuthPanel
-          url={agentConfig.url}
-          completeMutation={localAuth.completeMutation}
-          onCancel={() => localAuth.setLocalAuthSetup(null)}
-        />
-      )}
-
-      {localAuth.localAuthDone && (
-        <div className="mx-8 mt-4 flex items-center gap-2 text-sm text-green-700 p-3 rounded-lg border border-green-200 bg-green-50">
-          <Check className="w-4 h-4" />
-          Auth saved for {localAuth.localAuthDone}
-        </div>
-      )}
 
       {/* Content */}
       <main className="px-8 py-6">

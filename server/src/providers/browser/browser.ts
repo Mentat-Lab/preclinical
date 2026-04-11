@@ -2,8 +2,8 @@
 /**
  * BrowserUse provider.
  *
- * Automates browser-based chat testing via the BrowserUse local worker API.
- * Creates a headless browser session, navigates to the target URL,
+ * Automates browser-based chat testing via the BrowserUse Cloud API.
+ * Creates a browser session, navigates to the target URL,
  * and interacts with the chat widget.
  *
  * Enhanced features:
@@ -58,7 +58,7 @@ const browserProvider: Provider = {
   name: 'browser',
 
   async connect(agentConfig, scenarioRunId): Promise<ProviderSession> {
-    const apiKey = config.browserUseApiKey; // optional — not needed for local worker
+    const apiKey = config.browserUseApiKey;
 
     const targetUrl = String(agentConfig.url || agentConfig.endpoint || '');
     if (!targetUrl) throw new Error('Agent missing url in config for browser provider');
@@ -100,23 +100,40 @@ const browserProvider: Provider = {
       ? [state.domain, ...(state.profile.auth_domains || [])]
       : undefined;
 
-    // Create session on first turn — no AgentMail yet (try login/cookies first)
-    if (context.turn === 1) {
-      const browserSession = await createSession(state.apiKey, state.domain, allowedDomains);
-      state.sessionId = browserSession.id;
-      state.liveUrl = browserSession.liveUrl;
-      logger.info('Session created', { sessionId: browserSession.id, domain: state.domain });
-    }
-
-    if (!state.sessionId) throw new Error('No browser session ID available');
-
     // Check if credentials exist — profile credentials (DB) take priority over agent config
     const credEmail = String(state.credentials?.email || state.agentConfig.email || '').trim();
     const credPassword = String(state.credentials?.password || state.agentConfig.password || config.browserPassword || '').trim();
     const hasExistingCredentials = !!(credEmail && credPassword);
 
-    // Check if AgentMail fallback is available for this profile
-    // Skip if agent already has credentials (use login recovery instead)
+    // AgentMail: use upfront on turn 1 when auth is required and no credentials exist
+    const needsAgentMail = !!(
+      context.turn === 1 &&
+      !state.inboxAddress &&
+      !hasExistingCredentials &&
+      config.agentmailApiKey &&
+      state.profile.requires_auth &&
+      state.profile.email_verification
+    );
+
+    // Create session on first turn — with AgentMail if needed
+    if (context.turn === 1) {
+      const browserSession = await createSession(
+        state.apiKey, state.domain, allowedDomains,
+        needsAgentMail ? config.agentmailApiKey : undefined,
+      );
+      state.sessionId = browserSession.id;
+      state.liveUrl = browserSession.liveUrl;
+      if (browserSession.inboxAddress) {
+        state.inboxAddress = browserSession.inboxAddress;
+        logger.info('Session created with AgentMail inbox', { sessionId: browserSession.id, inbox: state.inboxAddress, domain: state.domain });
+      } else {
+        logger.info('Session created', { sessionId: browserSession.id, domain: state.domain });
+      }
+    }
+
+    if (!state.sessionId) throw new Error('No browser session ID available');
+
+    // AgentMail fallback for mid-conversation auth failures (turn > 1, no credentials)
     const canFallbackToAgentMail = !!(
       !state.inboxAddress &&
       !hasExistingCredentials &&
@@ -149,8 +166,11 @@ const browserProvider: Provider = {
     if (cachedChatActions) {
       const chatWithMessage = cachedChatActions.map(a => {
         const action = a as Record<string, any>;
-        if (action.input_text && action.input_text.text === '@@MESSAGE@@') {
-          return { input_text: { ...action.input_text, text: message } };
+        // BrowserUse records input as "input" or "input_text" depending on version
+        for (const key of ['input', 'input_text'] as const) {
+          if (action[key] && action[key].text === '@@MESSAGE@@') {
+            return { [key]: { ...action[key], text: message } };
+          }
         }
         return a;
       });
@@ -301,22 +321,6 @@ const browserProvider: Provider = {
         );
         const signupSensitiveData = buildSensitiveData(state.domain, state.agentConfig, state.inboxAddress, state.credentials);
         result = await createAndPollTask(freshSession.id, signupPrompt, signupSensitiveData, 20);
-
-        // Persist credentials to browser_profiles table so ALL agents for this domain reuse this account
-        if (result.isSuccess && state.domain) {
-          try {
-            const password = String(state.agentConfig.password || config.browserPassword || '');
-            await upsertBrowserProfileCredentials(state.domain, {
-              email: state.inboxAddress,
-              ...(password ? { password } : {}),
-            });
-            // Update in-memory state so subsequent turns use login instead of signup
-            state.credentials = { email: state.inboxAddress, password };
-            logger.info('Saved credentials to browser profile', { email: state.inboxAddress, domain: state.domain });
-          } catch (err) {
-            logger.warn('Failed to persist credentials to browser profile', { error: err });
-          }
-        }
       } else {
         throw new Error('AgentMail fallback failed — could not create inbox');
       }
@@ -325,6 +329,20 @@ const browserProvider: Provider = {
     if (result.status !== 'finished' || !result.isSuccess) {
       const output = String(result.output || '').slice(0, 500);
       throw new Error(`BrowserUse task failed: status=${result.status}, output=${output}`);
+    }
+
+    // Persist AgentMail credentials on first successful signup (upfront or fallback)
+    if (context.turn === 1 && state.inboxAddress && result.isSuccess && state.domain && !state.credentials?.email) {
+      const password = String(state.agentConfig.password || config.browserPassword || '');
+      upsertBrowserProfileCredentials(state.domain, {
+        email: state.inboxAddress,
+        ...(password ? { password } : {}),
+      }).then(() => {
+        state.credentials = { email: state.inboxAddress!, password };
+        logger.info('Saved AgentMail credentials to browser profile', { email: state.inboxAddress, domain: state.domain });
+      }).catch(err => {
+        logger.warn('Failed to persist AgentMail credentials', { error: err });
+      });
     }
 
     // Extract setup + chat actions from first successful non-replay run and persist to DB

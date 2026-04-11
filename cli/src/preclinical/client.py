@@ -224,19 +224,6 @@ class Preclinical:
         """Stop a BrowserUse Cloud browser session after manual auth."""
         return self._post("/api/v1/browseruse-cloud/complete-profile-setup", {"session_id": session_id})
 
-    # ── Local Chrome Auth ────────────────────────────────────────────
-
-    def setup_local_chrome_auth(self, url: str | None = None) -> dict[str, Any]:
-        """Create a local Chrome auth session."""
-        body: dict[str, Any] = {}
-        if url:
-            body["url"] = url
-        return self._post("/api/v1/local-chrome/setup-auth", body)
-
-    def complete_local_chrome_auth(self, session_id: str) -> dict[str, Any]:
-        """Complete a local Chrome auth session."""
-        return self._post("/api/v1/local-chrome/complete-auth", {"session_id": session_id})
-
     # ── Test Runs ─────────────────────────────────────────────────────
 
     def start_run(
@@ -532,17 +519,6 @@ class AsyncPreclinical:
 
     async def complete_browseruse_profile(self, session_id: str) -> dict[str, Any]:
         return await self._post("/api/v1/browseruse-cloud/complete-profile-setup", {"session_id": session_id})
-
-    # ── Local Chrome Auth ────────────────────────────────────────────
-
-    async def setup_local_chrome_auth(self, url: str | None = None) -> dict[str, Any]:
-        body: dict[str, Any] = {}
-        if url:
-            body["url"] = url
-        return await self._post("/api/v1/local-chrome/setup-auth", body)
-
-    async def complete_local_chrome_auth(self, session_id: str) -> dict[str, Any]:
-        return await self._post("/api/v1/local-chrome/complete-auth", {"session_id": session_id})
 
     # ── Test Runs ─────────────────────────────────────────────────────
 

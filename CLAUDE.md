@@ -8,13 +8,12 @@ Healthcare AI agent testing platform. Runs adversarial multi-turn scenarios agai
 
 ```bash
 make setup                                  # first-time: copy .env + start services
-make up                                     # start services (no Chrome)
-make down                                   # stop services + kill Chrome if running
+make up                                     # start services
+make down                                   # stop services
 make restart                                # down + up
-make chrome                                 # launch Chrome pool (only for browser tests)
 make logs                                   # tail logs
 make status                                 # health check
-make clean                                  # remove volumes, Chrome profiles, restart fresh
+make clean                                  # remove volumes, restart fresh
 make nuke                                   # destroy everything + rebuild from scratch
 cd server && npm run dev                    # server dev (hot reload)
 cd frontend && npm run dev                  # frontend dev
@@ -71,24 +70,13 @@ Configurable via env: `DEFAULT_MAX_TURNS=11`, `MIN_MAX_TURNS=5`, `MAX_MAX_TURNS=
 - `frontend/src/components/scenarios/` — Shared scenario components (RubricTable, RubricEditor, DemographicsView, ScenarioSettingsEditor)
 - `tests/` — Vitest API tests (unified config with `api` and `e2e` projects)
 - `target-agents/` — Self-hosted target agents for smoke tests (openai-api, livekit, pipecat)
-- `services/browseruse/` — Local BrowserUse worker (included by default in `docker compose up`)
 - `docs-site/` — MkDocs Material documentation site
 
 ## Browser Provider
 
-The `browser` provider uses BrowserUse to automate web-based chat testing (e.g. chatgpt.com, claude.ai, gemini.google.com).
+The `browser` provider uses [BrowserUse Cloud](https://www.browser-use.com/) to automate web-based chat testing (e.g. chatgpt.com, claude.ai, gemini.google.com).
 
-### CDP Mode (default)
-Browser provider connects to real Chrome instances on your host via CDP. This is the default because most targets (chatgpt.com, claude.ai, gemini.google.com) block headless browsers.
-
-**Chrome pool:** Run `make chrome` before browser tests to launch 5 Chrome instances (ports 9222-9226). Each scenario gets its own Chrome for parallel execution. Configurable:
-```bash
-make chrome CHROME_INSTANCES=3 CHROME_BASE_PORT=9300   # custom pool size/ports
-```
-`make down` stops all Chrome instances along with Docker services. Chrome is NOT started automatically — only when you need browser tests.
-
-### Local BrowserUse Worker
-`docker compose up` includes the BrowserUse worker. `BROWSER_USE_API_BASE` defaults to `http://browseruse:9000/api/v2`.
+Requires `BROWSER_USE_API_KEY` and optionally `BROWSER_USE_API_BASE` in `.env`.
 
 ### Browser Profiles
 Site-specific interaction instructions live in `server/src/shared/browser-profiles/`. Named by domain (e.g. `chatgpt.com.json`). Falls back to `_default.json`.
@@ -125,11 +113,6 @@ When `AGENTMAIL_API_KEY` is set and a browser profile has `email_verification: t
 
 Browser profiles control the flow via `browser_signup_instructions` and `browser_verify_instructions` fields.
 
-### Known Limitations
-- `BROWSERUSE_MODEL` env var overrides the LLM model used by the local BrowserUse worker (defaults to `TESTER_MODEL`)
-- Browser tests run ~1-2 min/turn with CDP Chrome pool
-- AgentMail signup flow uses ~20 steps on turn 1 (vs 12 for standard login)
-
 ## Scenarios
 
 60 TriageBench scenarios: 20 home care, 20 clinician evaluation, 20 emergency. Each tests whether the agent correctly triages the patient.
@@ -137,7 +120,7 @@ Browser profiles control the flow via `browser_signup_instructions` and `browser
 ## Deployment
 
 ```bash
-make up                                     # production (Chrome pool + Docker)
+make up                                     # production (Docker)
 docker compose build                        # rebuild images
 ```
 
