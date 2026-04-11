@@ -440,4 +440,206 @@ describe('Test Runs API', () => {
       expect(res2.data.status).toBe('canceled');
     });
   });
+
+  // ── DELETE /api/v1/tests/:id ──────────────────────────────────────────────
+
+  describe('DELETE /api/v1/tests/:id — delete a test run', () => {
+    let agentId: string;
+
+    beforeAll(async () => {
+      agentId = await createAgent('Delete-Run Test Agent');
+    });
+
+    afterAll(async () => {
+      await deleteAgent(agentId);
+    });
+
+    it('returns 204 on successful delete', async () => {
+      const startRes = await api.post<{ id: string }>('/start-run', {
+        agent_id: agentId,
+        scenario_ids: [scenarioIds[0]],
+        max_turns: 2,
+      });
+      const runId = startRes.data.id;
+
+      const delRes = await api.delete(`/api/v1/tests/${runId}`);
+      expect(delRes.status).toBe(204);
+    });
+
+    it('deleted test run no longer appears in GET /api/v1/tests', async () => {
+      const startRes = await api.post<{ id: string }>('/start-run', {
+        agent_id: agentId,
+        scenario_ids: [scenarioIds[0]],
+        max_turns: 2,
+      });
+      const runId = startRes.data.id;
+
+      await api.delete(`/api/v1/tests/${runId}`);
+
+      const listRes = await api.get<{ runs: Array<{ id: string }> }>('/api/v1/tests');
+      const ids = listRes.data.runs.map((r) => r.id);
+      expect(ids).not.toContain(runId);
+    });
+
+    it('returns 404 for non-existent test run', async () => {
+      const res = await api.delete(`/api/v1/tests/${NONEXISTENT_UUID}`);
+      expect(res.status).toBe(404);
+    });
+
+    it('returns 404 when deleting already-deleted test run', async () => {
+      const startRes = await api.post<{ id: string }>('/start-run', {
+        agent_id: agentId,
+        scenario_ids: [scenarioIds[0]],
+        max_turns: 2,
+      });
+      const runId = startRes.data.id;
+
+      await api.delete(`/api/v1/tests/${runId}`);
+      const res2 = await api.delete(`/api/v1/tests/${runId}`);
+      expect(res2.status).toBe(404);
+    });
+  });
+
+  // ── POST /start-run — mode and turn options ──────────────────────────────
+
+  describe('POST /start-run — creative_mode, benchmark_mode, max_turns', () => {
+    let agentId: string;
+    const startedRunIds: string[] = [];
+
+    beforeAll(async () => {
+      agentId = await createAgent('Modes-Test Agent');
+    });
+
+    afterAll(async () => {
+      await Promise.all(
+        startedRunIds.map((id) =>
+          api.post('/cancel-run', { test_run_id: id }).catch(() => {})
+        )
+      );
+      await deleteAgent(agentId);
+    });
+
+    it('accepts creative_mode: true', async () => {
+      const res = await api.post<{ id: string; status: string }>('/start-run', {
+        agent_id: agentId,
+        scenario_ids: [scenarioIds[0]],
+        max_turns: 2,
+        creative_mode: true,
+      });
+
+      expect(res.status).toBe(200);
+      startedRunIds.push(res.data.id);
+
+      // Verify creative_mode is stored
+      const getRes = await api.get<{ creative_mode: boolean }>(`/api/v1/tests/${res.data.id}`);
+      expect(getRes.data.creative_mode).toBe(true);
+    });
+
+    it('accepts creative_mode: false', async () => {
+      const res = await api.post<{ id: string }>('/start-run', {
+        agent_id: agentId,
+        scenario_ids: [scenarioIds[0]],
+        max_turns: 2,
+        creative_mode: false,
+      });
+
+      expect(res.status).toBe(200);
+      startedRunIds.push(res.data.id);
+
+      const getRes = await api.get<{ creative_mode: boolean }>(`/api/v1/tests/${res.data.id}`);
+      expect(getRes.data.creative_mode).toBe(false);
+    });
+
+    it('accepts benchmark_mode: true', async () => {
+      const res = await api.post<{ id: string }>('/start-run', {
+        agent_id: agentId,
+        scenario_ids: [scenarioIds[0]],
+        max_turns: 2,
+        benchmark_mode: true,
+      });
+
+      // May return 200 or 400 depending on whether scenario has gold_standard
+      if (res.status === 200) {
+        startedRunIds.push(res.data.id);
+        const getRes = await api.get<{ benchmark_mode: boolean }>(`/api/v1/tests/${res.data.id}`);
+        expect(getRes.data.benchmark_mode).toBe(true);
+      } else {
+        // 400 means benchmark validation caught missing gold_standard — that's correct behavior
+        expect(res.status).toBe(400);
+      }
+    });
+
+    it('accepts max_turns within valid range (5-15)', async () => {
+      const res = await api.post<{ id: string }>('/start-run', {
+        agent_id: agentId,
+        scenario_ids: [scenarioIds[0]],
+        max_turns: 7,
+      });
+
+      expect(res.status).toBe(200);
+      startedRunIds.push(res.data.id);
+
+      const getRes = await api.get<{ max_turns: number }>(`/api/v1/tests/${res.data.id}`);
+      expect(getRes.data.max_turns).toBe(7);
+    });
+
+    it('stores max_turns when provided', async () => {
+      const res = await api.post<{ id: string }>('/start-run', {
+        agent_id: agentId,
+        scenario_ids: [scenarioIds[0]],
+        max_turns: 10,
+      });
+
+      expect(res.status).toBe(200);
+      startedRunIds.push(res.data.id);
+
+      const getRes = await api.get<{ max_turns: number | null }>(`/api/v1/tests/${res.data.id}`);
+      expect(getRes.data.max_turns).toBe(10);
+    });
+
+    it('stores null max_turns when not provided', async () => {
+      const res = await api.post<{ id: string }>('/start-run', {
+        agent_id: agentId,
+        scenario_ids: [scenarioIds[0]],
+      });
+
+      expect(res.status).toBe(200);
+      startedRunIds.push(res.data.id);
+
+      const getRes = await api.get<{ max_turns: number | null }>(`/api/v1/tests/${res.data.id}`);
+      // When not provided, max_turns is null in DB (runner uses DEFAULT_MAX_TURNS)
+      expect(getRes.data.max_turns).toBeNull();
+    });
+  });
+
+  // ── GET /health details ─────────────────────────────────────────────────
+
+  describe('GET /health — detailed checks', () => {
+    it('response includes checks object', async () => {
+      const res = await api.get<Record<string, unknown>>('/health');
+      expect(res.status).toBe(200);
+      expect(res.data).toHaveProperty('checks');
+    });
+
+    it('checks.db is "ok" when database is reachable', async () => {
+      const res = await api.get<{ checks: { db: string } }>('/health');
+      expect(res.status).toBe(200);
+      expect(res.data.checks.db).toBe('ok');
+    });
+
+    it('response includes tester_model and grader_model', async () => {
+      const res = await api.get<{ checks: Record<string, unknown> }>('/health');
+      expect(res.status).toBe(200);
+      expect(res.data.checks).toHaveProperty('tester_model');
+      expect(res.data.checks).toHaveProperty('grader_model');
+      expect(typeof res.data.checks.tester_model).toBe('string');
+      expect(typeof res.data.checks.grader_model).toBe('string');
+    });
+
+    it('response includes environment field', async () => {
+      const res = await api.get<Record<string, unknown>>('/health');
+      expect(res.status).toBe(200);
+      expect(res.data).toHaveProperty('environment');
+    });
+  });
 });

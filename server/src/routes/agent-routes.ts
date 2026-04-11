@@ -82,6 +82,14 @@ app.patch('/api/v1/agents/:id', async (c) => {
   if (!existing) return c.json({ error: 'Agent not found' }, 404);
 
   if (body.config !== undefined) {
+    // For browser agents, ensure profile_id is not removed
+    if (existing.provider === 'browser') {
+      const merged = { ...(existing.config || {}), ...body.config };
+      const profileId = String(merged.profile_id || merged.profileId || '').trim();
+      if (!profileId) {
+        return c.json({ error: 'Browser Use Profile ID is required. Create one at https://cloud.browser-use.com/settings?tab=profiles' }, 400);
+      }
+    }
     // Merge partial config with existing config (so unedited secret fields are preserved)
     await sql`UPDATE agents SET updated_at = NOW(), config = config || ${sql.json(body.config as any)} WHERE id = ${id}`;
   }
