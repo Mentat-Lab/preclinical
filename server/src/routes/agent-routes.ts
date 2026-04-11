@@ -3,7 +3,41 @@ import { sql } from '../lib/db.js';
 import { randomUUID } from 'crypto';
 import { RUNNABLE_PROVIDERS, maskAgent } from './route-utils.js';
 import { config } from '../lib/config.js';
-import { validateSession, closeSession } from '../providers/browser/api.js';
+import { validateSession, closeSession, getClient } from '../providers/browser/api.js';
+import { log } from '../lib/logger.js';
+
+const logger = log.child({ component: 'agent-routes' });
+
+/**
+ * Auto-create a Browser Use Cloud profile for a browser agent config
+ * that has a URL but no profile_id. Mutates `agentConfig` in place.
+ */
+async function ensureBrowserProfile(agentConfig: Record<string, unknown>): Promise<void> {
+  const profileId = String(agentConfig.profile_id || agentConfig.profileId || '').trim();
+  if (profileId) return; // already has one
+
+  const targetUrl = String(agentConfig.url || agentConfig.endpoint || '').trim();
+  if (!targetUrl) return; // no URL to derive domain from
+
+  const apiKey = config.browserUseApiKey.trim();
+  if (!apiKey) return; // can't create without API key
+
+  let domain: string;
+  try {
+    domain = new URL(targetUrl).hostname.replace(/^www\./, '');
+  } catch {
+    return; // invalid URL, skip
+  }
+
+  try {
+    const client = getClient(apiKey);
+    const profile = await client.profiles.create({ name: `preclinical-${domain}` });
+    agentConfig.profile_id = profile.id;
+    logger.info('Auto-created Browser Use Cloud profile', { profileId: profile.id, domain });
+  } catch (err) {
+    logger.warn('Failed to auto-create browser profile', { domain, error: err });
+  }
+}
 
 const app = new Hono();
 
@@ -34,10 +68,16 @@ app.post('/api/v1/agents', async (c) => {
     }, 400);
   }
 
+  // Auto-create a Browser Use Cloud profile if this is a browser agent without one
+  const finalConfig = agentConfig || {};
+  if (provider === 'browser') {
+    await ensureBrowserProfile(finalConfig as Record<string, unknown>);
+  }
+
   const id = randomUUID();
   const [agent] = await sql`
     INSERT INTO agents (id, provider, name, description, config)
-    VALUES (${id}, ${provider}, ${name}, ${description || null}, ${agentConfig || {}})
+    VALUES (${id}, ${provider}, ${name}, ${description || null}, ${finalConfig})
     RETURNING *
   `;
 
@@ -48,10 +88,17 @@ app.patch('/api/v1/agents/:id', async (c) => {
   const id = c.req.param('id');
   const body = await c.req.json();
 
-  const [existing] = await sql`SELECT id FROM agents WHERE id = ${id}`;
+  const [existing] = await sql`SELECT * FROM agents WHERE id = ${id}`;
   if (!existing) return c.json({ error: 'Agent not found' }, 404);
 
   if (body.config !== undefined) {
+    // Auto-create a Browser Use Cloud profile if updating a browser agent with a URL but no profile_id
+    if (existing.provider === 'browser') {
+      const mergedConfig = { ...((existing.config || {}) as Record<string, unknown>), ...(body.config as Record<string, unknown>) };
+      if (!mergedConfig.profile_id && !mergedConfig.profileId) {
+        await ensureBrowserProfile(body.config as Record<string, unknown>);
+      }
+    }
     // Merge partial config with existing config (so unedited secret fields are preserved)
     await sql`UPDATE agents SET updated_at = NOW(), config = config || ${sql.json(body.config as any)} WHERE id = ${id}`;
   }
