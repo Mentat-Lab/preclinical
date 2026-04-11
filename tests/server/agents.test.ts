@@ -78,7 +78,9 @@ describe('Agents API', () => {
       ['pipecat'],
       ['browser'],
     ] as const)('accepts provider "%s"', async (provider) => {
-      const res = await createAgent({ provider, name: `${provider} Agent` });
+      const body: Record<string, unknown> = { provider, name: `${provider} Agent` };
+      if (provider === 'browser') body.config = { profile_id: 'prof_test_123' };
+      const res = await createAgent(body);
       expect(res.status).toBe(201);
       expect(res.data.provider).toBe(provider);
     });
