@@ -63,7 +63,7 @@ Configurable via env: `DEFAULT_MAX_TURNS=11`, `MIN_MAX_TURNS=5`, `MAX_MAX_TURNS=
 - `server/src/graphs/` — LangGraph StateGraphs (tester, grader), state schemas, skill loaders
 - `server/src/shared/` — Prompts, schemas, skills, attack vectors
 - `server/src/providers/` — Provider implementations (openai, vapi, livekit, pipecat, elevenlabs, browser)
-- `server/src/providers/browser/` — Split modules: browser.ts (main), types, api, profile-loader, system-message
+- `server/src/providers/browser/` — Split modules: browser.ts (main), types, api, system-message
 - `server/src/workers/` — Scenario runner + voice transports (daily, livekit, pipecat) with shared `voice-transport-base.ts`
 - `frontend/` — Vite + React + TanStack Query
 - `frontend/src/components/agents/` — Shared agent form components
@@ -79,11 +79,7 @@ The `browser` provider uses [Browser Use Cloud](https://www.browser-use.com/) to
 Requires `BROWSER_USE_API_KEY` and optionally `BROWSER_USE_API_BASE` in `.env`. There is no local BrowserUse worker in the stack.
 
 ### Browser Profiles
-Site-specific interaction instructions live in `server/src/shared/browser-profiles/`. Named by domain (e.g. `chatgpt.com.json`). Falls back to `_default.json`.
-
-Key fields: `browser_setup_instructions`, `browser_chat_instructions`, `browser_overlay_hint`, `requires_auth`, `browser_login_instructions`.
-
-Browser Use Cloud profiles are the persistence layer for browser auth. Reuse the same `profile_id` for repeated runs on the same domain instead of trying to replay old DOM actions.
+Browser Use Cloud profiles handle auth persistence. Reuse the same `profile_id` for repeated runs on the same domain. No local JSON profile files — defaults are in `system-message.ts`.
 
 ### Creating Browser Agents
 ```bash

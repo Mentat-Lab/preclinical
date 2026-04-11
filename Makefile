@@ -1,4 +1,4 @@
-.PHONY: setup up down restart logs status clean nuke
+.PHONY: setup up down restart logs status clean nuke seed db-reset
 
 # --------------------------------------------------------------------------
 # Preclinical
@@ -38,6 +38,18 @@ status:
 	@docker compose ps
 	@echo ""
 	@curl -s http://localhost:3000/health 2>/dev/null && echo "" || echo "⚠ App not reachable"
+
+## Seed the database (agents + scenarios)
+seed:
+	@docker compose exec -T db psql -U postgres -d preclinical < server/seed.sql
+	@echo "✓ Database seeded"
+
+## Reset database to initial state (drop all data, re-apply schema + seed)
+db-reset:
+	@docker compose exec -T db psql -U postgres -d preclinical -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+	@docker compose exec -T db psql -U postgres -d preclinical < server/schema.sql
+	@docker compose exec -T db psql -U postgres -d preclinical < server/seed.sql
+	@echo "✓ Database reset to initial state"
 
 ## Remove volumes, restart fresh
 clean:

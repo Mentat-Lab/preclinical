@@ -1,9 +1,0 @@
-{
-  "domain": "claude.ai",
-  "name": "Claude",
-  "requires_auth": true,
-  "browser_login_instructions": "Go to {url}. Click 'Log in'. Enter the email address: {email}. Click 'Continue with email'. Wait for the verification email to be sent.",
-  "browser_setup_instructions": "Dismiss any onboarding modals, feature announcements, or usage tips. If asked to accept terms, accept them.",
-  "browser_chat_instructions": "Find the chat input field at the bottom of the page, type the message and send it (press Enter or click the send button). Wait for the response to finish streaming.",
-  "browser_overlay_hint": "Claude does not show emergency modals. Set overlay_text to empty string."
-}

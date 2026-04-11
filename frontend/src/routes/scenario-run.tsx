@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { useActiveAgent } from '@/lib/active-agent-context';
 import { useScenarioRun, useScenarioRuns, useTestRun } from '@/hooks/use-queries';
 import { useRealtimeRun } from '@/lib/sse';
 import { cn } from '@/lib/utils';
@@ -202,8 +203,15 @@ export default function ScenarioRunPage() {
   const { data: result, isLoading, error } = useScenarioRun(resolvedScenarioRunId);
   const { data: scenarioRunsData } = useScenarioRuns({ testRunId: resolvedTestRunId });
   const { data: testRunData } = useTestRun(resolvedTestRunId);
+  const { setActiveAgentId } = useActiveAgent();
 
   useRealtimeRun(testRunId, scenarioRunId);
+
+  useEffect(() => {
+    const agentId = testRunData?.run?.agent_id;
+    if (agentId) setActiveAgentId(agentId);
+    return () => setActiveAgentId(null);
+  }, [testRunData?.run?.agent_id, setActiveAgentId]);
 
   const scenarioRuns = scenarioRunsData?.results ?? [];
   const navigation = (() => {
@@ -365,9 +373,9 @@ export default function ScenarioRunPage() {
               href={String(result.metadata.live_url)}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-accent hover:underline"
+              className="text-sm text-accent hover:underline truncate max-w-[50%]"
             >
-              Open live session
+              {String(result.metadata.live_url)}
             </a>
           </div>
         )}

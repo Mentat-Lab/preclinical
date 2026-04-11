@@ -3,12 +3,14 @@ import { Link, useLocation } from 'react-router-dom';
 import { Plus, Loader2, PanelLeftClose, PanelLeftOpen, BookOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAgents } from '@/hooks/use-queries';
+import { useActiveAgent } from '@/lib/active-agent-context';
 import { ProviderIcon } from '@/components/ProviderIcon';
 
 const SIDEBAR_COLLAPSED_KEY = 'preclinical.sidebar.collapsed';
 
 export function AgentSidebar() {
   const { data: agents = [], isLoading } = useAgents();
+  const { activeAgentId } = useActiveAgent();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const location = useLocation();
   const pathname = location.pathname;
@@ -37,8 +39,8 @@ export function AgentSidebar() {
 
   const isAgentActive = useCallback(
     (agentId: string) =>
-      pathname === `/agents/${agentId}` || pathname.startsWith(`/agents/${agentId}/`),
-    [pathname],
+      pathname === `/agents/${agentId}` || pathname.startsWith(`/agents/${agentId}/`) || activeAgentId === agentId,
+    [pathname, activeAgentId],
   );
 
   return (

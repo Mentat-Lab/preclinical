@@ -11,7 +11,6 @@ import { config } from '../../lib/config.js';
 import { log } from '../../lib/logger.js';
 import type { BrowserState } from './types.js';
 import { createSession, runTask, closeSession } from './api.js';
-import { loadBrowserProfile } from './profile-loader.js';
 import { buildSystemMessageExtension, buildTaskPrompt, buildSensitiveData } from './system-message.js';
 
 const logger = log.child({ component: 'browser' });
@@ -65,14 +64,7 @@ const browserProvider: Provider = {
   async sendMessage(session, message, context): Promise<string> {
     const state = session.state as BrowserState;
 
-    if (!state.profile) {
-      const loaded = await loadBrowserProfile(state.targetUrl, state.agentConfig);
-      state.profile = loaded.profile;
-    }
-
-    const allowedDomains = state.domain
-      ? [state.domain, ...(state.profile.auth_domains || [])]
-      : undefined;
+    const allowedDomains = state.domain ? [state.domain] : undefined;
 
     // Create session on first turn (reused across subsequent turns)
     if (!state.sessionId) {
@@ -96,14 +88,12 @@ const browserProvider: Provider = {
         domain: state.domain,
         profileId: state.profileId,
       });
-
-
     }
 
     if (!state.sessionId) throw new Error('No browser session ID available');
 
-    const systemExt = buildSystemMessageExtension(state.profile, context.persona || null);
-    const taskPrompt = buildTaskPrompt(state.profile, message, state.targetUrl, context.turn, state.agentConfig);
+    const systemExt = buildSystemMessageExtension(context.persona || null);
+    const taskPrompt = buildTaskPrompt(message, state.targetUrl, context.turn, state.agentConfig);
     const secrets = buildSensitiveData(state.domain, state.agentConfig);
 
     const turnStartedAt = new Date().toISOString();

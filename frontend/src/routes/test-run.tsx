@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useActiveAgent } from '@/lib/active-agent-context';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Download, Loader2, Share2, Trash2, ChevronRight } from 'lucide-react';
 import { useScenarioRuns, useTestRun, queryKeys } from '@/hooks/use-queries';
@@ -85,8 +86,15 @@ export default function TestRunPage() {
 
   const { data, isLoading, error } = useTestRun(id || '');
   const { data: scenarioRunsData, isLoading: scenariosLoading } = useScenarioRuns({ testRunId: id || '' });
+  const { setActiveAgentId } = useActiveAgent();
 
   useRealtimeRun(id);
+
+  const agentId = data?.run?.agent_id;
+  useEffect(() => {
+    if (agentId) setActiveAgentId(agentId);
+    return () => setActiveAgentId(null);
+  }, [agentId, setActiveAgentId]);
 
   const run = data?.run;
   const allResults = scenarioRunsData?.results ?? [];

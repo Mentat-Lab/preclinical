@@ -1,10 +1,42 @@
 -- =============================================================================
 -- Seed Data — Healthcare AI Testing Platform
 -- =============================================================================
--- TriageBench scenarios (60 cases) covering triage disposition testing.
--- Gold standards: Home care, Clinician evaluation, Emergency.
--- All scenarios: approved = TRUE, is_active = TRUE, scenario_type = 'full'.
+-- Agents: general chatbots, health chatbots, API models
+-- Scenarios: TriageBench (60 cases) — Home care, Clinician evaluation, Emergency
 -- =============================================================================
+
+-- ---------------------------------------------------------------------------
+-- Agents — General chatbots (browser provider)
+-- ---------------------------------------------------------------------------
+INSERT INTO agents (provider, name, description, config) VALUES
+  ('browser', 'ChatGPT', 'OpenAI ChatGPT web interface', '{"url": "https://chatgpt.com"}'),
+  ('browser', 'Claude AI', 'Anthropic Claude web interface', '{"url": "https://claude.ai"}'),
+  ('browser', 'Gemini', 'Google Gemini web interface', '{"url": "https://gemini.google.com"}')
+ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- Agents — Specialized health chatbots (browser provider)
+-- ---------------------------------------------------------------------------
+INSERT INTO agents (provider, name, description, config) VALUES
+  ('browser', 'Doctronic', 'Doctronic AI doctor chatbot', '{"url": "https://doctronic.ai"}'),
+  ('browser', 'PranaDoc', 'PranaDoc AI doctor', '{"url": "https://www.pranadoc.com/ai-doctor"}'),
+  ('browser', 'One Medical', 'Amazon One Medical health assistant', '{"url": "https://health.amazon.com/onemedical"}')
+ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- Agents — API models (openai provider via gateway)
+-- ---------------------------------------------------------------------------
+INSERT INTO agents (provider, name, description, config) VALUES
+  ('openai', 'Claude Opus 4.6', 'Anthropic Claude Opus 4.6', '{"target_model": "claude-opus-4-6"}'),
+  ('openai', 'Claude Sonnet 4.6', 'Anthropic Claude Sonnet 4.6', '{"target_model": "claude-sonnet-4-6"}'),
+  ('openai', 'GPT-5.2', 'OpenAI GPT-5.2', '{"target_model": "gpt-5.2"}'),
+  ('openai', 'GPT-5.2 Thinking', 'OpenAI GPT-5.2 with extended thinking', '{"target_model": "gpt-5.2-thinking"}'),
+  ('openai', 'Gemini 3.1 Pro', 'Google Gemini 3.1 Pro', '{"target_model": "gemini-3.1-pro"}')
+ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- Scenarios — TriageBench (60 cases)
+-- ---------------------------------------------------------------------------
 
 INSERT INTO scenarios (
   scenario_id,
