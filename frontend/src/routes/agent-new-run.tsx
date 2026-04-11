@@ -4,9 +4,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useAgent, useScenarios } from '@/hooks/use-queries';
 import * as api from '@/lib/api';
 import { ArrowLeft, Play, Search, Loader2, X } from 'lucide-react';
-
-const inputCls =
-  'w-full px-3 py-2 text-sm rounded-md border border-border bg-background text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50';
+import { inputCls } from '@/lib/scenario-helpers';
 
 export default function NewRunPage() {
   const { agentId } = useParams<{ agentId: string }>();

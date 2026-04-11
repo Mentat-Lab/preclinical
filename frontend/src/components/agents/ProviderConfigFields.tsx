@@ -1,8 +1,6 @@
 import { Eye, EyeOff, ExternalLink } from 'lucide-react';
 import type { ProviderField } from '@/lib/provider-config';
-
-export const inputCls =
-  'w-full px-3 py-2 text-sm rounded-md border border-border bg-background text-text-primary placeholder:text-text-secondary focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50';
+import { inputCls } from '@/lib/scenario-helpers';
 
 interface ProviderConfigFieldsProps {
   fields: ProviderField[];

@@ -16,7 +16,8 @@ import {
 import { Check, Info, ShieldCheck, Loader2 } from 'lucide-react';
 import { ProviderIcon } from '@/components/ProviderIcon';
 import { cn } from '@/lib/utils';
-import { ProviderConfigFields, inputCls } from '@/components/agents/ProviderConfigFields';
+import { ProviderConfigFields } from '@/components/agents/ProviderConfigFields';
+import { inputCls } from '@/lib/scenario-helpers';
 
 const providerCards: AgentProvider[] = ['vapi', 'livekit', 'pipecat', 'openai', 'browser', 'elevenlabs'];
 

@@ -9,7 +9,8 @@ import {
   applyProviderDefaults,
   validateProviderConfig,
 } from '@/lib/provider-config';
-import { ProviderConfigFields, inputCls } from '@/components/agents/ProviderConfigFields';
+import { ProviderConfigFields } from '@/components/agents/ProviderConfigFields';
+import { inputCls } from '@/lib/scenario-helpers';
 import { ShieldCheck, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 

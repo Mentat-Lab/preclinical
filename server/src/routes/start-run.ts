@@ -3,13 +3,11 @@ import { sql, emitEvent, getAgentById } from '../lib/db.js';
 import { getQueue, type ScenarioJobData } from '../lib/queue.js';
 import { randomUUID } from 'crypto';
 import { log } from '../lib/logger.js';
-import { listProviders } from '../providers/index.js';
+import { RUNNABLE_PROVIDERS } from './route-utils.js';
 
 const logger = log.child({ component: 'start-run' });
 
 const app = new Hono();
-
-const RUNNABLE_PROVIDERS = new Set(listProviders());
 
 function generateRunId(): string {
   const now = new Date();

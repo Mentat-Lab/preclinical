@@ -67,13 +67,6 @@ export async function createTestRun(params: {
   });
 }
 
-export async function cancelTestRun(id: string): Promise<{ status: string }> {
-  return fetchJSON('/cancel-run', {
-    method: 'POST',
-    body: JSON.stringify({ test_run_id: id }),
-  });
-}
-
 export async function deleteTestRun(id: string): Promise<void> {
   return fetchJSON(`/api/v1/tests/${id}`, { method: 'DELETE' });
 }
