@@ -27,11 +27,13 @@ app.post('/api/v1/agents/validate-browser', async (c) => {
   const apiKey = config.browserUseApiKey.trim();
   if (!apiKey) return c.json({ error: 'BROWSER_USE_API_KEY not configured' }, 500);
 
-  const result = await validateSession(apiKey, { profileId, targetUrl });
-  return c.json({
-    ok: result.ok,
-    error: result.error || null,
-  });
+  try {
+    const result = await validateSession(apiKey, { profileId, targetUrl });
+    return c.json({ ok: result.ok, error: result.error || null });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return c.json({ ok: false, error: msg }, 200);
+  }
 });
 
 app.get('/api/v1/agents/:id', async (c) => {
@@ -115,11 +117,13 @@ app.post('/api/v1/agents/:id/validate-browser', async (c) => {
 
   const profileId = String(agentConfig.profile_id || agentConfig.profileId || '').trim() || undefined;
 
-  const result = await validateSession(apiKey, { profileId, targetUrl });
-  return c.json({
-    ok: result.ok,
-    error: result.error || null,
-  });
+  try {
+    const result = await validateSession(apiKey, { profileId, targetUrl });
+    return c.json({ ok: result.ok, error: result.error || null });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return c.json({ ok: false, error: msg }, 200);
+  }
 });
 
 app.delete('/api/v1/agents/:id', async (c) => {

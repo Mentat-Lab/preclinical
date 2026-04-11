@@ -100,6 +100,17 @@ curl -X POST http://localhost:3000/api/v1/agents -H 'Content-Type: application/j
 
 60 TriageBench scenarios: 20 home care, 20 clinician evaluation, 20 emergency. Each tests whether the agent correctly triages the patient.
 
+## Testing & Running
+
+Always use Docker Compose to run and test the application. Never start local dev servers (`npm run dev`) unless explicitly asked. After code changes, rebuild and restart Docker:
+
+```bash
+docker compose build && make restart        # rebuild + restart after code changes
+make logs                                   # verify startup
+```
+
+Ports (Docker): API on `localhost:3333` (container 8000), frontend on `localhost:3000`.
+
 ## Deployment
 
 ```bash
