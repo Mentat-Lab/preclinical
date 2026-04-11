@@ -179,6 +179,7 @@ export async function closeSession(apiKey: string, sessionId: string): Promise<v
   try {
     const client = getClient(apiKey);
     await client.sessions.stop(sessionId);
+    logger.info('Closed browser session', { sessionId });
   } catch (err) {
     logger.warn('Failed to close session', { sessionId, error: err });
   }

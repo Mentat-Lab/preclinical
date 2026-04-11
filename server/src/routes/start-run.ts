@@ -117,10 +117,12 @@ app.post('/start-run', async (c) => {
   // Create test run
   const runId = randomUUID();
   const now = new Date().toISOString();
+  const BROWSER_MAX_CONCURRENCY = 3;
   const requestedConcurrency = Number(concurrency_limit);
+  const defaultConcurrency = resolvedAgentType === 'browser' ? BROWSER_MAX_CONCURRENCY : 6;
   const effectiveConcurrency = Number.isFinite(requestedConcurrency) && requestedConcurrency > 0
-    ? Math.floor(requestedConcurrency)
-    : 6;
+    ? Math.min(Math.floor(requestedConcurrency), resolvedAgentType === 'browser' ? BROWSER_MAX_CONCURRENCY : Infinity)
+    : defaultConcurrency;
 
   // Create scenario runs (batch insert)
   const scenarioRunIds = scenarioIds.map(() => randomUUID());
