@@ -35,7 +35,6 @@ Initial open-source release of Preclinical as a self-hosted platform.
 - Self-hosted via Docker Compose (Postgres + App)
 - LangGraph-based tester and grader agents
 - Five provider integrations: OpenAI, Vapi, LiveKit, Pipecat, Browser
-- Local LLM support via Ollama
 - Local BrowserUse support
 - Full REST API for programmatic test execution
 - Python CLI and SDK (PyPI: `preclinical`)

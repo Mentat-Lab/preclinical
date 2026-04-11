@@ -1,6 +1,6 @@
 # OpenAI
 
-Preclinical can test any OpenAI-compatible chat completion API, including OpenAI, Azure OpenAI, vLLM, Ollama, and any API following the OpenAI chat completions format.
+Preclinical can test any OpenAI-compatible chat completion API, including OpenAI, Azure OpenAI, vLLM, and any API following the OpenAI chat completions format.
 
 ## Configuration
 
@@ -55,19 +55,6 @@ All fields also accept camelCase (`apiKey`, `baseUrl`, `targetModel`, `systemPro
         "api_key": "dummy",
         "base_url": "http://localhost:3000/v1",
         "target_model": "meta-llama/Llama-2-70b-chat-hf"
-      }
-    }
-    ```
-
-=== "Ollama"
-
-    ```json
-    {
-      "provider": "openai",
-      "config": {
-        "api_key": "ollama",
-        "base_url": "http://localhost:11434/v1",
-        "target_model": "llama2"
       }
     }
     ```

@@ -18,7 +18,7 @@ Preclinical simulates realistic adversarial patient interactions against your he
 ### Prerequisites
 - Docker Desktop (or Docker Engine + Docker Compose)
 - Google Chrome (for browser-based testing)
-- An `OPENAI_API_KEY` (or Anthropic/Ollama -- see `.env.example`)
+- An `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` (see `.env.example`)
 
 ### Setup
 ```bash
@@ -45,12 +45,6 @@ make nuke           # destroy everything + rebuild from scratch
 ## Runtime Modes
 
 **Default (OpenAI)** -- requires `OPENAI_API_KEY` in `.env`.
-
-**Ollama (fully local, no cloud key)**:
-```bash
-docker compose --profile ollama up -d
-```
-Set `TESTER_MODEL=ollama:llama3.2`, `GRADER_MODEL=ollama:llama3.2`, and `OLLAMA_BASE_URL=http://ollama:11434/v1` in `.env`.
 
 **Browser testing** (chatgpt.com, claude.ai, etc.) uses CDP (Chrome DevTools Protocol). Run `make chrome` before browser tests to launch 5 Chrome instances (ports 9222-9226). Configurable via `CHROME_INSTANCES` and `CHROME_BASE_PORT`.
 
@@ -113,9 +107,9 @@ preclinical/
 
 See [`.env.example`](.env.example) for all environment variables. Key settings:
 
-- `OPENAI_API_KEY` -- OpenAI (or compatible) API key (required unless using Anthropic/Ollama only)
+- `OPENAI_API_KEY` -- OpenAI (or compatible) API key
+- `ANTHROPIC_API_KEY` -- for Claude models
 - `TESTER_MODEL` / `GRADER_MODEL` -- LLM models for patient simulation and grading (default: `gpt-4o-mini`)
-- `ANTHROPIC_API_KEY` -- for Claude models; `OLLAMA_BASE_URL` -- for Ollama models
 
 ## Documentation
 

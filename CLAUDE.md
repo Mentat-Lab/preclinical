@@ -16,7 +16,6 @@ make logs                                   # tail logs
 make status                                 # health check
 make clean                                  # remove volumes, Chrome profiles, restart fresh
 make nuke                                   # destroy everything + rebuild from scratch
-docker compose --profile ollama up          # with local Ollama
 cd server && npm run dev                    # server dev (hot reload)
 cd frontend && npm run dev                  # frontend dev
 cd server && npx tsc --noEmit               # type check server
@@ -45,7 +44,6 @@ pg-boss job → testerGraph.invoke() → graderGraph.invoke() → finalize
 ### LLM Runtime
 Model routing in `server/src/shared/llm-utils.ts`:
 - `claude-*` → Anthropic API (with prompt caching)
-- `ollama:*` → Ollama OpenAI-compatible endpoint (no API key needed)
 - Everything else → OpenAI-compatible gateway (`OPENAI_BASE_URL`)
 
 ### Provider Routing
@@ -140,7 +138,6 @@ Browser profiles control the flow via `browser_signup_instructions` and `browser
 
 ```bash
 make up                                     # production (Chrome pool + Docker)
-docker compose --profile ollama up -d       # with Ollama
 docker compose build                        # rebuild images
 ```
 

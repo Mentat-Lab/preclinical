@@ -27,7 +27,6 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434/v1}
       TESTER_MODEL: ${TESTER_MODEL:-gpt-4o-mini}
       GRADER_MODEL: ${GRADER_MODEL:-gpt-4o-mini}
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-5}
@@ -58,23 +57,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 15s
-
-  # Ollama (optional — for local LLM inference)
-  # Start with: docker compose --profile ollama up
-  # Then set TESTER_MODEL=ollama:llama3.2 in .env
-  ollama:
-    image: ollama/ollama:latest
-    profiles: [ollama]
-    volumes:
-      - ollama_data:/root/.ollama
-    ports:
-      - "11434:11434"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
 
   # Dockerized Chrome (optional fallback — for users without Chrome on host)
   # Start with: docker compose --profile chrome up
@@ -124,7 +106,6 @@ services:
 
 volumes:
   pgdata:
-  ollama_data:
   browserdata:
   browser_storage:
   browser_logs:

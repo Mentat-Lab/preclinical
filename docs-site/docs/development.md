@@ -7,7 +7,7 @@
 
 ## Quick Start
 
-1. Copy `.env.example` to `.env` and fill in model credentials (`OPENAI_API_KEY`, Anthropic, or Ollama config).
+1. Copy `.env.example` to `.env` and fill in model credentials (`OPENAI_API_KEY` or `ANTHROPIC_API_KEY`).
 
 2. Start the database:
 

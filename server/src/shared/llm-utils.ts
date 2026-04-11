@@ -22,16 +22,6 @@ export function isAnthropicModel(model: string): boolean {
   return model.startsWith("claude-");
 }
 
-/** Check if a model name uses the ollama: prefix for local Ollama models. */
-export function isOllamaModel(model: string): boolean {
-  return model.startsWith("ollama:");
-}
-
-/** Strip the ollama: prefix to get the actual model name. */
-export function getOllamaModelName(model: string): string {
-  return model.replace(/^ollama:/, "");
-}
-
 // ---------------------------------------------------------------------------
 // LLM construction
 // ---------------------------------------------------------------------------
@@ -57,15 +47,6 @@ export function createLLM(cfg: LLMConfig): ChatOpenAI | ChatAnthropic {
     });
   }
 
-  if (isOllamaModel(cfg.model)) {
-    return new ChatOpenAI({
-      model: getOllamaModelName(cfg.model),
-      temperature: cfg.temperature,
-      apiKey: "ollama",
-      configuration: { baseURL: config.ollamaBaseUrl },
-    });
-  }
-
   const openaiApiKey = config.openaiApiKey;
   if (!openaiApiKey) throw new Error("Missing OPENAI_API_KEY");
   const baseUrl = config.openaiBaseUrl;
@@ -86,7 +67,7 @@ export function createLLM(cfg: LLMConfig): ChatOpenAI | ChatAnthropic {
  * For non-Claude models, returns a plain SystemMessage.
  */
 export function buildCachedSystemMessage(model: string, content: string): SystemMessage {
-  if (isAnthropicModel(model) && !isOllamaModel(model)) {
+  if (isAnthropicModel(model)) {
     return new SystemMessage({
       content: [
         {

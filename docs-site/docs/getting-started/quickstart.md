@@ -14,7 +14,7 @@ Run your first test against a healthcare AI agent. You'll:
 
 - Docker Desktop (or Docker Engine + Docker Compose)
 - Google Chrome (for browser-based testing)
-- An API key: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or Ollama (see `.env.example`)
+- An API key: `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` (see `.env.example`)
 
 ## Setup
 

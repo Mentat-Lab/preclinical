@@ -15,7 +15,6 @@ All configuration is done via environment variables in your root `.env` file. Se
 |----------|---------|-------------|
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Override for compatible providers |
 | `ANTHROPIC_API_KEY` | -- | For Claude models |
-| `OLLAMA_BASE_URL` | `http://localhost:11434/v1` | Ollama API endpoint (for `ollama:*` models) |
 | `TESTER_MODEL` | `gpt-4o-mini` | Model for simulated patient |
 | `TESTER_TEMPERATURE` | `0.2` | Temperature for tester |
 | `GRADER_MODEL` | `gpt-4o-mini` | Model for transcript grading |

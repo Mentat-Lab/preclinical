@@ -17,7 +17,7 @@ Preclinical runs adversarial multi-turn conversations against your healthcare AI
 git clone https://github.com/Mentat-Lab/preclinical.git
 cd preclinical
 cp .env.example .env
-# Add model credentials (OpenAI, Anthropic, or Ollama settings)
+# Add model credentials (OpenAI or Anthropic)
 docker compose up
 ```
 

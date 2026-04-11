@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { sql } from '../lib/db.js';
 import { config } from '../lib/config.js';
-import { isAnthropicModel, isOllamaModel } from '../shared/llm-utils.js';
+import { isAnthropicModel } from '../shared/llm-utils.js';
 
 const app = new Hono();
 
@@ -12,13 +12,6 @@ function buildModelCheck(model: string, label: string): { status: CheckStatus; d
     return config.anthropicApiKey
       ? { status: 'ok', detail: `${label} is configured for Anthropic (${model}).` }
       : { status: 'error', detail: `${label} uses ${model} but ANTHROPIC_API_KEY is missing.` };
-  }
-
-  if (isOllamaModel(model)) {
-    return {
-      status: 'warning',
-      detail: `${label} uses Ollama (${model}) at ${config.ollamaBaseUrl}. Ensure the model is available there.`,
-    };
   }
 
   return config.openaiApiKey

@@ -3,7 +3,7 @@
  * OpenAI-compatible chat API provider.
  *
  * Works with any API that implements the OpenAI chat completions format:
- * OpenAI, Azure OpenAI, Anthropic (via proxy), local models (Ollama, vLLM), etc.
+ * OpenAI, Azure OpenAI, Anthropic (via proxy), local models (vLLM), etc.
  */
 
 import { registerProvider, type Provider, type ProviderSession, type MessageContext } from '../base.js';

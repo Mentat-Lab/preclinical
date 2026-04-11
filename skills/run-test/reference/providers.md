@@ -7,7 +7,7 @@ Preclinical supports these provider types for connecting to healthcare AI agents
 ### openai
 OpenAI-compatible chat API (most common).
 - **Config**: `{"model": "gpt-4", "api_key": "...", "base_url": "..."}`
-- Works with any OpenAI-compatible endpoint (OpenAI, Azure, local LLMs via LiteLLM, Ollama, etc.)
+- Works with any OpenAI-compatible endpoint (OpenAI, Azure, local LLMs via LiteLLM, etc.)
 
 ### vapi
 Vapi REST API for voice agents (text-based testing).
