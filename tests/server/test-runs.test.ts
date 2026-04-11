@@ -621,25 +621,25 @@ describe('Test Runs API', () => {
       expect(res.data).toHaveProperty('checks');
     });
 
-    it('checks.db is "ok" when database is reachable', async () => {
-      const res = await api.get<{ checks: { db: string } }>('/health');
+    it('checks.database.status is "ok" when database is reachable', async () => {
+      const res = await api.get<{ checks: { database: { status: string } } }>('/health');
       expect(res.status).toBe(200);
-      expect(res.data.checks.db).toBe('ok');
+      expect(res.data.checks.database.status).toBe('ok');
     });
 
-    it('response includes tester_model and grader_model', async () => {
+    it('response includes tester_model and grader_model checks', async () => {
       const res = await api.get<{ checks: Record<string, unknown> }>('/health');
       expect(res.status).toBe(200);
       expect(res.data.checks).toHaveProperty('tester_model');
       expect(res.data.checks).toHaveProperty('grader_model');
-      expect(typeof res.data.checks.tester_model).toBe('string');
-      expect(typeof res.data.checks.grader_model).toBe('string');
     });
 
-    it('response includes environment field', async () => {
-      const res = await api.get<Record<string, unknown>>('/health');
+    it('response includes setup with model names', async () => {
+      const res = await api.get<{ setup: Record<string, unknown> }>('/health');
       expect(res.status).toBe(200);
-      expect(res.data).toHaveProperty('environment');
+      expect(res.data).toHaveProperty('setup');
+      expect(typeof res.data.setup.tester_model).toBe('string');
+      expect(typeof res.data.setup.grader_model).toBe('string');
     });
   });
 });
