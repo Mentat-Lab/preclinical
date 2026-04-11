@@ -1,105 +1,182 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
- * BrowserUse API helpers — session lifecycle and task polling.
+ * BrowserUse SDK helpers — session lifecycle and task execution.
+ *
+ * Uses the official browser-use-sdk (v3) for session management and task
+ * execution. Output parsing is done locally with graceful fallback so a
+ * schema mismatch never causes a duplicate task.
  */
 
+import { BrowserUse } from 'browser-use-sdk';
+import { z } from 'zod';
 import { log } from '../../lib/logger.js';
 
 const logger = log.child({ component: 'browser' });
 
-const BROWSER_USE_API_BASE = process.env.BROWSER_USE_API_BASE || 'https://api.browser-use.com/api/v2';
-const BROWSER_POLL_INTERVAL_MS = 1_500;
-const BROWSER_TASK_TIMEOUT_MS = parseInt(process.env.BROWSER_TASK_TIMEOUT_MS || '3600000', 10);
+/** Zod schema for structured extraction from browser tasks. */
+export const ResponseSchema = z.object({
+  bot_response: z.string().describe('The full text of the chatbot/assistant response message'),
+  overlay_text: z.string().nullable().describe('Text from a NEW modal, popup, or emergency alert that appeared AFTER the message was sent. Empty string if none.').default(''),
+}).transform(r => ({ ...r, overlay_text: r.overlay_text ?? '' }));
 
-export { BROWSER_USE_API_BASE };
+/** JSON Schema string sent to the Browser Use API so the agent formats output as JSON. */
+const STRUCTURED_OUTPUT = JSON.stringify({
+  type: 'object',
+  properties: {
+    bot_response: { type: 'string', description: 'The full text of the chatbot/assistant response message' },
+    overlay_text: { type: 'string', description: 'Text from a NEW modal, popup, or emergency alert. Empty string if none.' },
+  },
+  required: ['bot_response'],
+});
 
-export function apiHeaders(apiKey: string): Record<string, string> {
-  const h: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (apiKey) h['X-Browser-Use-API-Key'] = apiKey;
-  return h;
+export type BrowserResponse = z.infer<typeof ResponseSchema>;
+
+// Singleton client — reused across sessions within the same process.
+let _client: BrowserUse | null = null;
+let _clientKey = '';
+
+export function getClient(apiKey: string): BrowserUse {
+  if (_client && _clientKey === apiKey) return _client;
+  _client = new BrowserUse({ apiKey });
+  _clientKey = apiKey;
+  return _client;
 }
 
 export async function createSession(
   apiKey: string,
-  domain: string,
-  allowedDomains?: string[],
-  agentmailApiKey?: string,
-): Promise<{ id: string; liveUrl: string; inboxAddress: string }> {
-  const body: Record<string, unknown> = {
-    domain,
-    allowed_domains: allowedDomains,
-  };
-  if (agentmailApiKey) body.agentmail_api_key = agentmailApiKey;
+  options: { profileId?: string; startUrl?: string },
+): Promise<{ id: string; liveUrl: string }> {
+  const client = getClient(apiKey);
+  const session = await client.sessions.create({
+    profileId: options.profileId,
+    startUrl: options.startUrl,
+    keepAlive: true,
+    persistMemory: true,
+  });
+  return { id: session.id, liveUrl: session.liveUrl || '' };
+}
 
-  const response = await fetch(`${BROWSER_USE_API_BASE}/sessions`, {
-    method: 'POST',
-    headers: apiHeaders(apiKey),
-    body: JSON.stringify(body),
+export async function runTask(
+  apiKey: string,
+  options: {
+    task: string;
+    sessionId: string;
+    startUrl?: string;
+    maxSteps?: number;
+    systemPromptExtension?: string;
+    secrets?: Record<string, string>;
+    allowedDomains?: string[];
+  },
+): Promise<BrowserResponse> {
+  const client = getClient(apiKey);
+
+  // Create and wait for the task using the low-level API so we control
+  // output parsing separately from task execution (no duplicate tasks
+  // on schema mismatch).
+  const { id: taskId } = await client.tasks.create({
+    task: options.task,
+    sessionId: options.sessionId,
+    startUrl: options.startUrl ?? undefined,
+    maxSteps: options.maxSteps ?? 10,
+    systemPromptExtension: options.systemPromptExtension ?? '',
+    secrets: options.secrets,
+    allowedDomains: options.allowedDomains,
+    structuredOutput: STRUCTURED_OUTPUT,
+    vision: true,
   });
 
-  if (!response.ok) {
-    throw new Error(`BrowserUse session creation failed (${response.status}): ${await response.text()}`);
+  const task = await client.tasks.wait(taskId, { timeout: 300_000 });
+
+  if (task.status !== 'finished') {
+    const output = String(task.output || '').slice(0, 500);
+    throw new Error(`Browser Use Cloud task failed: status=${task.status}, output=${output}`);
   }
 
-  const data = await response.json() as any;
-  return {
-    id: data.id,
-    liveUrl: data.live_url || data.liveUrl || '',
-    inboxAddress: data.inbox_address || '',
-  };
+  // Try structured parse → fall back to raw output string.
+  const raw = task.output ?? '';
+  try {
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return ResponseSchema.parse(parsed);
+  } catch {
+    logger.warn('Structured extraction failed, using raw output', { taskId });
+    return { bot_response: String(raw), overlay_text: '' };
+  }
 }
 
-export async function pollTask(apiKey: string, taskId: string): Promise<Record<string, unknown>> {
-  const start = Date.now();
-  while (Date.now() - start < BROWSER_TASK_TIMEOUT_MS) {
-    const response = await fetch(`${BROWSER_USE_API_BASE}/tasks/${taskId}`, {
-      headers: apiHeaders(apiKey),
+/**
+ * Preflight validation: creates a session, navigates to the target URL,
+ * and checks whether the page is accessible or blocked by a login wall.
+ * Returns the live URL so the caller can expose it for manual auth.
+ */
+export async function validateSession(
+  apiKey: string,
+  options: { profileId?: string; targetUrl: string },
+): Promise<{ ok: boolean; liveUrl: string; sessionId: string; error?: string }> {
+  const client = getClient(apiKey);
+  const session = await client.sessions.create({
+    profileId: options.profileId,
+    startUrl: options.targetUrl,
+    keepAlive: true,
+    persistMemory: true,
+  });
+
+  try {
+    const { id: taskId } = await client.tasks.create({
+      task: `Navigate to ${options.targetUrl}. Check if you can see a chat input or text area. If you are on a login page or cannot access the chat, report login_required=true. Do NOT type anything or interact with the chat.`,
+      sessionId: session.id,
+      startUrl: options.targetUrl,
+      maxSteps: 5,
+      structuredOutput: JSON.stringify({
+        type: 'object',
+        properties: {
+          chat_accessible: { type: 'boolean', description: 'Whether a chat input is visible and usable' },
+          login_required: { type: 'boolean', description: 'Whether a login page or auth wall is blocking access' },
+          page_title: { type: 'string', description: 'The page title or heading' },
+        },
+        required: ['chat_accessible', 'login_required'],
+      }),
+      vision: true,
     });
 
-    if (!response.ok) {
-      throw new Error(`BrowserUse task poll failed (${response.status}): ${await response.text()}`);
+    const task = await client.tasks.wait(taskId, { timeout: 60_000 });
+    const raw = task.output ?? '';
+    let loginRequired = false;
+    let chatAccessible = false;
+
+    try {
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      loginRequired = !!parsed.login_required;
+      chatAccessible = !!parsed.chat_accessible;
+    } catch {
+      // If we can't parse, assume accessible (let the real run discover issues)
+      chatAccessible = task.status === 'finished';
     }
 
-    const data = await response.json() as any;
-    if (['finished', 'stopped', 'failed'].includes(data.status)) return data;
+    if (loginRequired && !chatAccessible) {
+      return {
+        ok: false,
+        liveUrl: session.liveUrl || '',
+        sessionId: session.id,
+        error: 'Login required. Use the live browser link to log in, then retry.',
+      };
+    }
 
-    await new Promise((resolve) => setTimeout(resolve, BROWSER_POLL_INTERVAL_MS));
-  }
-
-  throw new Error(`BrowserUse task timed out after ${BROWSER_TASK_TIMEOUT_MS}ms`);
-}
-
-// ---------------------------------------------------------------------------
-// Action History — login replay cache
-// ---------------------------------------------------------------------------
-
-export async function extractLoginActions(
-  apiKey: string,
-  domain: string,
-  historyPath: string,
-  messageText: string,
-): Promise<{ setup_actions?: unknown[]; chat_actions?: unknown[] } | null> {
-  try {
-    const response = await fetch(`${BROWSER_USE_API_BASE}/action-histories/extract`, {
-      method: 'POST',
-      headers: apiHeaders(apiKey),
-      body: JSON.stringify({ domain, history_path: historyPath, message_text: messageText }),
-    });
-    if (!response.ok) return null;
-    return await response.json() as any;
+    return { ok: true, liveUrl: session.liveUrl || '', sessionId: session.id };
   } catch (err) {
-    logger.warn('Failed to extract actions', { domain, error: err });
-    return null;
+    // Session created but validation task failed — still return session info
+    // so the user can use the live URL for manual setup.
+    return {
+      ok: false,
+      liveUrl: session.liveUrl || '',
+      sessionId: session.id,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 
 export async function closeSession(apiKey: string, sessionId: string): Promise<void> {
   try {
-    await fetch(`${BROWSER_USE_API_BASE}/sessions/${sessionId}`, {
-      method: 'PATCH',
-      headers: apiHeaders(apiKey),
-      body: JSON.stringify({ action: 'stop' }),
-    });
+    const client = getClient(apiKey);
+    await client.sessions.stop(sessionId);
   } catch (err) {
     logger.warn('Failed to close session', { sessionId, error: err });
   }

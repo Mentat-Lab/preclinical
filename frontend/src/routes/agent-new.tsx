@@ -38,21 +38,6 @@ export default function NewAgentPage() {
     setShowPasswordFields({});
   };
 
-  /** Shared URL validation for all browser setup flows */
-  const validateBrowserUrl = (): boolean => {
-    const url = config.url?.trim();
-    if (!url) {
-      setFormError('Enter a Target URL before setting up auth');
-      return false;
-    }
-    if (!/^https?:\/\//i.test(url)) {
-      setFormError('Target URL must start with http:// or https://');
-      return false;
-    }
-    setFormError(null);
-    return true;
-  };
-
   const createMutation = useMutation({
     mutationFn: (payloadConfig: Record<string, string>) => {
       if (!provider) throw new Error('Please select a provider');

@@ -59,7 +59,7 @@ cd preclinical
 make setup
 ```
 
-This copies `.env.example` to `.env` and starts services (database, API server, worker, BrowserUse).
+This copies `.env.example` to `.env` and starts services (database and API server).
 
 Wait for services to be healthy (typically 30-60 seconds):
 ```bash
@@ -68,13 +68,8 @@ docker compose ps --format json
 
 Tell the user:
 ```
-Starting Preclinical services... this runs a database, API server, worker, and BrowserUse.
+Starting Preclinical services... this runs a database and API server.
 First startup downloads images (~2 GB) and may take a few minutes.
-```
-
-For browser testing against sites like ChatGPT/Claude/Gemini, also launch the Chrome pool:
-```bash
-make chrome
 ```
 
 ### Path B: Remote Server

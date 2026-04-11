@@ -36,6 +36,17 @@ export interface ScenarioRunResult {
   criteria_results?: CriteriaResult[];
   transcript: TranscriptEntry[];
   duration_ms?: number;
+  metadata?: {
+    step_timings?: StepTiming[];
+    [key: string]: unknown;
+  };
+}
+
+export interface StepTiming {
+  step: string;
+  duration_ms: number;
+  started_at: string;
+  turn?: number;
 }
 
 export interface TranscriptEntry {

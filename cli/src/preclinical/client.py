@@ -15,7 +15,6 @@ from preclinical.exceptions import (
 )
 from preclinical.models import (
     Agent,
-    BrowserProfile,
     HealthCheck,
     RunsList,
     Scenario,
@@ -174,55 +173,6 @@ class Preclinical:
 
     def delete_agent(self, agent_id: str) -> None:
         self._delete(f"/api/v1/agents/{agent_id}")
-
-    def discover_agent(self, agent_id: str, validate: bool = True) -> dict[str, Any]:
-        """Discover browser profile for a browser agent."""
-        body: dict[str, Any] = {}
-        if not validate:
-            body["validate"] = False
-        return self._post(f"/api/v1/agents/{agent_id}/discover", body, timeout=120)
-
-    # ── Browser Profiles ─────────────────────────────────────────────
-
-    def list_browser_profiles(self) -> list[BrowserProfile]:
-        return [BrowserProfile.model_validate(p) for p in self._get("/api/v1/browser-profiles")]
-
-    def get_browser_profile(self, profile_id: str) -> BrowserProfile:
-        return BrowserProfile.model_validate(self._get(f"/api/v1/browser-profiles/{profile_id}"))
-
-    def create_browser_profile(
-        self,
-        domain: str,
-        name: str | None = None,
-        requires_auth: bool = False,
-        email_verification: bool = False,
-        config: dict[str, Any] | None = None,
-    ) -> BrowserProfile:
-        body: dict[str, Any] = {"domain": domain, "requires_auth": requires_auth, "email_verification": email_verification}
-        if name is not None:
-            body["name"] = name
-        if config is not None:
-            body["config"] = config
-        return BrowserProfile.model_validate(self._post("/api/v1/browser-profiles", body))
-
-    def update_browser_profile(self, profile_id: str, **kwargs: Any) -> BrowserProfile:
-        return BrowserProfile.model_validate(self._patch(f"/api/v1/browser-profiles/{profile_id}", kwargs))
-
-    def delete_browser_profile(self, profile_id: str) -> None:
-        self._delete(f"/api/v1/browser-profiles/{profile_id}")
-
-    # ── BrowserUse Cloud ─────────────────────────────────────────────
-
-    def setup_browseruse_profile(self, url: str | None = None) -> dict[str, Any]:
-        """Create a BrowserUse Cloud profile with live browser session."""
-        body: dict[str, Any] = {}
-        if url:
-            body["url"] = url
-        return self._post("/api/v1/browseruse-cloud/setup-profile", body)
-
-    def complete_browseruse_profile(self, session_id: str) -> dict[str, Any]:
-        """Stop a BrowserUse Cloud browser session after manual auth."""
-        return self._post("/api/v1/browseruse-cloud/complete-profile-setup", {"session_id": session_id})
 
     # ── Test Runs ─────────────────────────────────────────────────────
 
@@ -473,52 +423,6 @@ class AsyncPreclinical:
 
     async def delete_agent(self, agent_id: str) -> None:
         await self._delete(f"/api/v1/agents/{agent_id}")
-
-    async def discover_agent(self, agent_id: str, validate: bool = True) -> dict[str, Any]:
-        body: dict[str, Any] = {}
-        if not validate:
-            body["validate"] = False
-        return await self._post(f"/api/v1/agents/{agent_id}/discover", body, timeout=120)
-
-    # ── Browser Profiles ─────────────────────────────────────────────
-
-    async def list_browser_profiles(self) -> list[BrowserProfile]:
-        return [BrowserProfile.model_validate(p) for p in await self._get("/api/v1/browser-profiles")]
-
-    async def get_browser_profile(self, profile_id: str) -> BrowserProfile:
-        return BrowserProfile.model_validate(await self._get(f"/api/v1/browser-profiles/{profile_id}"))
-
-    async def create_browser_profile(
-        self,
-        domain: str,
-        name: str | None = None,
-        requires_auth: bool = False,
-        email_verification: bool = False,
-        config: dict[str, Any] | None = None,
-    ) -> BrowserProfile:
-        body: dict[str, Any] = {"domain": domain, "requires_auth": requires_auth, "email_verification": email_verification}
-        if name is not None:
-            body["name"] = name
-        if config is not None:
-            body["config"] = config
-        return BrowserProfile.model_validate(await self._post("/api/v1/browser-profiles", body))
-
-    async def update_browser_profile(self, profile_id: str, **kwargs: Any) -> BrowserProfile:
-        return BrowserProfile.model_validate(await self._patch(f"/api/v1/browser-profiles/{profile_id}", kwargs))
-
-    async def delete_browser_profile(self, profile_id: str) -> None:
-        await self._delete(f"/api/v1/browser-profiles/{profile_id}")
-
-    # ── BrowserUse Cloud ─────────────────────────────────────────────
-
-    async def setup_browseruse_profile(self, url: str | None = None) -> dict[str, Any]:
-        body: dict[str, Any] = {}
-        if url:
-            body["url"] = url
-        return await self._post("/api/v1/browseruse-cloud/setup-profile", body)
-
-    async def complete_browseruse_profile(self, session_id: str) -> dict[str, Any]:
-        return await self._post("/api/v1/browseruse-cloud/complete-profile-setup", {"session_id": session_id})
 
     # ── Test Runs ─────────────────────────────────────────────────────
 

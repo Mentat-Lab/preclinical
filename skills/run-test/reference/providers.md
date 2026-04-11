@@ -34,15 +34,14 @@ Pipecat voice AI pipelines (Daily/LiveKit).
 ## Browser Provider
 
 ### browser
-Web-based chat UIs tested via browser automation (BrowserUse).
-- **Config**: `{"url": "https://chatgpt.com"}` or `{"url": "https://claude.ai", "email": "...", "password": "..."}`
+Web-based chat UIs tested via Browser Use Cloud.
+- **Config**: `{"url": "https://chatgpt.com"}` or `{"url": "https://chatgpt.com", "profile_id": "prof_123"}`
 - Automates real chat interfaces (ChatGPT, Claude, Gemini, custom apps)
-- Runs ~1-2 min/turn with Chrome pool
+- Requires `BROWSER_USE_API_KEY` in `.env`
 
 **Auth support:**
-- Sites like claude.ai and gemini.google.com require login — pass `email` and `password` in config
-- AgentMail integration: Set `AGENTMAIL_API_KEY` for automated email verification (Cloudflare, Clerk-based auth)
-- Mid-conversation auth recovery and credential persistence (cookies/storage per domain)
+- Use a Browser Use Cloud `profile_id` to persist login state (cookies/storage) across runs
+- Optionally pass `email` and `password` in config for credential-based login
 
 ## Creating an Agent
 
@@ -63,7 +62,7 @@ preclinical agents create --provider vapi --name "My Vapi Agent" \
 preclinical agents create --provider browser --name "ChatGPT" \
   --config '{"url": "https://chatgpt.com"}'
 
-# Browser-based (with auth)
+# Browser-based (with profile for auth persistence)
 preclinical agents create --provider browser --name "Claude AI" \
-  --config '{"url": "https://claude.ai", "email": "you@example.com", "password": "your-pass"}'
+  --config '{"url": "https://claude.ai", "profile_id": "prof_456"}'
 ```

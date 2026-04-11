@@ -72,6 +72,17 @@ export default function AgentDetailPage() {
 
   const { data: agent, isLoading: agentLoading, error: agentError } = useAgent(agentId!);
   const { data: runsData, isLoading: runsLoading } = useTestRuns({ limit: 50 });
+  const agentConfig = agent
+    ? (typeof agent.config === 'string'
+        ? (() => {
+            try {
+              return JSON.parse(agent.config as string);
+            } catch {
+              return {};
+            }
+          })()
+        : agent.config ?? {}) as Record<string, string>
+    : {};
 
   const agentRuns = runsData?.runs.filter((r) => r.agent_id === agentId) ?? [];
 
@@ -137,6 +148,19 @@ export default function AgentDetailPage() {
             </div>
             {agent.description && (
               <p className="text-sm text-text-secondary mt-1">{agent.description}</p>
+            )}
+            {agent.provider === 'browser' && (
+              <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm text-text-secondary max-w-2xl">
+                <p className="font-medium text-text-primary">Browser Use Cloud</p>
+                <p className="mt-1">
+                  Reuse the same <code className="rounded bg-muted px-1 py-0.5">profile_id</code> to keep auth and cookies across repeated runs on this domain.
+                </p>
+                {agentConfig.profile_id && (
+                  <p className="mt-1">
+                    Profile ID: <code className="rounded bg-muted px-1 py-0.5">{agentConfig.profile_id}</code>
+                  </p>
+                )}
+              </div>
             )}
           </div>
 

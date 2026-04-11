@@ -311,6 +311,9 @@ smoke-test-*.png
 # Playwright MCP artifacts
 .playwright-mcp/
 
+# Chrome CDP profiles
+.chrome-cdp-profile*/
+
 # Playwright reports
 playwright-report/
 **/playwright-report/

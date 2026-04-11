@@ -1,9 +1,9 @@
 import { Hono } from 'hono';
 import { sql } from '../lib/db.js';
 import { randomUUID } from 'crypto';
-import { log } from '../lib/logger.js';
-import { discoverProfile } from '../providers/browser/browser.js';
-import { RUNNABLE_PROVIDERS, maskAgent, maskConfig } from './route-utils.js';
+import { RUNNABLE_PROVIDERS, maskAgent } from './route-utils.js';
+import { config } from '../lib/config.js';
+import { validateSession, closeSession } from '../providers/browser/api.js';
 
 const app = new Hono();
 
@@ -71,6 +71,45 @@ app.patch('/api/v1/agents/:id', async (c) => {
   return c.json(maskAgent(agent as Record<string, unknown>));
 });
 
+// Validate a browser agent's profile — preflight check before running tests.
+// Returns { ok, live_url, session_id, error? }
+app.post('/api/v1/agents/:id/validate-browser', async (c) => {
+  const id = c.req.param('id');
+  const [agent] = await sql`SELECT * FROM agents WHERE id = ${id} AND deleted_at IS NULL`;
+  if (!agent) return c.json({ error: 'Agent not found' }, 404);
+  if (agent.provider !== 'browser') return c.json({ error: 'Only browser agents can be validated' }, 400);
+
+  const apiKey = config.browserUseApiKey.trim();
+  if (!apiKey) return c.json({ error: 'BROWSER_USE_API_KEY not configured' }, 500);
+
+  const agentConfig = (agent.config || {}) as Record<string, unknown>;
+  const targetUrl = String(agentConfig.url || agentConfig.endpoint || '').trim();
+  if (!targetUrl) return c.json({ error: 'Agent missing url in config' }, 400);
+
+  const profileId = String(agentConfig.profile_id || agentConfig.profileId || '').trim() || undefined;
+
+  const result = await validateSession(apiKey, { profileId, targetUrl });
+  return c.json({
+    ok: result.ok,
+    live_url: result.liveUrl,
+    session_id: result.sessionId,
+    error: result.error || null,
+  });
+});
+
+// Close a validation session (called after user finishes manual auth).
+app.post('/api/v1/agents/:id/close-session', async (c) => {
+  const body = await c.req.json();
+  const sessionId = body.session_id;
+  if (!sessionId) return c.json({ error: 'session_id required' }, 400);
+
+  const apiKey = config.browserUseApiKey.trim();
+  if (!apiKey) return c.json({ error: 'BROWSER_USE_API_KEY not configured' }, 500);
+
+  await closeSession(apiKey, sessionId);
+  return c.json({ ok: true });
+});
+
 app.delete('/api/v1/agents/:id', async (c) => {
   const id = c.req.param('id');
 
@@ -79,78 +118,6 @@ app.delete('/api/v1/agents/:id', async (c) => {
 
   await sql`UPDATE agents SET deleted_at = NOW() WHERE id = ${id}`;
   return c.body(null, 204);
-});
-
-// ==================== AGENT DISCOVERY ====================
-
-app.post('/api/v1/agents/:id/discover', async (c) => {
-  const id = c.req.param('id');
-  const [agent] = await sql`SELECT * FROM agents WHERE id = ${id} AND deleted_at IS NULL`;
-  if (!agent) return c.json({ error: 'Agent not found' }, 404);
-
-  if (agent.provider !== 'browser') {
-    return c.json({ error: 'Discovery is only supported for browser agents' }, 400);
-  }
-
-  const agentConfig = (agent.config || {}) as Record<string, unknown>;
-  const targetUrl = String(agentConfig.url || agentConfig.endpoint || '');
-  if (!targetUrl) {
-    return c.json({ error: 'Agent missing url in config' }, 400);
-  }
-
-  // Optional: override validate from request body
-  let validate = true;
-  try {
-    const body = await c.req.json();
-    if (body.validate === false) validate = false;
-  } catch { /* no body is fine */ }
-
-  const credentials = {
-    email: String(agentConfig.email || ''),
-    password: String(agentConfig.password || ''),
-  };
-
-  try {
-    log.info('Starting discovery', { agentId: id, url: targetUrl });
-
-    const result = await discoverProfile(
-      targetUrl,
-      credentials.email ? credentials : undefined,
-      validate,
-    );
-
-    // Save discovered profile fields into agent config (merge, don't overwrite credentials)
-    const profileUpdate: Record<string, unknown> = {};
-    const profileFields = [
-      'browser_setup_instructions', 'browser_chat_instructions',
-      'browser_overlay_hint', 'browser_login_instructions',
-      'requires_auth', 'auth_methods', 'page_type',
-    ];
-    const profileObj = result.profile as unknown as Record<string, unknown>;
-    for (const key of profileFields) {
-      if (profileObj[key] !== undefined) {
-        profileUpdate[key] = profileObj[key];
-      }
-    }
-
-    if (Object.keys(profileUpdate).length > 0) {
-      await sql`UPDATE agents SET updated_at = NOW(), config = config || ${sql.json(profileUpdate as any)} WHERE id = ${id}`;
-    }
-
-    const [updated] = await sql`SELECT * FROM agents WHERE id = ${id}`;
-
-    return c.json({
-      agent: maskAgent(updated as Record<string, unknown>),
-      discovery: result.discovery,
-      profile: result.profile,
-      validated: result.validated,
-      validation_response: result.validationResponse,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    log.error('Discovery failed', { agentId: id, error: message });
-    return c.json({ error: `Discovery failed: ${message}` }, 500);
-  }
 });
 
 export default app;

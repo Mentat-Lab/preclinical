@@ -133,23 +133,6 @@ class HealthCheck(BaseModel):
     setup: dict[str, Any] = Field(default_factory=dict)
 
 
-class BrowserProfile(BaseModel):
-    """A browser profile for site-specific instructions."""
-
-    id: str
-    domain: str
-    name: str | None = None
-    requires_auth: bool = False
-    email_verification: bool = False
-    auth_domains: list[str] = Field(default_factory=list)
-    credentials: dict[str, Any] = Field(default_factory=dict)
-    config: dict[str, Any] = Field(default_factory=dict)
-    source: str | None = None
-    is_active: bool = True
-    created_at: datetime | None = None
-    updated_at: datetime | None = None
-
-
 class SSEEvent(BaseModel):
     """A server-sent event from the watch stream."""
 

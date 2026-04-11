@@ -162,6 +162,10 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
     // =====================================================================
     jobLog.info('Running tester graph');
 
+    const providerConnectStart = Date.now();
+    let providerConnectMs = 0;
+    let testerGraphStart = Date.now();
+    let testerGraphMs = 0;
     const provider = getProvider(agent_type);
     let connectedSession: Awaited<ReturnType<typeof provider.connect>> | null = null;
     let testerResult: Awaited<ReturnType<typeof testerGraph.invoke>> | null = null;
@@ -170,7 +174,9 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
         agent.config as Record<string, unknown>,
         scenario_run_id,
       );
+      providerConnectMs = Date.now() - providerConnectStart;
 
+      testerGraphStart = Date.now();
       testerResult = await testerGraph.invoke({
         scenario,
         agent,
@@ -190,9 +196,12 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
         providerSession: connectedSession,
         coverageReview: null,
         turnIntents: [],
+        stepTimings: [],
         shouldStop: false,
         error: null,
       });
+
+      testerGraphMs = Date.now() - testerGraphStart;
     } finally {
       const sessionToClose = testerResult?.providerSession ?? connectedSession;
       if (sessionToClose) {
@@ -232,6 +241,7 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
     }
 
     jobLog.info('Running grader graph');
+    const graderGraphStart = Date.now();
 
     let normalizedCriteria = normalizeCriteria(rubricCriteria as unknown[]);
     if (normalizedCriteria.length === 0 && goldStandard) {
@@ -262,9 +272,12 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
       maxPoints: 0,
       passed: false,
       summary: '',
+      stepTimings: [],
       gradingAttempt: 0,
       error: null,
     });
+
+    const graderGraphMs = Date.now() - graderGraphStart;
 
     if (graderResult.error) {
       throw new Error(`Grading failed: ${graderResult.error}`);
@@ -274,9 +287,29 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
     // FINALIZE SCENARIO
     // =====================================================================
     const finalStatus = graderResult.passed ? 'passed' : 'failed';
+
+    // Merge all step timings: phase-level + tester node-level + grader node-level
+    const [currentRun] = await sql`SELECT metadata FROM scenario_runs WHERE id = ${scenario_run_id}`;
+    const existingMetadata = (currentRun?.metadata || {}) as Record<string, unknown>;
+    const testerStepTimings = (existingMetadata.step_timings || []) as unknown[];
+    const graderStepTimings = (graderResult.stepTimings || []) as unknown[];
+
+    const allStepTimings = [
+      { step: 'provider_connect', duration_ms: providerConnectMs, started_at: new Date(providerConnectStart).toISOString() },
+      { step: 'tester_graph', duration_ms: testerGraphMs, started_at: new Date(testerGraphStart).toISOString() },
+      ...testerStepTimings,
+      { step: 'grader_graph', duration_ms: graderGraphMs, started_at: new Date(graderGraphStart).toISOString() },
+      ...graderStepTimings,
+    ];
+
+    // Preserve browser live URL from provider session if available.
+    const sessionState = (testerResult?.providerSession?.state || connectedSession?.state || {}) as Record<string, unknown>;
+    const liveUrl = sessionState.liveUrl || existingMetadata.live_url;
+
     await updateScenarioRun(scenario_run_id, {
       status: finalStatus,
       completed_at: new Date().toISOString(),
+      metadata: { ...existingMetadata, step_timings: allStepTimings, ...(liveUrl ? { live_url: liveUrl } : {}) },
     });
 
     await emitEvent(test_run_id, 'scenario_complete', {

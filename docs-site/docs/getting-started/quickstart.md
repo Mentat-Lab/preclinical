@@ -13,27 +13,25 @@ Run your first test against a healthcare AI agent. You'll:
 ## Prerequisites
 
 - Docker Desktop (or Docker Engine + Docker Compose)
-- Google Chrome (for browser-based testing)
 - An API key: `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` (see `.env.example`)
+- `BROWSER_USE_API_KEY` if you want to run browser-based tests through Browser Use Cloud
 
 ## Setup
 
 ```bash
 git clone https://github.com/Mentat-Lab/preclinical.git
 cd preclinical
-make setup          # copies .env.example, launches Chrome pool, starts services
+make setup          # copies .env.example and starts services
 ```
 
 Edit `.env` with your API key, then `make restart` to pick up changes.
-
-`make up` launches a pool of 5 Chrome instances (ports 9222-9226) for parallel browser testing. Each scenario gets its own Chrome instance. You can customize with `make up CHROME_INSTANCES=3 CHROME_BASE_PORT=9300`.
 
 Daily workflow:
 
 | Command | Description |
 |---------|-------------|
-| `make up` | Launch Chrome pool + start services |
-| `make down` | Stop services + Chrome |
+| `make up` | Start services |
+| `make down` | Stop services |
 | `make logs` | Tail logs |
 | `make status` | Check health |
 | `make clean` | Nuke volumes, start fresh |
@@ -82,12 +80,13 @@ Agents are provider configurations Preclinical can execute against. In the UI, g
       "provider": "browser",
       "name": "My Browser Agent",
       "config": {
-        "url": "https://your-chat-app.example.com"
+        "url": "https://your-chat-app.example.com",
+        "profile_id": "prof_123"
       }
     }
     ```
 
-    Tests web chat UIs via CDP. `make up` handles Chrome automatically.
+    Tests web chat UIs through Browser Use Cloud. Reuse the same `profile_id` across repeated runs on the same domain so Browser Use preserves auth and browser state.
 
 === "LiveKit"
 

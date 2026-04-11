@@ -2,7 +2,6 @@
  * Task prompt and system message builders for the browser provider.
  */
 
-import { config } from '../../lib/config.js';
 import type { BrowserProfile } from './types.js';
 
 // =============================================================================
@@ -54,38 +53,15 @@ export function buildTaskPrompt(
   targetUrl: string,
   turn: number,
   agentConfig: Record<string, unknown>,
-  inboxAddress?: string,
-  profileCredentials?: { email?: string; password?: string },
 ): string {
-  const email = String(profileCredentials?.email || agentConfig.email || config.browserEmail || '');
-  const password = String(profileCredentials?.password || agentConfig.password || config.browserPassword || '');
+  const email = String(agentConfig.email || '');
+  const password = String(agentConfig.password || '');
   const hasCredentials = !!(email && password);
   const extraInstructions = String(agentConfig.instructions || '').trim();
   const extraStep = extraInstructions ? ` ${extraInstructions}` : '';
 
-  // AgentMail signup flow — fresh disposable email, bypasses Cloudflare login issues
-  const useAgentMailSignup = !!(inboxAddress && profile.email_verification);
-
   let authStep = '';
-  if (turn === 1 && useAgentMailSignup) {
-    // Signup flow with AgentMail: use get_email_address + get_latest_email tools
-    if (profile.browser_signup_instructions) {
-      authStep = profile.browser_signup_instructions
-        .replace(/\{url\}/g, targetUrl)
-        .replace(/\{email\}/g, '%email%')
-        .replace(/\{password\}/g, '%password%') + ' ';
-    } else {
-      authStep = `Go to ${targetUrl}. Sign up for a new account. Use the get_email_address tool to get your email address, and use %password% as the password. `;
-    }
-    // Add verification step
-    if (profile.browser_verify_instructions) {
-      const verifyStep = profile.browser_verify_instructions
-        .replace(/\{otp\}/g, 'THE_CODE_FROM_EMAIL');
-      authStep += `After submitting signup, ${verifyStep} `;
-    } else {
-      authStep += 'After submitting signup, use the get_latest_email tool to retrieve the verification email. Find the code or link in the email and use it to complete verification. ';
-    }
-  } else if (turn === 1 && hasCredentials) {
+  if (turn === 1 && hasCredentials) {
     // Standard login flow (existing behavior)
     if (profile.browser_login_instructions) {
       authStep = profile.browser_login_instructions
@@ -111,12 +87,9 @@ export function buildTaskPrompt(
 export function buildSensitiveData(
   domain: string,
   agentConfig: Record<string, unknown>,
-  inboxAddress?: string,
-  profileCredentials?: { email?: string; password?: string },
 ): Record<string, string> | undefined {
-  // Priority: inbox (AgentMail signup) > profile credentials (DB) > agent config > env vars
-  const email = inboxAddress || String(profileCredentials?.email || agentConfig.email || config.browserEmail || '');
-  const password = String(profileCredentials?.password || agentConfig.password || config.browserPassword || '');
+  const email = String(agentConfig.email || '');
+  const password = String(agentConfig.password || '');
   if (!email && !password) return undefined;
 
   const data: Record<string, string> = {};

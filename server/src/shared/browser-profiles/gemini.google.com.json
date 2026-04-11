@@ -2,7 +2,6 @@
   "domain": "gemini.google.com",
   "name": "Gemini",
   "requires_auth": true,
-  "email_verification": false,
   "browser_login_instructions": "Go to {url}. If redirected to a Google sign-in page, enter the email address: {email}. Click Next. Enter the password: {password}. Click Next. Complete any 2FA prompts if they appear.",
   "browser_setup_instructions": "Dismiss any onboarding modals, welcome screens, or feature tours. If asked to accept terms or consent, accept them.",
   "browser_chat_instructions": "Find the chat input field at the bottom of the page, type the message and send it (press Enter or click the send button). Wait for the response to finish streaming.",

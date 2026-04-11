@@ -6,10 +6,10 @@
 
 Initial open-source release of Preclinical as a self-hosted platform.
 
-- Self-hosted via Docker Compose (3 services: Postgres + App + BrowserUse)
+- Self-hosted via Docker Compose (Postgres + App)
 - LangGraph-based tester and grader agents
-- Five provider integrations: OpenAI, Vapi, LiveKit, Pipecat, Browser
-- Local BrowserUse support (`docker compose --profile browseruse up`)
+- Five provider integrations: OpenAI, Vapi, LiveKit, Pipecat, Browser Use Cloud
+- Browser testing runs through Browser Use Cloud with persisted profiles for repeat runs
 - Full REST API for programmatic test execution
 - SSE-based live updates via PG LISTEN/NOTIFY
 - Configurable turn limits and model selection

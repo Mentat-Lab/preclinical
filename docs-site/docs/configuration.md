@@ -9,6 +9,8 @@ All configuration is done via environment variables in your root `.env` file. Se
 | `OPENAI_API_KEY` | OpenAI (or compatible) API key |
 | `DATABASE_URL` | Postgres connection string (set automatically by Docker Compose) |
 
+For browser-based runs, you also need `BROWSER_USE_API_KEY`.
+
 ## LLM Settings
 
 | Variable | Default | Description |
@@ -37,10 +39,10 @@ Set these based on which integrations you use:
 
 | Variable | Provider |
 |----------|----------|
-| `BROWSER_USE_API_KEY` | BrowserUse (local worker auth, optional) |
+| `BROWSER_USE_API_KEY` | Browser Use Cloud browser testing |
 
 !!! note "Per-Agent Configuration"
-    Provider credentials like Vapi API keys, LiveKit credentials, and Pipecat API keys are configured **per-agent** in the agent's `config` object — not as server environment variables. See [Integrations](integrations/overview.md) for details on each provider's config fields.
+    Provider credentials like Vapi API keys, LiveKit credentials, and Pipecat API keys are configured **per-agent** in the agent's `config` object — not as server environment variables. Browser Use Cloud auth is configured with `BROWSER_USE_API_KEY`, while browser behavior and target URL live on the browser agent itself. See [Integrations](integrations/overview.md) for details on each provider's config fields.
 
 ## Docker Compose
 

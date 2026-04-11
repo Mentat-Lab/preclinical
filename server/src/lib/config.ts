@@ -16,11 +16,6 @@ export const config = {
 
   // Browser provider
   browserUseApiKey: process.env.BROWSER_USE_API_KEY || '',
-  browserEmail: process.env.BROWSER_EMAIL || '',
-  browserPassword: process.env.BROWSER_PASSWORD || '',
-
-  // AgentMail — disposable email inboxes for browser signup/verification flows
-  agentmailApiKey: process.env.AGENTMAIL_API_KEY || '',
 
   // Turn limits (last turn is always the fixed triage question)
   defaultMaxTurns: parseInt(process.env.DEFAULT_MAX_TURNS || '11', 10),

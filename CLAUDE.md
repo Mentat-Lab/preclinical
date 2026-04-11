@@ -59,14 +59,14 @@ Configurable via env: `DEFAULT_MAX_TURNS=11`, `MIN_MAX_TURNS=5`, `MAX_MAX_TURNS=
 ## Key Directories
 
 - `server/` — Hono API + pg-boss worker (Node.js)
-- `server/src/routes/` — Domain-split route modules (agent, scenario, run, browser-profile) + `public-api.ts` aggregator
+- `server/src/routes/` — Domain-split route modules (agent, scenario, run) + `public-api.ts` aggregator
 - `server/src/graphs/` — LangGraph StateGraphs (tester, grader), state schemas, skill loaders
 - `server/src/shared/` — Prompts, schemas, skills, attack vectors
 - `server/src/providers/` — Provider implementations (openai, vapi, livekit, pipecat, elevenlabs, browser)
-- `server/src/providers/browser/` — Split modules: browser.ts (main), types, api, discovery, profile-loader, system-message
+- `server/src/providers/browser/` — Split modules: browser.ts (main), types, api, profile-loader, system-message
 - `server/src/workers/` — Scenario runner + voice transports (daily, livekit, pipecat) with shared `voice-transport-base.ts`
 - `frontend/` — Vite + React + TanStack Query
-- `frontend/src/components/agents/` — Shared agent form components (ProviderConfigFields, BrowserAuthSetup)
+- `frontend/src/components/agents/` — Shared agent form components
 - `frontend/src/components/scenarios/` — Shared scenario components (RubricTable, RubricEditor, DemographicsView, ScenarioSettingsEditor)
 - `tests/` — Vitest API tests (unified config with `api` and `e2e` projects)
 - `target-agents/` — Self-hosted target agents for smoke tests (openai-api, livekit, pipecat)
@@ -74,44 +74,27 @@ Configurable via env: `DEFAULT_MAX_TURNS=11`, `MIN_MAX_TURNS=5`, `MAX_MAX_TURNS=
 
 ## Browser Provider
 
-The `browser` provider uses [BrowserUse Cloud](https://www.browser-use.com/) to automate web-based chat testing (e.g. chatgpt.com, claude.ai, gemini.google.com).
+The `browser` provider uses [Browser Use Cloud](https://www.browser-use.com/) to automate web-based chat testing (e.g. chatgpt.com, claude.ai, gemini.google.com).
 
-Requires `BROWSER_USE_API_KEY` and optionally `BROWSER_USE_API_BASE` in `.env`.
+Requires `BROWSER_USE_API_KEY` and optionally `BROWSER_USE_API_BASE` in `.env`. There is no local BrowserUse worker in the stack.
 
 ### Browser Profiles
 Site-specific interaction instructions live in `server/src/shared/browser-profiles/`. Named by domain (e.g. `chatgpt.com.json`). Falls back to `_default.json`.
 
 Key fields: `browser_setup_instructions`, `browser_chat_instructions`, `browser_overlay_hint`, `requires_auth`, `browser_login_instructions`.
 
+Browser Use Cloud profiles are the persistence layer for browser auth. Reuse the same `profile_id` for repeated runs on the same domain instead of trying to replay old DOM actions.
+
 ### Creating Browser Agents
 ```bash
-# No auth (ChatGPT works without login)
+# Browser Use Cloud profile reused across repeated runs
 curl -X POST http://localhost:3000/api/v1/agents -H 'Content-Type: application/json' \
-  -d '{"provider":"browser","name":"ChatGPT","config":{"url":"https://chatgpt.com"}}'
+  -d '{"provider":"browser","name":"ChatGPT","config":{"url":"https://chatgpt.com","profile_id":"prof_123"}}'
 
-# With auth (Claude, Gemini require login)
+# Another authenticated browser target
 curl -X POST http://localhost:3000/api/v1/agents -H 'Content-Type: application/json' \
-  -d '{"provider":"browser","name":"Claude AI","config":{"url":"https://claude.ai","email":"you@example.com","password":"your-password"}}'
+  -d '{"provider":"browser","name":"Claude AI","config":{"url":"https://claude.ai","profile_id":"prof_456"}}'
 ```
-
-### AgentMail Integration (Email Verification)
-Sites with Cloudflare or email verification (e.g. Doctronic, Clerk-based auth) can use AgentMail for automated signup:
-
-1. Get an API key from https://agentmail.to
-2. Set `AGENTMAIL_API_KEY=your-key` in `.env`
-3. Create browser agents with a password (email is auto-generated):
-```bash
-curl -X POST http://localhost:3000/api/v1/agents -H 'Content-Type: application/json' \
-  -d '{"provider":"browser","name":"Doctronic","config":{"url":"https://doctronic.ai","password":"TestPass123!"}}'
-```
-
-When `AGENTMAIL_API_KEY` is set and a browser profile has `email_verification: true`:
-- A disposable inbox is created per browser session
-- The agent signs up with the disposable email instead of logging in
-- Verification codes are fetched automatically via AgentMail websocket
-- No Cloudflare login page friction
-
-Browser profiles control the flow via `browser_signup_instructions` and `browser_verify_instructions` fields.
 
 ## Scenarios
 

@@ -166,6 +166,11 @@ export default function AgentEditPage() {
                 {PROVIDER_NAMES[agent.provider] ?? agent.provider}
               </div>
               <p className="text-xs text-text-secondary">Provider cannot be changed after creation</p>
+              {agent.provider === 'browser' && (
+                <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-text-secondary">
+                  Browser agents use Browser Use Cloud. Keep the same <code className="rounded bg-muted px-1 py-0.5">profile_id</code> to reuse auth state across runs.
+                </div>
+              )}
             </div>
 
             {/* Provider-specific config */}

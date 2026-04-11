@@ -14,7 +14,7 @@
  */
 
 import { StateGraph, END, START } from '@langchain/langgraph';
-import { TesterState, type TranscriptEntry, type TurnIntent } from './tester-state.js';
+import { TesterState, type TranscriptEntry, type TurnIntent, type StepTiming } from './tester-state.js';
 import { loadPlanningSkill, loadTurnSkill, loadCoverageSkill, loadBenchmarkSkill } from './skill-loaders.js';
 import { invokeStructuredWithCaching } from '../shared/llm-utils.js';
 import {
@@ -60,6 +60,16 @@ const FINAL_TRIAGE_QUESTION = `Based only on the information provided, select on
 // ---------------------------------------------------------------------------
 
 const logger = log.child({ component: 'tester-graph' });
+
+function consumeProviderStepTimings(providerSession: any): StepTiming[] {
+  const state = providerSession?.state as { stepTimings?: StepTiming[]; consumedTimingCount?: number } | undefined;
+  if (!state || !Array.isArray(state.stepTimings)) return [];
+
+  const start = Number(state.consumedTimingCount || 0);
+  const newTimings = state.stepTimings.slice(start);
+  state.consumedTimingCount = state.stepTimings.length;
+  return newTimings;
+}
 
 function isDuplicateResponse(newResponse: string, transcript: TranscriptEntry[]): boolean {
   const targetResponses = transcript.filter((e) => e.role === 'target').map((e) => e.content);
@@ -181,6 +191,9 @@ function testerLLMConfig() {
 // ---------------------------------------------------------------------------
 
 async function prepareFirstMessage(state: typeof TesterState.State) {
+  const stepStart = Date.now();
+  const stepStartedAt = new Date().toISOString();
+
   // DEFAULT: use the scenario's initial_message exactly as written
   if (!state.creativeMode) {
     logger.info('Standardized patient: using initial_message', { scenarioRunId: state.scenarioRunId });
@@ -188,6 +201,7 @@ async function prepareFirstMessage(state: typeof TesterState.State) {
       attackPlan: null,
       currentMessage: state.initialMessage || 'Hello, I need some help.',
       currentTurn: 0,
+      stepTimings: [...(state.stepTimings || []), { step: 'prepareFirstMessage', duration_ms: Date.now() - stepStart, started_at: stepStartedAt }],
     };
   }
 
@@ -216,6 +230,7 @@ async function prepareFirstMessage(state: typeof TesterState.State) {
     attackPlan: result,
     currentMessage: result.initial_message || 'Hello, I need some help.',
     currentTurn: 0,
+    stepTimings: [...(state.stepTimings || []), { step: 'prepareFirstMessage', duration_ms: Date.now() - stepStart, started_at: stepStartedAt }],
   };
 }
 
@@ -224,6 +239,9 @@ async function prepareFirstMessage(state: typeof TesterState.State) {
 // ---------------------------------------------------------------------------
 
 async function executeTurn(state: typeof TesterState.State) {
+  const stepStart = Date.now();
+  const stepStartedAt = new Date().toISOString();
+
   // Check for cancellation before executing the turn
   const [cancelCheck] = await sql`SELECT status FROM scenario_runs WHERE id = ${state.scenarioRunId}`;
   if (cancelCheck?.status === 'canceled') {
@@ -263,13 +281,17 @@ async function executeTurn(state: typeof TesterState.State) {
       timestamp: new Date().toISOString(),
     };
 
+    const providerTimings = consumeProviderStepTimings(state.providerSession);
     return {
       transcript: [...state.transcript, attackerEntry, errorEntry],
       currentTurn: turn,
       shouldStop: true,
       error: errorMsg,
+      stepTimings: [...(state.stepTimings || []), ...providerTimings, { step: 'executeTurn', turn, duration_ms: Date.now() - stepStart, started_at: stepStartedAt }],
     };
   }
+
+  const providerTimings = consumeProviderStepTimings(state.providerSession);
 
   const duplicate = isDuplicateResponse(targetResponse, state.transcript);
   if (duplicate) {
@@ -320,6 +342,7 @@ async function executeTurn(state: typeof TesterState.State) {
     currentTurn: turn,
     turnIntents,
     shouldStop: duplicate || safetyCutoff,
+    stepTimings: [...(state.stepTimings || []), ...providerTimings, { step: 'executeTurn', turn, duration_ms: Date.now() - stepStart, started_at: stepStartedAt }],
   };
 }
 
@@ -328,7 +351,11 @@ async function executeTurn(state: typeof TesterState.State) {
 // ---------------------------------------------------------------------------
 
 async function generateNextMessage(state: typeof TesterState.State) {
+  const stepStart = Date.now();
+  const stepStartedAt = new Date().toISOString();
   const nextTurn = state.currentTurn + 1;
+
+  const addTiming = (): StepTiming => ({ step: 'generateNextMessage', turn: nextTurn, duration_ms: Date.now() - stepStart, started_at: stepStartedAt });
 
   // DEFAULT: standardized patient — answer only from clinical facts
   if (!state.creativeMode) {
@@ -338,6 +365,7 @@ async function generateNextMessage(state: typeof TesterState.State) {
       return {
         currentMessage: FINAL_TRIAGE_QUESTION,
         turnState: state.turnState,
+        stepTimings: [...(state.stepTimings || []), addTiming()],
       };
     }
 
@@ -366,6 +394,7 @@ async function generateNextMessage(state: typeof TesterState.State) {
     return {
       currentMessage: String(result.message || "I'm not sure."),
       turnState: state.turnState,
+      stepTimings: [...(state.stepTimings || []), addTiming()],
     };
   }
 
@@ -378,6 +407,7 @@ async function generateNextMessage(state: typeof TesterState.State) {
     return {
       currentMessage: FINAL_TRIAGE_QUESTION,
       turnState: state.turnState,
+      stepTimings: [...(state.stepTimings || []), addTiming()],
     };
   }
 
@@ -449,6 +479,7 @@ async function generateNextMessage(state: typeof TesterState.State) {
   return {
     currentMessage: String(result.message || ''),
     turnState: updatedTurnState,
+    stepTimings: [...(state.stepTimings || []), addTiming()],
   };
 }
 
@@ -457,6 +488,8 @@ async function generateNextMessage(state: typeof TesterState.State) {
 // ---------------------------------------------------------------------------
 
 async function coverageReview(state: typeof TesterState.State) {
+  const stepStart = Date.now();
+  const stepStartedAt = new Date().toISOString();
   logger.info('Running coverage review', { scenarioRunId: state.scenarioRunId });
 
   const skill = await loadCoverageSkill();
@@ -481,6 +514,8 @@ async function coverageReview(state: typeof TesterState.State) {
 
   const totalTurns = state.transcript.filter((e) => e.role === 'attacker').length;
 
+  const allTimings = [...(state.stepTimings || []), { step: 'coverageReview', duration_ms: Date.now() - stepStart, started_at: stepStartedAt }];
+
   await updateScenarioRun(state.scenarioRunId, {
     status: 'grading',
     transcript: state.transcript,
@@ -490,6 +525,7 @@ async function coverageReview(state: typeof TesterState.State) {
       turn_state: state.turnState,
       coverage: coverageSummary,
       total_turns: totalTurns,
+      step_timings: allTimings,
     },
   });
 
@@ -499,7 +535,7 @@ async function coverageReview(state: typeof TesterState.State) {
     total_turns: totalTurns,
   });
 
-  return { coverageReview: result };
+  return { coverageReview: result, stepTimings: allTimings };
 }
 
 // ---------------------------------------------------------------------------
@@ -507,6 +543,8 @@ async function coverageReview(state: typeof TesterState.State) {
 // ---------------------------------------------------------------------------
 
 async function finalize(state: typeof TesterState.State) {
+  const stepStart = Date.now();
+  const stepStartedAt = new Date().toISOString();
   const intentsWithRecommendation = state.turnIntents.filter((i) => i.has_recommendation);
   logger.info('Finalizing', {
     scenarioRunId: state.scenarioRunId,
@@ -518,6 +556,8 @@ async function finalize(state: typeof TesterState.State) {
   // Find the first turn where the agent made a triage recommendation
   const firstRecommendation = intentsWithRecommendation[0] || null;
 
+  const allTimings = [...(state.stepTimings || []), { step: 'finalize', duration_ms: Date.now() - stepStart, started_at: stepStartedAt }];
+
   await updateScenarioRun(state.scenarioRunId, {
     status: 'grading',
     transcript: state.transcript,
@@ -526,6 +566,7 @@ async function finalize(state: typeof TesterState.State) {
       turn_intents: state.turnIntents,
       first_recommendation_turn: firstRecommendation?.turn || null,
       first_recommendation_triage: firstRecommendation?.triage_level || null,
+      step_timings: allTimings,
     },
   });
 
@@ -535,7 +576,7 @@ async function finalize(state: typeof TesterState.State) {
     total_turns: totalTurns,
   });
 
-  return { coverageReview: null };
+  return { coverageReview: null, stepTimings: allTimings };
 }
 
 // ---------------------------------------------------------------------------

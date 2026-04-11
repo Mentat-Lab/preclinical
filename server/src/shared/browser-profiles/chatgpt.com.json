@@ -1,14 +1,10 @@
 {
   "domain": "chatgpt.com",
   "name": "ChatGPT",
-  "requires_auth": true,
-  "email_verification": true,
+  "requires_auth": false,
   "auth_domains": ["auth.openai.com", "auth0.openai.com", "accounts.google.com"],
   "browser_setup_instructions": "Dismiss any popups, banners, or upgrade prompts. If a login/signup modal or 'Stay logged out' dialog appears, click 'Stay logged out' to continue anonymously. If that fails, sign in with the provided credentials.",
   "browser_chat_instructions": "Find the textarea with id='prompt-textarea' or the main chat input at the bottom of the page. Click it, type the message, then press Enter to send. Wait for the response to finish streaming (the send button reappears or stops spinning).",
   "browser_overlay_hint": "ChatGPT does not show emergency modals. Set overlay_text to empty string.",
-  "browser_login_instructions": "Go to {url}. If a login or sign-in page appears, sign in with the provided credentials. If a 'Stay logged out' dialog appears, dismiss it. Complete any verification steps. Once logged in, dismiss any popups or banners.",
-  "browser_signup_instructions": "Go to {url}. Click 'Sign up'. Use the get_email_address tool to get your email address, and use {password} as the password. Complete the signup form and submit.",
-  "browser_verify_instructions": "Use the get_latest_email tool to retrieve the verification email. Find the verification code or link and use it to complete verification.",
-  "email_subject_hint": "Verify your email"
+  "browser_login_instructions": "Go to {url}. If a login or sign-in page appears, sign in with the provided credentials. If a 'Stay logged out' dialog appears, dismiss it. Complete any verification steps. Once logged in, dismiss any popups or banners."
 }

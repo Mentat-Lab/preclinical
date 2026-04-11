@@ -7,6 +7,7 @@
 
 import { StateGraph, END, START } from '@langchain/langgraph';
 import { GraderState, type GraderStateType, type CriteriaResult } from './grader-state.js';
+import type { StepTiming } from './tester-state.js';
 import { loadGraderSkills, loadBenchmarkTriageSkill } from './skill-loaders.js';
 import { buildGraderSystemPrompt, buildGradingTask, buildTriageExtractionTask } from '../shared/agent-prompts.js';
 import { GradingResultSchema, TriageExtractionSchema, normalizeCriteria, pointsForDecision } from '../shared/agent-schemas.js';
@@ -79,6 +80,8 @@ function matchCriterion(
 // =============================================================================
 
 async function gradeTranscript(state: GraderStateType): Promise<Partial<GraderStateType>> {
+  const stepStart = Date.now();
+  const stepStartedAt = new Date().toISOString();
   const nodeLog = logger.child({ scenarioRunId: state.scenarioRunId });
 
   if (state.gradingAttempt === 0) {
@@ -109,6 +112,7 @@ async function gradeTranscript(state: GraderStateType): Promise<Partial<GraderSt
       rawGradingResult: result,
       gradingAttempt: state.gradingAttempt + 1,
       error: null,
+      stepTimings: [...(state.stepTimings || []), { step: 'gradeTranscript', duration_ms: Date.now() - stepStart, started_at: stepStartedAt }],
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -123,6 +127,7 @@ async function gradeTranscript(state: GraderStateType): Promise<Partial<GraderSt
     return {
       gradingAttempt: state.gradingAttempt + 1,
       error: message,
+      stepTimings: [...(state.stepTimings || []), { step: 'gradeTranscript', duration_ms: Date.now() - stepStart, started_at: stepStartedAt }],
     };
   }
 }
@@ -134,9 +139,11 @@ function shouldRetryGrading(state: GraderStateType): string {
 }
 
 async function verifyEvidence(state: GraderStateType): Promise<Partial<GraderStateType>> {
+  const stepStart = Date.now();
+  const stepStartedAt = new Date().toISOString();
   const nodeLog = logger.child({ scenarioRunId: state.scenarioRunId });
   const result = state.rawGradingResult;
-  if (!result) return {};
+  if (!result) return { stepTimings: [...(state.stepTimings || []), { step: 'verifyEvidence', duration_ms: Date.now() - stepStart, started_at: stepStartedAt }] };
 
   const maxTurn = Math.max(...state.transcript.map((t) => t.turn), 0);
   let invalidEvidenceCount = 0;
@@ -162,13 +169,15 @@ async function verifyEvidence(state: GraderStateType): Promise<Partial<GraderSta
     }
   }
 
+  const timing: StepTiming = { step: 'verifyEvidence', duration_ms: Date.now() - stepStart, started_at: stepStartedAt };
   if (invalidEvidenceCount > 0) {
     return {
       error: `Invalid evidence citations found: ${invalidEvidenceCount}`,
+      stepTimings: [...(state.stepTimings || []), timing],
     };
   }
 
-  return { error: null };
+  return { error: null, stepTimings: [...(state.stepTimings || []), timing] };
 }
 
 function shouldRetryAfterEvidenceCheck(state: GraderStateType): string {
@@ -178,9 +187,11 @@ function shouldRetryAfterEvidenceCheck(state: GraderStateType): string {
 }
 
 async function consistencyAudit(state: GraderStateType): Promise<Partial<GraderStateType>> {
+  const stepStart = Date.now();
+  const stepStartedAt = new Date().toISOString();
   const nodeLog = logger.child({ scenarioRunId: state.scenarioRunId });
   const result = state.rawGradingResult;
-  if (!result) return {};
+  if (!result) return { stepTimings: [...(state.stepTimings || []), { step: 'consistencyAudit', duration_ms: Date.now() - stepStart, started_at: stepStartedAt }] };
 
   let overrideCount = 0;
   const updatedEvaluations = result.evaluations.map((evaluation) => {
@@ -203,13 +214,16 @@ async function consistencyAudit(state: GraderStateType): Promise<Partial<GraderS
 
   return {
     rawGradingResult: { ...result, evaluations: updatedEvaluations },
+    stepTimings: [...(state.stepTimings || []), { step: 'consistencyAudit', duration_ms: Date.now() - stepStart, started_at: stepStartedAt }],
   };
 }
 
 async function computeScore(state: GraderStateType): Promise<Partial<GraderStateType>> {
+  const stepStart = Date.now();
+  const stepStartedAt = new Date().toISOString();
   const nodeLog = logger.child({ scenarioRunId: state.scenarioRunId });
   const result = state.rawGradingResult;
-  if (!result) return {};
+  if (!result) return { stepTimings: [...(state.stepTimings || []), { step: 'computeScore', duration_ms: Date.now() - stepStart, started_at: stepStartedAt }] };
 
   const normalizedCriteria = state.rubricCriteria;
   const matchedIndices = new Set<number>();
@@ -301,7 +315,10 @@ async function computeScore(state: GraderStateType): Promise<Partial<GraderState
     max_points: maxPoints,
   });
 
-  return { criteriaResults, totalPoints, maxPoints, passed, summary };
+  return {
+    criteriaResults, totalPoints, maxPoints, passed, summary,
+    stepTimings: [...(state.stepTimings || []), { step: 'computeScore', duration_ms: Date.now() - stepStart, started_at: stepStartedAt }],
+  };
 }
 
 // =============================================================================
@@ -309,6 +326,8 @@ async function computeScore(state: GraderStateType): Promise<Partial<GraderState
 // =============================================================================
 
 async function handleGradingFailure(state: GraderStateType): Promise<Partial<GraderStateType>> {
+  const stepStart = Date.now();
+  const stepStartedAt = new Date().toISOString();
   const nodeLog = logger.child({ scenarioRunId: state.scenarioRunId });
   nodeLog.error('Grading exhausted retries', {
     attempts: state.gradingAttempt,
@@ -332,7 +351,9 @@ async function handleGradingFailure(state: GraderStateType): Promise<Partial<Gra
     error: state.error,
   });
 
-  return {};
+  return {
+    stepTimings: [...(state.stepTimings || []), { step: 'handleGradingFailure', duration_ms: Date.now() - stepStart, started_at: stepStartedAt }],
+  };
 }
 
 // =============================================================================
@@ -340,8 +361,11 @@ async function handleGradingFailure(state: GraderStateType): Promise<Partial<Gra
 // =============================================================================
 
 async function extractTriage(state: GraderStateType): Promise<Partial<GraderStateType>> {
+  const stepStart = Date.now();
+  const stepStartedAt = new Date().toISOString();
+
   if (!state.goldStandard) {
-    return {};
+    return { stepTimings: [...(state.stepTimings || []), { step: 'extractTriage', duration_ms: Date.now() - stepStart, started_at: stepStartedAt }] };
   }
 
   const nodeLog = logger.child({ scenarioRunId: state.scenarioRunId });
@@ -380,7 +404,10 @@ async function extractTriage(state: GraderStateType): Promise<Partial<GraderStat
       )
   `;
 
-  return { triageResult: result };
+  return {
+    triageResult: result,
+    stepTimings: [...(state.stepTimings || []), { step: 'extractTriage', duration_ms: Date.now() - stepStart, started_at: stepStartedAt }],
+  };
 }
 
 // =============================================================================

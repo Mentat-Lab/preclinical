@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useScenarioRun, useScenarioRuns, useTestRun } from '@/hooks/use-queries';
 import { useRealtimeRun } from '@/lib/sse';
 import { cn } from '@/lib/utils';
-import type { CriteriaResult, ScenarioRunResult, TranscriptEntry } from '@/lib/types';
+import type { CriteriaResult, ScenarioRunResult, StepTiming, TranscriptEntry } from '@/lib/types';
 import {
   ArrowLeft,
   Check,
@@ -126,6 +126,39 @@ function normalizeCriteria(criteria: CriteriaResult[]): NormalizedEvaluation[] {
     .sort((a, b) => Number(a.passed) - Number(b.passed));
 }
 
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`;
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function isPhaseStep(step: string): boolean {
+  return ['provider_connect', 'tester_graph', 'grader_graph', 'browser_turn_total'].includes(step);
+}
+
+function stepLabel(timing: StepTiming): string {
+  const labels: Record<string, string> = {
+    provider_connect: 'Provider Connect',
+    tester_graph: 'Tester Graph (total)',
+    grader_graph: 'Grader Graph (total)',
+    browser_turn_total: 'Browser Turn (total)',
+    browser_session_create: 'Browser Session Create',
+    browser_task_create: 'Browser Task Create',
+    browser_task_wait: 'Browser Task Wait',
+    prepareFirstMessage: 'Prepare First Message',
+    executeTurn: `Execute Turn ${timing.turn ?? ''}`,
+    generateNextMessage: `Generate Next Message (turn ${timing.turn ?? ''})`,
+    coverageReview: 'Coverage Review',
+    finalize: 'Finalize',
+    gradeTranscript: 'Grade Transcript',
+    verifyEvidence: 'Verify Evidence',
+    consistencyAudit: 'Consistency Audit',
+    computeScore: 'Compute Score',
+    extractTriage: 'Extract Triage',
+    handleGradingFailure: 'Handle Grading Failure',
+  };
+  return labels[timing.step] || timing.step;
+}
+
 function MessageBubble({ entry }: { entry: TranscriptEntry }) {
   const isTester = entry.role === 'attacker';
   const isSystem = entry.role === 'system';
@@ -159,6 +192,7 @@ function MessageBubble({ entry }: { entry: TranscriptEntry }) {
 export default function ScenarioRunPage() {
   const [gradingOpen, setGradingOpen] = useState(true);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const [debugOpen, setDebugOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const { id: testRunId, scenarioRunId } = useParams<{ id: string; scenarioRunId: string }>();
@@ -316,6 +350,28 @@ export default function ScenarioRunPage() {
           </div>
         </div>
 
+        {typeof result.metadata?.live_url === 'string' && result.metadata.live_url && (
+          <div className="border border-border rounded-lg mb-6 px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-text-primary">Live Browser</span>
+              {(result.status === 'running' || result.status === 'grading') && (
+                <span className="inline-flex items-center gap-1 text-xs text-accent">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Active
+                </span>
+              )}
+            </div>
+            <a
+              href={String(result.metadata.live_url)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-accent hover:underline"
+            >
+              Open live session
+            </a>
+          </div>
+        )}
+
         <div className="border border-border rounded-lg mb-6">
           <button
             type="button"
@@ -446,6 +502,61 @@ export default function ScenarioRunPage() {
             </div>
           )}
         </div>
+
+        {result.metadata?.step_timings && result.metadata.step_timings.length > 0 && (
+          <div className="border border-border rounded-lg mt-6">
+            <button
+              type="button"
+              onClick={() => setDebugOpen((prev) => !prev)}
+              className="w-full px-4 py-3 flex items-center justify-between"
+            >
+              <span className="text-sm font-semibold text-text-primary">Debug Log</span>
+              {debugOpen ? <ChevronDown className="h-4 w-4 text-text-secondary" /> : <ChevronRight className="h-4 w-4 text-text-secondary" />}
+            </button>
+
+            {debugOpen && (
+              <div className="px-4 pb-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs text-text-secondary">
+                    Total duration: {result.duration_ms ? formatDuration(result.duration_ms) : '-'}
+                  </p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-left text-text-secondary">
+                        <th className="py-2 pr-3 font-medium">Step</th>
+                        <th className="py-2 px-3 font-medium text-right">Duration</th>
+                        <th className="py-2 pl-3 font-medium text-right">Started At</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.metadata.step_timings.map((timing: StepTiming, index: number) => (
+                        <tr
+                          key={`${timing.step}-${timing.turn ?? ''}-${index}`}
+                          className={cn(
+                            'border-b border-border',
+                            isPhaseStep(timing.step) ? 'bg-muted/50 font-medium' : ''
+                          )}
+                        >
+                          <td className={cn('py-2 pr-3 text-text-primary', !isPhaseStep(timing.step) && 'pl-4')}>
+                            {stepLabel(timing)}
+                          </td>
+                          <td className="py-2 px-3 text-right text-text-primary tabular-nums">
+                            {formatDuration(timing.duration_ms)}
+                          </td>
+                          <td className="py-2 pl-3 text-right text-text-secondary text-xs tabular-nums">
+                            {new Date(timing.started_at).toLocaleTimeString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {(result.status === 'running' || result.status === 'grading') && (

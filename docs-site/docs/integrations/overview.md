@@ -10,7 +10,7 @@ Preclinical supports testing AI agents across multiple voice and chat platforms.
 | [LiveKit](livekit.md) | WebRTC | Supported |
 | [Pipecat](pipecat.md) | WebRTC | Supported |
 | [OpenAI](openai.md) | HTTP API | Supported |
-| [Browser](browser.md) | BrowserUse (Cloud or Local) | Supported |
+| [Browser](browser.md) | Browser Use Cloud | Supported |
 
 ## Adding an Integration
 

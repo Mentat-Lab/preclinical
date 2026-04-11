@@ -5,7 +5,7 @@ export const PROVIDER_NAMES: Record<AgentProvider, string> = {
   livekit: 'LiveKit',
   pipecat: 'Pipecat',
   openai: 'OpenAI Compatible API',
-  browser: 'Browser',
+  browser: 'Browser Use Cloud',
   elevenlabs: 'ElevenLabs',
 };
 
@@ -65,7 +65,20 @@ export const PROVIDER_FIELDS: Record<AgentProvider, ProviderField[]> = {
   ],
   browser: [
     { key: 'url', label: 'Target URL', type: 'text', placeholder: 'https://example.com/chat', required: true },
-    { key: 'instructions', label: 'Additional Instructions', type: 'text', placeholder: 'Optional — e.g. "Click the Patient Chat tab first"' },
+    {
+      key: 'profile_id',
+      label: 'Browser Use Profile ID',
+      type: 'text',
+      placeholder: 'prof_...',
+      hint: 'Reuses cookies, localStorage, and login state across runs for the same site.',
+    },
+    {
+      key: 'instructions',
+      label: 'Additional Instructions',
+      type: 'text',
+      placeholder: 'Optional - e.g. "Click the Patient Chat tab first"',
+      hint: 'Use this for site-specific workflow hints that help Browser Use Cloud reach the chat surface.',
+    },
   ],
   elevenlabs: [
     { key: 'agent_id', label: 'Agent ID', type: 'text', placeholder: 'agent_...', required: true },
@@ -99,9 +112,9 @@ export const PROVIDER_READINESS: Record<AgentProvider, ProviderReadiness> = {
   browser: {
     stage: 'recommended',
     badge: 'Recommended',
-    summary: 'Works for web chatbots when the browser automation dependency is configured on the server.',
-    setupNotes: 'Provide a target URL. If the site requires login, add credentials. No server-side API key needed with the local BrowserUse worker.',
-    selfServeLabel: 'Self-serve after server setup',
+    summary: 'Works for web chatbots through Browser Use Cloud with persistent profile state.',
+    setupNotes: 'Provide the target URL, Browser Use Cloud API key, and an optional profile_id to reuse auth state across runs. No local Chrome or browser worker required.',
+    selfServeLabel: 'Cloud setup',
   },
   livekit: {
     stage: 'advanced',
@@ -165,8 +178,8 @@ export const PROVIDER_HELP: Record<AgentProvider, { title: string; help: string 
     help: "Find your API key in the Pipecat Cloud dashboard. You'll also need the agent name you want to test against.",
   },
   browser: {
-    title: 'Browser Agent Setup',
-    help: 'Provide the URL of the web-based chat agent. If the site requires login, add your credentials — they will be used to sign in automatically before testing.',
+    title: 'Browser Use Cloud Setup',
+    help: 'Provide the target URL and Browser Use Cloud profile ID. The profile preserves auth/session state across repeated runs, so you do not need to rediscover login every time.',
   },
   elevenlabs: {
     title: 'ElevenLabs Setup',

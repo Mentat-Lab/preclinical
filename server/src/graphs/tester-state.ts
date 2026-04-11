@@ -27,6 +27,14 @@ export interface TurnIntent {
   confidence: 'clear' | 'implied' | 'none';
 }
 
+export interface StepTiming {
+  step: string;
+  duration_ms: number;
+  started_at: string;
+  /** Turn number, if this step is per-turn */
+  turn?: number;
+}
+
 export const TesterState = Annotation.Root({
   // --- Inputs (set once at start) ---
   scenario: Annotation<Record<string, any>>,
@@ -56,6 +64,9 @@ export const TesterState = Annotation.Root({
 
   // --- Per-turn intent analysis (benchmark mode) ---
   turnIntents: Annotation<TurnIntent[]>,
+
+  // --- Step timings ---
+  stepTimings: Annotation<StepTiming[]>,
 
   // --- Control flow ---
   shouldStop: Annotation<boolean>,

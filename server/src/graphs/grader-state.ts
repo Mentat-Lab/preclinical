@@ -6,6 +6,7 @@
 
 import { Annotation } from '@langchain/langgraph';
 import type { GradingResult, TriageExtraction } from '../shared/agent-schemas.js';
+import type { StepTiming } from './tester-state.js';
 
 export interface CriteriaResult {
   criterion: string;
@@ -39,6 +40,9 @@ export const GraderState = Annotation.Root({
   // --- Triage (always extracted) ---
   goldStandard: Annotation<string>,
   triageResult: Annotation<TriageExtraction | null>,
+
+  // --- Step timings ---
+  stepTimings: Annotation<StepTiming[]>,
 
   // --- Control flow ---
   gradingAttempt: Annotation<number>,

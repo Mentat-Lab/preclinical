@@ -27,7 +27,7 @@ with Preclinical() as client:
 
     # Get detailed results
     results = client.list_scenario_runs(started.id)
-    for r in results.items:
+    for r in results.results:
         print(f"{r.status} — {r.scenario_name}")
 ```
 
