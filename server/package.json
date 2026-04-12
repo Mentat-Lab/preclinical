@@ -15,7 +15,7 @@
     "@langchain/anthropic": "^1.3.25",
     "@langchain/core": "^1.1.38",
     "@langchain/langgraph": "^1.2.6",
-    "@langchain/openai": "^1.4.1",
+    "@langchain/openai": "^1.4.4",
     "@livekit/rtc-node": "^0.13.24",
     "browser-use-sdk": "^3.4.3",
     "hono": "^4.12.9",
