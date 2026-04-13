@@ -13,7 +13,7 @@ import { log } from '../../lib/logger.js';
 const logger = log.child({ component: 'browser' });
 
 /** Zod schema for structured extraction from browser tasks. */
-export const ResponseSchema = z.object({
+const ResponseSchema = z.object({
   bot_response: z.string().describe('The full text of the chatbot/assistant response message'),
   overlay_text: z.string().nullable().describe('Text from a NEW modal, popup, or emergency alert that appeared AFTER the message was sent. Empty string if none.').default(''),
 }).transform(r => ({ ...r, overlay_text: r.overlay_text ?? '' }));
@@ -28,13 +28,13 @@ const STRUCTURED_OUTPUT = JSON.stringify({
   required: ['bot_response'],
 });
 
-export type BrowserResponse = z.infer<typeof ResponseSchema>;
+type BrowserResponse = z.infer<typeof ResponseSchema>;
 
 // Singleton client — reused across sessions within the same process.
 let _client: BrowserUse | null = null;
 let _clientKey = '';
 
-export function getClient(apiKey: string): BrowserUse {
+function getClient(apiKey: string): BrowserUse {
   if (_client && _clientKey === apiKey) return _client;
   _client = new BrowserUse({ apiKey });
   _clientKey = apiKey;
