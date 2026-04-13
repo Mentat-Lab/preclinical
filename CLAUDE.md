@@ -105,7 +105,7 @@ docker compose build && make restart        # rebuild + restart after code chang
 make logs                                   # verify startup
 ```
 
-Ports (Docker): API on `localhost:3333` (container 8000), frontend on `localhost:3000`.
+Ports (Docker): API + frontend on `localhost:3000` (container 8000).
 
 ## Deployment
 

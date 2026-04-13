@@ -16,18 +16,17 @@ Thank you for your interest in contributing to Preclinical! This guide will help
 git clone https://github.com/Mentat-Lab/preclinical.git
 cd preclinical
 
-# Copy environment variables
-cp .env.example .env
-# Edit .env and add your OPENAI_API_KEY
+# Copy environment variables and start everything
+make setup
+# Edit .env and add your OPENAI_API_KEY, then restart
+make restart
+```
 
-# Start the database
+For local development (hot-reload on file changes):
+
+```bash
 docker compose up db -d
-
-# Install server dependencies
-cd server && npm install
-
-# Run the server in development mode
-npm run dev
+cd server && npm install && npm run dev
 ```
 
 ### Running Tests

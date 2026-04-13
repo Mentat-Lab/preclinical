@@ -176,11 +176,25 @@ export async function validateSession(
 }
 
 export async function closeSession(apiKey: string, sessionId: string): Promise<void> {
-  try {
-    const client = getClient(apiKey);
-    await client.sessions.stop(sessionId);
-    logger.info('Closed browser session', { sessionId });
-  } catch (err) {
-    logger.warn('Failed to close session', { sessionId, error: err });
+  const client = getClient(apiKey);
+  const maxAttempts = 3;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await client.sessions.stop(sessionId);
+      logger.info('Closed browser session', { sessionId, attempt });
+      return;
+    } catch (err) {
+      if (attempt < maxAttempts) {
+        logger.warn('Retrying session close', { sessionId, attempt, error: err });
+        await new Promise((r) => setTimeout(r, 1000 * attempt));
+      } else {
+        logger.error('Failed to close browser session after retries — session may leak', {
+          sessionId,
+          attempts: maxAttempts,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
   }
 }
