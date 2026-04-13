@@ -56,12 +56,22 @@ export default function AgentEditPage() {
     },
   });
 
+  // Whether browser config fields were changed (require re-validation before save)
+  const browserConfigDirty = agent?.provider === 'browser' &&
+    (editedConfigKeys.has('url') || editedConfigKeys.has('profile_id'));
+  const needsValidation = browserConfigDirty && !validationResult?.ok;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
     if (!name.trim()) {
       setFormError('Agent name is required');
+      return;
+    }
+
+    if (needsValidation) {
+      setFormError('Please validate the browser profile before saving.');
       return;
     }
 
@@ -198,8 +208,8 @@ export default function AgentEditPage() {
               />
             )}
 
-            {/* Browser profile validation */}
-            {agent.provider === 'browser' && (
+            {/* Browser profile validation — only shown when url or profile_id changed */}
+            {agent.provider === 'browser' && browserConfigDirty && (
               <div className="space-y-3">
                 <button
                   type="button"
