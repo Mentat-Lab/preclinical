@@ -4,6 +4,12 @@
 # Preclinical
 # --------------------------------------------------------------------------
 
+# Read APP_PUBLISH_PORT from .env, fallback to 3000
+APP_PORT := $(shell grep -s '^APP_PUBLISH_PORT=' .env | cut -d= -f2 | tr -d ' ')
+ifeq ($(APP_PORT),)
+  APP_PORT := 3000
+endif
+
 ## First-time setup: copy env template + start services
 setup:
 	@if [ ! -f .env ]; then \
@@ -19,7 +25,7 @@ setup:
 up:
 	docker compose up -d
 	@echo ""
-	@echo "✓ Running — http://localhost:3000"
+	@echo "✓ Running — http://localhost:$(APP_PORT)"
 
 ## Stop everything
 down:
@@ -37,7 +43,7 @@ logs:
 status:
 	@docker compose ps
 	@echo ""
-	@curl -s http://localhost:3000/health 2>/dev/null && echo "" || echo "⚠ App not reachable"
+	@curl -s http://localhost:$(APP_PORT)/health 2>/dev/null && echo "" || echo "⚠ App not reachable"
 
 ## Seed the database (agents + scenarios)
 seed:

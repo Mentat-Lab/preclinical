@@ -55,6 +55,9 @@ export default function ScenarioDetailPage() {
   const [editDemoAge, setEditDemoAge] = useState('');
   const [editDemoGender, setEditDemoGender] = useState('');
   const [editDemoAgeRange, setEditDemoAgeRange] = useState('');
+  const [editInitialMessage, setEditInitialMessage] = useState('');
+  const [editGoldStandard, setEditGoldStandard] = useState('');
+  const [editClinicalFacts, setEditClinicalFacts] = useState('');
   const [editRubric, setEditRubric] = useState<RubricCriterion[]>([]);
 
   function syncEditState(s: typeof scenario) {
@@ -71,6 +74,9 @@ export default function ScenarioDetailPage() {
     setEditChiefComplaint(String(content.chief_complaint ?? ''));
     setEditSopInstructions(String(content.sop_instructions ?? ''));
     setEditTestType(String(content.test_type ?? ''));
+    setEditInitialMessage(String(content.initial_message ?? ''));
+    setEditGoldStandard(String(content.gold_standard ?? ''));
+    setEditClinicalFacts(String(content.clinical_facts ?? ''));
     setEditDemoAge(demo?.age != null ? String(demo.age) : '');
     setEditDemoGender(String(demo?.gender ?? ''));
     setEditDemoAgeRange(String(demo?.age_range ?? ''));
@@ -99,9 +105,12 @@ export default function ScenarioDetailPage() {
 
     const content: Record<string, unknown> = {
       ...(scenario.content ?? {}),
-      chief_complaint: editChiefComplaint,
-      sop_instructions: editSopInstructions,
-      test_type: editTestType,
+      chief_complaint: editChiefComplaint || undefined,
+      sop_instructions: editSopInstructions || undefined,
+      test_type: editTestType || undefined,
+      initial_message: editInitialMessage || undefined,
+      gold_standard: editGoldStandard || undefined,
+      clinical_facts: editClinicalFacts || undefined,
       demographics: {
         age: editDemoAge ? parseInt(editDemoAge) : undefined,
         gender: editDemoGender || undefined,
@@ -175,6 +184,9 @@ export default function ScenarioDetailPage() {
   const chiefComplaint = stringify(content.chief_complaint);
   const sopInstructions = stringify(content.sop_instructions);
   const testType = stringify(content.test_type);
+  const initialMessage = stringify(content.initial_message);
+  const goldStandard = stringify(content.gold_standard);
+  const clinicalFacts = stringify(content.clinical_facts);
   const demographics = content.demographics as Record<string, string> | string | undefined;
 
   return (
@@ -408,29 +420,116 @@ export default function ScenarioDetailPage() {
           </div>
         </section>
 
+        {/* Initial Message */}
+        {(editing || initialMessage) && (
+          <section className="rounded-lg border border-border bg-card overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-border">
+              <h2 className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                Initial Message
+              </h2>
+            </div>
+            <div className="px-5 py-4">
+              {editing ? (
+                <textarea
+                  value={editInitialMessage}
+                  onChange={(e) => setEditInitialMessage(e.target.value)}
+                  rows={3}
+                  placeholder="Patient's opening message to the agent..."
+                  className={cn(inputCls, 'resize-y')}
+                />
+              ) : (
+                <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">
+                  {initialMessage}
+                </p>
+              )}
+            </div>
+          </section>
+        )}
+
         {/* Chief Complaint */}
-        <section className="rounded-lg border border-border bg-card overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-border">
-            <h2 className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-              Chief Complaint
-            </h2>
-          </div>
-          <div className="px-5 py-4">
-            {editing ? (
-              <textarea
-                value={editChiefComplaint}
-                onChange={(e) => setEditChiefComplaint(e.target.value)}
-                rows={3}
-                placeholder="Opening patient utterance..."
-                className={cn(inputCls, 'resize-y')}
-              />
-            ) : chiefComplaint ? (
-              <p className="text-sm text-text-primary">{chiefComplaint}</p>
-            ) : (
-              <p className="text-sm text-text-secondary">No chief complaint set</p>
-            )}
-          </div>
-        </section>
+        {(editing || chiefComplaint) && (
+          <section className="rounded-lg border border-border bg-card overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-border">
+              <h2 className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                Chief Complaint
+              </h2>
+            </div>
+            <div className="px-5 py-4">
+              {editing ? (
+                <textarea
+                  value={editChiefComplaint}
+                  onChange={(e) => setEditChiefComplaint(e.target.value)}
+                  rows={3}
+                  placeholder="Opening patient utterance..."
+                  className={cn(inputCls, 'resize-y')}
+                />
+              ) : (
+                <p className="text-sm text-text-primary">{chiefComplaint}</p>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Gold Standard */}
+        {(editing || goldStandard) && (
+          <section className="rounded-lg border border-border bg-card overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-border">
+              <h2 className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                Gold Standard
+              </h2>
+            </div>
+            <div className="px-5 py-4">
+              {editing ? (
+                <select
+                  value={editGoldStandard}
+                  onChange={(e) => setEditGoldStandard(e.target.value)}
+                  className={cn(inputCls, 'max-w-xs appearance-none')}
+                >
+                  <option value="">—</option>
+                  <option value="Emergency">Emergency</option>
+                  <option value="Clinician">Clinician</option>
+                  <option value="Home care">Home care</option>
+                </select>
+              ) : (
+                <span className={cn(
+                  'inline-flex items-center px-2.5 py-1 rounded text-sm font-medium',
+                  goldStandard === 'Emergency' && 'bg-red-500/10 text-red-600 border border-red-500/20',
+                  goldStandard === 'Clinician' && 'bg-yellow-500/10 text-yellow-600 border border-yellow-500/20',
+                  goldStandard === 'Home care' && 'bg-green-500/10 text-green-600 border border-green-500/20',
+                  !['Emergency', 'Clinician', 'Home care'].includes(goldStandard!) && 'bg-muted text-text-secondary border border-border',
+                )}>
+                  {goldStandard}
+                </span>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Clinical Facts */}
+        {(editing || clinicalFacts) && (
+          <section className="rounded-lg border border-border bg-card overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-border">
+              <h2 className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                Clinical Facts
+              </h2>
+            </div>
+            <div className="px-5 py-4">
+              {editing ? (
+                <textarea
+                  value={editClinicalFacts}
+                  onChange={(e) => setEditClinicalFacts(e.target.value)}
+                  rows={6}
+                  placeholder="Structured clinical facts for this scenario..."
+                  className={cn(inputCls, 'resize-y')}
+                />
+              ) : (
+                <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">
+                  {clinicalFacts}
+                </p>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Test Type (edit mode) */}
         {editing && (
@@ -474,30 +573,30 @@ export default function ScenarioDetailPage() {
         )}
 
         {/* SOP Instructions */}
-        <section className="rounded-lg border border-border bg-card overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-border">
-            <h2 className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-              Agent SOP / Instructions
-            </h2>
-          </div>
-          <div className="px-5 py-4">
-            {editing ? (
-              <textarea
-                value={editSopInstructions}
-                onChange={(e) => setEditSopInstructions(e.target.value)}
-                rows={5}
-                placeholder="What the AI agent must and must not do..."
-                className={cn(inputCls, 'resize-y')}
-              />
-            ) : sopInstructions ? (
-              <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">
-                {sopInstructions}
-              </p>
-            ) : (
-              <p className="text-sm text-text-secondary">No SOP instructions set</p>
-            )}
-          </div>
-        </section>
+        {(editing || sopInstructions) && (
+          <section className="rounded-lg border border-border bg-card overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-border">
+              <h2 className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                Agent SOP / Instructions
+              </h2>
+            </div>
+            <div className="px-5 py-4">
+              {editing ? (
+                <textarea
+                  value={editSopInstructions}
+                  onChange={(e) => setEditSopInstructions(e.target.value)}
+                  rows={5}
+                  placeholder="What the AI agent must and must not do..."
+                  className={cn(inputCls, 'resize-y')}
+                />
+              ) : (
+                <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">
+                  {sopInstructions}
+                </p>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Rubric Criteria */}
         <section className="rounded-lg border border-border bg-card overflow-hidden">
