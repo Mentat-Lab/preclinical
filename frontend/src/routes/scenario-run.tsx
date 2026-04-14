@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useActiveAgent } from '@/lib/active-agent-context';
 import { useScenarioRun, useScenarioRuns, useTestRun } from '@/hooks/use-queries';
 import { useRealtimeRun } from '@/lib/sse';
 import { cn } from '@/lib/utils';
+import { createTestRun } from '@/lib/api';
 import type { CriteriaResult, ScenarioRunResult, StepTiming, TranscriptEntry } from '@/lib/types';
 import {
   ArrowLeft,
@@ -14,6 +15,7 @@ import {
   Copy,
   Download,
   Loader2,
+  RotateCw,
 } from 'lucide-react';
 
 function parseJsonField<T>(val: unknown): T[] {
@@ -191,10 +193,14 @@ function MessageBubble({ entry }: { entry: TranscriptEntry }) {
 }
 
 export default function ScenarioRunPage() {
-  const [gradingOpen, setGradingOpen] = useState(true);
+  const [gradingOpen, setGradingOpen] = useState(false);
   const [transcriptOpen, setTranscriptOpen] = useState(false);
+  const [userToggledGrading, setUserToggledGrading] = useState(false);
   const [debugOpen, setDebugOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [rerunning, setRerunning] = useState(false);
+  const transcriptEndRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
 
   const { id: testRunId, scenarioRunId } = useParams<{ id: string; scenarioRunId: string }>();
   const resolvedTestRunId = testRunId || '';
@@ -206,6 +212,25 @@ export default function ScenarioRunPage() {
   const { setActiveAgentId } = useActiveAgent();
 
   useRealtimeRun(testRunId, scenarioRunId);
+
+  const isLive = result?.status === 'running' || result?.status === 'grading';
+
+  // Auto-expand transcript while running, grading when done
+  useEffect(() => {
+    if (isLive) {
+      setTranscriptOpen(true);
+      if (!userToggledGrading) setGradingOpen(false);
+    } else if (result && !userToggledGrading) {
+      setGradingOpen(true);
+    }
+  }, [isLive, result, userToggledGrading]);
+
+  // Auto-scroll transcript to bottom on new messages
+  useEffect(() => {
+    if (isLive && transcriptOpen) {
+      transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  });
 
   useEffect(() => {
     const agentId = testRunData?.run?.agent_id;
@@ -285,6 +310,24 @@ export default function ScenarioRunPage() {
     URL.revokeObjectURL(url);
   };
 
+  const canRerun = !isLive && result.scenario_id && testRunData?.run?.agent_id;
+  const handleRerun = async () => {
+    if (!testRunData?.run) return;
+    setRerunning(true);
+    try {
+      const run = testRunData.run;
+      const res = await createTestRun({
+        agent_id: run.agent_id,
+        scenario_ids: [result.scenario_id],
+        max_turns: run.max_turns || undefined,
+        creative_mode: run.creative_mode || undefined,
+      });
+      navigate(`/test/${res.id}`);
+    } catch {
+      setRerunning(false);
+    }
+  };
+
   const testRunLabel = testRunData?.run?.test_run_id || resolvedTestRunId;
 
   return (
@@ -307,9 +350,44 @@ export default function ScenarioRunPage() {
             <p className={cn('text-sm font-medium', statusClasses(displayStatus))}>
               {statusLabel(displayStatus, result.error_code)}
             </p>
+            {isLive && (() => {
+              const maxTurns = testRunData?.run?.max_turns || 11;
+              const currentTurn = transcript.length > 0
+                ? Math.max(...transcript.filter(e => e.role !== 'system').map(e => e.turn || 0))
+                : 0;
+              return (
+                <div className="mt-2 flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-accent" />
+                    <span className="text-sm text-text-secondary">
+                      {result.status === 'grading'
+                        ? 'Grading transcript...'
+                        : `Turn ${currentTurn} of ${maxTurns}`}
+                    </span>
+                  </div>
+                  <div className="flex-1 max-w-[200px] h-1.5 bg-border rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-accent rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, (currentTurn / maxTurns) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           <div className="flex items-center gap-3">
+            {canRerun && (
+              <button
+                type="button"
+                onClick={handleRerun}
+                disabled={rerunning}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-text-primary hover:bg-muted disabled:opacity-50"
+              >
+                <RotateCw className={cn('h-3.5 w-3.5', rerunning && 'animate-spin')} />
+                {rerunning ? 'Starting...' : 'Rerun'}
+              </button>
+            )}
             <span className="text-sm text-text-secondary">
               {navigation.currentIndex + 1} of {navigation.totalCount || 1}
             </span>
@@ -383,7 +461,7 @@ export default function ScenarioRunPage() {
         <div className="border border-border rounded-lg mb-6">
           <button
             type="button"
-            onClick={() => setGradingOpen((prev) => !prev)}
+            onClick={() => { setUserToggledGrading(true); setGradingOpen((prev) => !prev); }}
             className="w-full px-4 py-3 flex items-center justify-between"
           >
             <span className="text-sm font-semibold text-text-primary">Grading results</span>
@@ -498,13 +576,14 @@ export default function ScenarioRunPage() {
 
               {transcript.length === 0 ? (
                 <div className="rounded-lg border border-border px-4 py-8 text-sm text-text-secondary text-center">
-                  No transcript available yet.
+                  {isLive ? 'Waiting for first message...' : 'No transcript available yet.'}
                 </div>
               ) : (
                 <div className="rounded-lg border border-border bg-card p-4 space-y-4">
                   {transcript.map((entry, index) => (
                     <MessageBubble key={`${entry.turn ?? index}-${index}`} entry={entry} />
                   ))}
+                  <div ref={transcriptEndRef} />
                 </div>
               )}
             </div>

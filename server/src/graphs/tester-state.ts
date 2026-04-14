@@ -70,6 +70,7 @@ export const TesterState = Annotation.Root({
 
   // --- Control flow ---
   shouldStop: Annotation<boolean>,
+  triageSent: Annotation<boolean>,
   error: Annotation<string | null>,
 });
 

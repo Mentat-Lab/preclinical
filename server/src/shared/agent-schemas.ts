@@ -94,6 +94,17 @@ export const TriageDetectionSchema = z.object({
 
 export type TriageDetection = z.infer<typeof TriageDetectionSchema>;
 
+export const ResponseValidationSchema = z.object({
+  is_error: z.boolean().describe(
+    "True if the response is an error message, not a genuine chatbot reply"
+  ),
+  error_type: z.enum(["network", "auth", "rate_limit", "page_error", "none"]).describe(
+    "Type of error detected: network (connection failures), auth (login walls, CAPTCHAs), rate_limit (throttling), page_error (404, 500), none (genuine response)"
+  ),
+});
+
+export type ResponseValidation = z.infer<typeof ResponseValidationSchema>;
+
 export const TriageExtractionSchema = z.object({
   extracted_triage: z.enum(["Emergency", "Clinician", "Home care"]).describe(
     "Extracted triage recommendation from the agent"

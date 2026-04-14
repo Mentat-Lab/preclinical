@@ -31,4 +31,9 @@ export const config = {
   // Per-turn intent analysis (benchmark mode)
   enableTurnIntents: process.env.ENABLE_TURN_INTENTS !== 'false',
   turnIntentModel: process.env.TURN_INTENT_MODEL || 'gpt-4o-mini',
+
+  // Response validation (detect error pages vs genuine responses)
+  enableResponseValidation: process.env.ENABLE_RESPONSE_VALIDATION === 'true',
+  responseValidationModel: process.env.RESPONSE_VALIDATION_MODEL || 'gpt-4o-mini',
+  responseValidationRetries: parseInt(process.env.RESPONSE_VALIDATION_RETRIES || '2', 10),
 } as const;

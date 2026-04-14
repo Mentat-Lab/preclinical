@@ -143,12 +143,12 @@ export default function AgentEditPage() {
 
       <main className="px-8 py-6">
         <form onSubmit={handleSubmit} className="max-w-2xl">
+          {displayError && (
+            <div className="sticky top-0 z-10 mb-4 p-3 rounded bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+              {displayError}
+            </div>
+          )}
           <div className="rounded-lg border border-border bg-card p-6 space-y-6">
-            {displayError && (
-              <div className="p-3 rounded bg-destructive/10 border border-destructive/20 text-destructive text-sm">
-                {displayError}
-              </div>
-            )}
 
             {/* Name */}
             <div className="space-y-1.5">
