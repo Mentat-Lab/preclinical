@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as api from '@/lib/api';
@@ -29,7 +29,9 @@ export default function NewAgentPage() {
   const [description, setDescription] = useState('');
   const [provider, setProvider] = useState<AgentProvider | null>(null);
   const [config, setConfig] = useState<Record<string, string>>({});
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, _setFormError] = useState<string | null>(null);
+  const [errorCount, setErrorCount] = useState(0);
+  const setFormError = (msg: string | null) => { _setFormError(msg); if (msg) setErrorCount((c) => c + 1); };
   const [showPasswordFields, setShowPasswordFields] = useState<Record<string, boolean>>({});
   const [validationResult, setValidationResult] = useState<{ ok: boolean; error: string | null } | null>(null);
 
@@ -112,6 +114,11 @@ export default function NewAgentPage() {
       ? createMutation.error.message
       : null);
   const submitting = createMutation.isPending || (provider === 'browser' && validateMutation.isPending);
+  const errorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (displayError) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [displayError, errorCount]);
 
   return (
     <div className="flex-1 min-h-screen bg-background">
@@ -123,7 +130,7 @@ export default function NewAgentPage() {
       <main className="px-8 py-6">
         <form onSubmit={handleSubmit} className="max-w-2xl">
           {displayError && (
-            <div className="sticky top-0 z-10 mb-4 p-3 rounded bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+            <div ref={errorRef} className="mb-4 p-3 rounded bg-destructive/10 border border-destructive/20 text-destructive text-sm">
               {displayError}
             </div>
           )}

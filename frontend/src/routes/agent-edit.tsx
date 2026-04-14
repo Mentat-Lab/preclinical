@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAgent, queryKeys } from '@/hooks/use-queries';
@@ -25,7 +25,9 @@ export default function AgentEditPage() {
   const [description, setDescription] = useState('');
   const [config, setConfig] = useState<Record<string, string>>({});
   const [editedConfigKeys, setEditedConfigKeys] = useState<Set<string>>(new Set());
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, _setFormError] = useState<string | null>(null);
+  const [errorCount, setErrorCount] = useState(0);
+  const setFormError = (msg: string | null) => { _setFormError(msg); if (msg) setErrorCount((c) => c + 1); };
   const [validationResult, setValidationResult] = useState<{ ok: boolean; error: string | null } | null>(null);
 
   useEffect(() => {
@@ -133,6 +135,11 @@ export default function AgentEditPage() {
       ? updateMutation.error.message
       : null);
   const submitting = updateMutation.isPending;
+  const errorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (displayError) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [displayError, errorCount]);
 
   return (
     <div className="flex-1 min-h-screen bg-background">
@@ -144,7 +151,7 @@ export default function AgentEditPage() {
       <main className="px-8 py-6">
         <form onSubmit={handleSubmit} className="max-w-2xl">
           {displayError && (
-            <div className="sticky top-0 z-10 mb-4 p-3 rounded bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+            <div ref={errorRef} className="mb-4 p-3 rounded bg-destructive/10 border border-destructive/20 text-destructive text-sm">
               {displayError}
             </div>
           )}
