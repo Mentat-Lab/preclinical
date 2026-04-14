@@ -1,4 +1,4 @@
-.PHONY: setup up down restart logs status clean nuke seed db-reset
+.PHONY: setup up down restart logs status clean nuke reset seed db-reset
 
 # --------------------------------------------------------------------------
 # Preclinical
@@ -55,6 +55,9 @@ db-reset:
 clean:
 	docker compose down -v
 	@echo "✓ Volumes removed — run 'make setup' to start fresh"
+
+## Full reset: destroy everything + rebuild from scratch
+reset: nuke
 
 ## Destroy everything (containers, images, volumes) + rebuild from scratch
 nuke:
