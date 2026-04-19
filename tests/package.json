@@ -14,7 +14,7 @@
   "devDependencies": {
     "@vitest/ui": "^4.1.2",
     "dotenv": "^17.3.1",
-    "typescript": "^6.0.2",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.2"
   }
 }
