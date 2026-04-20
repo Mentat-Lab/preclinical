@@ -119,6 +119,20 @@ Full documentation: [Architecture](https://Mentat-Lab.github.io/preclinical/gett
 git pull && make restart
 ```
 
+## Roadmap
+
+### Voice-to-voice testing
+Right now Preclinical sends text to voice providers. The next step is true voice-to-voice: the tester agent produces audio so the full pipeline — STT, TTS, latency, interruption handling — is tested end-to-end. This applies across all supported voice modalities: VAPI, Pipecat, LiveKit, ElevenLabs, and phone numbers.
+
+### Generic multi-domain framework
+Preclinical's adversarial testing infrastructure is not inherently healthcare-specific. The goal is to make it work for any deployed agent, regardless of how it's exposed:
+
+- **API agents** — any OpenAI-compatible HTTP endpoint
+- **Voice agents** — website widgets, phone/mobile numbers, LiveKit/Pipecat/VAPI/ElevenLabs APIs
+- **Chat agents** — web UIs tested via browser automation
+
+Metrics will adapt to modality (task completion and coherence for chat; latency, barge-in recovery, and transcription accuracy for voice). Scenario templates and rubrics will become domain-configurable rather than triage-specific. Healthcare is the first vertical; finance and other sectors are next, with the long-term goal of supporting any agent in any domain.
+
 ## Contributing
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
