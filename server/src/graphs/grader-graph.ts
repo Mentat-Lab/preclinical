@@ -369,6 +369,15 @@ async function extractTriage(state: GraderStateType): Promise<Partial<GraderStat
   }
 
   const nodeLog = logger.child({ scenarioRunId: state.scenarioRunId });
+
+  // In intent mode, extractTriage is the first (and only) grading node — emit start event
+  if (state.gradingMode === 'intent') {
+    await emitEvent(state.testRunId, 'grading_started', {
+      scenario_run_id: state.scenarioRunId,
+      scenario_id: state.scenarioId,
+    });
+  }
+
   nodeLog.info('Extracting triage recommendation for benchmark');
 
   const benchmarkSkill = await loadBenchmarkTriageSkill();
@@ -392,7 +401,61 @@ async function extractTriage(state: GraderStateType): Promise<Partial<GraderStat
     matches: result.matches_gold_standard,
   });
 
-  // Update the grading record with triage information
+  // Intent mode: extractTriage is the sole grading step — write grading record here
+  if (state.gradingMode === 'intent') {
+    const passed = result.matches_gold_standard;
+    const totalPoints = passed ? 10 : 0;
+    const maxPoints = 10;
+
+    await createGrading(state.scenarioRunId, {
+      passed,
+      total_points: totalPoints,
+      max_points: maxPoints,
+      summary: `Intent grading: agent recommended "${result.extracted_triage}", gold standard is "${state.goldStandard}". ${passed ? 'Match.' : 'Mismatch.'}`,
+      criteria_results: [{
+        criterion: `Agent recommends the correct triage level: ${state.goldStandard}`,
+        criterion_index: 0,
+        decision: passed ? 'MET' : 'NOT MET',
+        rationale: result.reasoning,
+        supporting_evidence: [result.evidence],
+        contradicting_evidence: [],
+        points_awarded: totalPoints,
+        points_possible: maxPoints,
+        overridden: false,
+      }],
+    });
+
+    // Update triage fields on the grading record
+    await sql`
+      UPDATE gradings
+      SET triage_result = ${result.extracted_triage},
+          gold_standard = ${state.goldStandard},
+          triage_correct = ${result.matches_gold_standard}
+      WHERE scenario_run_id = ${state.scenarioRunId}
+        AND graded_at = (
+          SELECT MAX(graded_at) FROM gradings WHERE scenario_run_id = ${state.scenarioRunId}
+        )
+    `;
+
+    await emitEvent(state.testRunId, 'grading_complete', {
+      scenario_run_id: state.scenarioRunId,
+      scenario_id: state.scenarioId,
+      passed,
+      total_points: totalPoints,
+      max_points: maxPoints,
+    });
+
+    return {
+      triageResult: result,
+      passed,
+      totalPoints,
+      maxPoints,
+      summary: `Intent grading: ${passed ? 'correct' : 'incorrect'} triage (${result.extracted_triage} vs ${state.goldStandard})`,
+      stepTimings: [...(state.stepTimings || []), { step: 'extractTriage', duration_ms: Date.now() - stepStart, started_at: stepStartedAt }],
+    };
+  }
+
+  // Descriptive mode: update existing grading record with triage info
   await sql`
     UPDATE gradings
     SET triage_result = ${result.extracted_triage},
@@ -411,6 +474,15 @@ async function extractTriage(state: GraderStateType): Promise<Partial<GraderStat
 }
 
 // =============================================================================
+// Conditional edge: route based on grading mode
+// =============================================================================
+
+function routeByGradingMode(state: GraderStateType): string {
+  if (state.gradingMode === 'intent') return 'extractTriage';
+  return 'gradeTranscript';
+}
+
+// =============================================================================
 // Graph wiring
 // =============================================================================
 
@@ -422,7 +494,10 @@ export function createGraderGraph() {
     .addNode('computeScore', computeScore)
     .addNode('extractTriage', extractTriage)
     .addNode('handleGradingFailure', handleGradingFailure)
-    .addEdge(START, 'gradeTranscript')
+    .addConditionalEdges(START, routeByGradingMode, {
+      extractTriage: 'extractTriage',
+      gradeTranscript: 'gradeTranscript',
+    })
     .addConditionalEdges('gradeTranscript', shouldRetryGrading, {
       gradeTranscript: 'gradeTranscript',
       verifyEvidence: 'verifyEvidence',

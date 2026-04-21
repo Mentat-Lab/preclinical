@@ -60,6 +60,7 @@ export async function createTestRun(params: {
   max_scenarios?: number;
   tags?: string[];
   creative_mode?: boolean;
+  grading_mode?: 'descriptive' | 'intent';
 }): Promise<{ id: string }> {
   return fetchJSON('/start-run', {
     method: 'POST',

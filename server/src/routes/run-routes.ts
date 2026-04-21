@@ -188,9 +188,9 @@ app.get('/api/v1/tests/:id/export-csv', async (c) => {
 
     // Triage classification
     const isUnderTriage =
-      goldStandard === 'Emergency' && triageResult !== '' && triageResult !== 'Emergency';
+      goldStandard === 'Emergency evaluation' && triageResult !== '' && triageResult !== 'Emergency evaluation';
     const isOverTriage =
-      goldStandard !== 'Emergency' && goldStandard !== '' && triageResult === 'Emergency';
+      goldStandard !== 'Emergency evaluation' && goldStandard !== '' && triageResult === 'Emergency evaluation';
 
     // Collect target (agent) messages
     const targetMessages = transcript.filter((e) => e.role === 'target');
@@ -248,6 +248,117 @@ app.get('/api/v1/tests/:id/export-csv', async (c) => {
   return c.body(csv);
 });
 
+// ==================== TEST RUN ANALYSIS ====================
+
+const TRIAGE_CATEGORIES = ['Emergency evaluation', 'Clinician evaluation', 'Home management'] as const;
+type TriageCategory = typeof TRIAGE_CATEGORIES[number];
+
+// Severity ordering for over/under-triage classification
+const SEVERITY: Record<string, number> = {
+  'Emergency evaluation': 3,
+  'Clinician evaluation': 2,
+  'Home management': 1,
+};
+
+app.get('/api/v1/tests/:id/analysis', async (c) => {
+  const id = c.req.param('id');
+  const [run] = await sql`
+    SELECT * FROM test_runs
+    WHERE (id::text = ${id} OR test_run_id = ${id}) AND deleted_at IS NULL
+  `;
+  if (!run) return c.json({ error: 'Test run not found' }, 404);
+
+  const rows = await sql`
+    SELECT
+      sr.status,
+      s.name AS scenario_name,
+      s.content AS scenario_content,
+      g.triage_result,
+      g.gold_standard,
+      g.triage_correct
+    FROM scenario_runs sr
+    LEFT JOIN scenarios s ON sr.scenario_id = s.scenario_id
+    LEFT JOIN LATERAL (
+      SELECT * FROM gradings WHERE scenario_run_id = sr.id ORDER BY created_at DESC LIMIT 1
+    ) g ON true
+    WHERE sr.test_run_id = ${run.id}
+    ORDER BY s.name
+  `;
+
+  // Filter to graded scenarios only (have both gold and predicted)
+  const graded = rows.filter((r: any) => r.gold_standard && r.triage_result);
+  const errors = rows.filter((r: any) => r.status === 'error');
+
+  // Confusion matrix: rows = reference, cols = predicted
+  const matrix: Record<string, Record<string, number>> = {};
+  for (const ref of TRIAGE_CATEGORIES) {
+    matrix[ref] = {};
+    for (const pred of TRIAGE_CATEGORIES) {
+      matrix[ref][pred] = 0;
+    }
+  }
+
+  let correct = 0;
+  let overTriage = 0;
+  let underTriage = 0;
+
+  for (const row of graded) {
+    const ref = String(row.gold_standard) as TriageCategory;
+    const pred = String(row.triage_result) as TriageCategory;
+
+    if (matrix[ref]?.[pred] !== undefined) {
+      matrix[ref][pred]++;
+    }
+
+    if (row.triage_correct) correct++;
+
+    const refSev = SEVERITY[ref] ?? 0;
+    const predSev = SEVERITY[pred] ?? 0;
+    if (predSev > refSev) overTriage++;
+    if (predSev < refSev) underTriage++;
+  }
+
+  const total = graded.length;
+  const accuracy = total > 0 ? correct / total : 0;
+  const overTriageRate = total > 0 ? overTriage / total : 0;
+  const underTriageRate = total > 0 ? underTriage / total : 0;
+
+  // Per-category precision, recall, F1
+  const perCategory: Record<string, { precision: number; recall: number; f1: number; support: number }> = {};
+  for (const cat of TRIAGE_CATEGORIES) {
+    const tp = matrix[cat]?.[cat] ?? 0;
+    const fp = TRIAGE_CATEGORIES.reduce((sum, ref) => sum + (ref !== cat ? (matrix[ref]?.[cat] ?? 0) : 0), 0);
+    const fn = TRIAGE_CATEGORIES.reduce((sum, pred) => sum + (pred !== cat ? (matrix[cat]?.[pred] ?? 0) : 0), 0);
+    const support = tp + fn;
+
+    const precision = tp + fp > 0 ? tp / (tp + fp) : 0;
+    const recall = tp + fn > 0 ? tp / (tp + fn) : 0;
+    const f1 = precision + recall > 0 ? 2 * precision * recall / (precision + recall) : 0;
+
+    perCategory[cat] = {
+      precision: Math.round(precision * 1000) / 1000,
+      recall: Math.round(recall * 1000) / 1000,
+      f1: Math.round(f1 * 1000) / 1000,
+      support,
+    };
+  }
+
+  return c.json({
+    agent_name: run.agent_name,
+    total_scenarios: rows.length,
+    graded_scenarios: total,
+    error_scenarios: errors.length,
+    accuracy: Math.round(accuracy * 1000) / 1000,
+    over_triage_rate: Math.round(overTriageRate * 1000) / 1000,
+    under_triage_rate: Math.round(underTriageRate * 1000) / 1000,
+    confusion_matrix: {
+      labels: [...TRIAGE_CATEGORIES],
+      matrix,
+    },
+    per_category: perCategory,
+  });
+});
+
 // ==================== SCENARIO RUNS ====================
 
 app.get('/api/v1/scenario-runs', async (c) => {
@@ -267,7 +378,9 @@ app.get('/api/v1/scenario-runs', async (c) => {
 
   const [results, [{ count }]] = await Promise.all([
     sql`
-      SELECT sr.*, s.name as scenario_name, g.passed, g.summary as grade_summary, g.criteria_results
+      SELECT sr.*, s.name as scenario_name,
+             g.passed, g.summary as grade_summary, g.criteria_results,
+             g.triage_result, g.gold_standard, g.triage_correct
       FROM scenario_runs sr
       LEFT JOIN scenarios s ON sr.scenario_id = s.scenario_id
       LEFT JOIN LATERAL (
@@ -287,7 +400,9 @@ app.get('/api/v1/scenario-runs/:id', async (c) => {
   const id = c.req.param('id');
 
   const [result] = await sql`
-    SELECT sr.*, s.name as scenario_name, g.passed, g.summary as grade_summary, g.criteria_results
+    SELECT sr.*, s.name as scenario_name,
+           g.passed, g.summary as grade_summary, g.criteria_results,
+           g.triage_result, g.gold_standard, g.triage_correct
     FROM scenario_runs sr
     LEFT JOIN scenarios s ON sr.scenario_id = s.scenario_id
     LEFT JOIN LATERAL (

@@ -321,6 +321,7 @@ export default function ScenarioRunPage() {
         scenario_ids: [result.scenario_id],
         max_turns: run.max_turns || undefined,
         creative_mode: run.creative_mode || undefined,
+        grading_mode: run.grading_mode || undefined,
       });
       navigate(`/test/${res.id}`);
     } catch {
@@ -477,7 +478,77 @@ export default function ScenarioRunPage() {
                 </span>
               </div>
 
-              {criteria.length > 0 ? (
+              {/* Intent-based grading: show triage match instead of criteria table */}
+              {result.triage_result && result.gold_standard ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="border border-border rounded-lg p-3">
+                      <p className="text-xs text-text-secondary mb-1">Reference category</p>
+                      <p className="text-sm font-medium text-text-primary">{result.gold_standard}</p>
+                    </div>
+                    <div className="border border-border rounded-lg p-3">
+                      <p className="text-xs text-text-secondary mb-1">Predicted category</p>
+                      <p className="text-sm font-medium text-text-primary">{result.triage_result}</p>
+                    </div>
+                    <div className="border border-border rounded-lg p-3">
+                      <p className="text-xs text-text-secondary mb-1">Match</p>
+                      <span className={cn(
+                        'inline-flex rounded px-2 py-0.5 text-xs font-semibold text-white',
+                        result.triage_correct ? 'bg-pass' : 'bg-fail'
+                      )}>
+                        {result.triage_correct ? 'CORRECT' : 'INCORRECT'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Still show criteria table if present (descriptive mode with triage) */}
+                  {criteria.length > 1 && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse text-sm">
+                        <thead>
+                          <tr className="border-b border-border text-left text-text-secondary">
+                            <th className="py-2 pr-3 font-medium w-[38%]">Criteria</th>
+                            <th className="py-2 px-3 font-medium w-[42%]">Rationale</th>
+                            <th className="py-2 px-3 font-medium text-center w-[10%]">Severity</th>
+                            <th className="py-2 pl-3 font-medium text-center w-[10%]">Result</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {criteria.map((criterion) => (
+                            <tr key={criterion.id} className="border-b border-border align-top">
+                              <td className="py-3 pr-3 text-text-primary">{criterion.criterion}</td>
+                              <td className="py-3 px-3 text-text-primary">{criterion.rationale || '-'}</td>
+                              <td className="py-3 px-3 text-center">
+                                <span className={cn(
+                                  'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                                  criterion.severity === 'HIGH' && 'bg-red-100 text-red-800',
+                                  criterion.severity === 'MEDIUM' && 'bg-orange-100 text-orange-800',
+                                  criterion.severity === 'LOW' && 'bg-yellow-100 text-yellow-800'
+                                )}>
+                                  {criterion.severity}
+                                </span>
+                              </td>
+                              <td className="py-3 pl-3 text-center">
+                                <span className={cn(
+                                  'inline-flex rounded px-2 py-0.5 text-xs font-semibold text-white',
+                                  criterion.passed ? 'bg-pass' : 'bg-fail'
+                                )}>
+                                  {criterion.passed ? 'PASS' : 'FAIL'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Show rationale from the single criterion in intent mode */}
+                  {criteria.length === 1 && criteria[0].rationale && (
+                    <p className="text-sm text-text-secondary">{criteria[0].rationale}</p>
+                  )}
+                </div>
+              ) : criteria.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-sm">
                     <thead>

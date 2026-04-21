@@ -31,6 +31,8 @@ const MAX_MAX_TURNS = config.maxMaxTurns;
 const DEFAULT_MAX_TURNS = config.defaultMaxTurns;
 const SLOT_WAIT_TIMEOUT_MS = parseInt(process.env.SLOT_WAIT_TIMEOUT_MS || String(2 * 60 * 60_000), 10); // 2 hours
 const SLOT_WAIT_POLL_MS = 1000;
+const SCENARIO_MAX_RETRIES = 3;
+const SCENARIO_BASE_DELAY_MS = 5_000; // 5s, 10s, 20s exponential backoff
 
 function clampMaxTurns(requested: number | null | undefined): number {
   const value = requested ?? DEFAULT_MAX_TURNS;
@@ -144,8 +146,9 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
     const rubricCriteria = (scenario.rubric_criteria || []) as Array<Record<string, unknown>>;
     const maxTurns = clampMaxTurns(data.max_turns);
 
-    // Creative mode field
+    // Mode fields
     const creativeMode = !!data.creative_mode;
+    const gradingMode = data.grading_mode || 'descriptive';
     const scenarioContent = (scenario.content || {}) as Record<string, unknown>;
     const initialMessage = String(scenarioContent.initial_message || '');
     const clinicalFacts = String(scenarioContent.clinical_facts || '');
@@ -261,6 +264,7 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
       transcript: testerResult.transcript,
       rubricCriteria: normalizedCriteria,
       testType: String(testType),
+      gradingMode,
       scenarioRunId: scenario_run_id,
       testRunId: test_run_id,
       scenarioId: scenario_id,
@@ -324,15 +328,42 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
     jobLog.info('Completed', { status: finalStatus });
 
   } catch (error) {
-    jobLog.error('Scenario failed', error);
-
     const errorMessage = error instanceof Error ? error.message : String(error);
-    let errorCategory = 'unknown';
+    let errorCategory: string = 'unknown';
+    let retryable = false;
 
     try {
       const classified = classifyError(error);
       errorCategory = classified.category;
+      retryable = classified.retryable;
     } catch { /* ignore classification errors */ }
+
+    // Exponential backoff retry for retryable errors (429, 500, timeouts, etc.)
+    const attempt = (data as any)._retryAttempt ?? 0;
+    if (retryable && attempt < SCENARIO_MAX_RETRIES) {
+      const delayMs = SCENARIO_BASE_DELAY_MS * Math.pow(2, attempt);
+      jobLog.warn('Retryable error, backing off', {
+        attempt: attempt + 1,
+        maxRetries: SCENARIO_MAX_RETRIES,
+        delayMs,
+        errorCategory,
+        error: errorMessage,
+      });
+
+      // Reset scenario run status to pending so the retry can claim it
+      await updateScenarioRun(scenario_run_id, { status: 'pending' }).catch(() => {});
+
+      await sleep(delayMs);
+
+      // Retry with incremented attempt counter
+      return handleScenarioJob({ ...data, _retryAttempt: attempt + 1 } as any);
+    }
+
+    jobLog.error('Scenario failed (not retryable or retries exhausted)', {
+      errorCategory,
+      attempt,
+      error: errorMessage,
+    });
 
     try {
       await updateScenarioRun(scenario_run_id, {
@@ -358,7 +389,7 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
       jobLog.error('Failed to finalize run', finalizeError);
     }
 
-    // Re-throw so pg-boss can retry if applicable
+    // Re-throw so pg-boss marks the job as failed
     throw error;
   }
 }
@@ -393,12 +424,12 @@ async function tryFinalizeRun(testRunId: string): Promise<void> {
     return;
   }
 
-  // All complete — compute results
+  // All complete — compute results (pass_rate excludes errors from denominator)
   const passedCount = scenarioRuns.filter((r: any) => r.status === 'passed').length;
   const failedCount = scenarioRuns.filter((r: any) => r.status === 'failed').length;
   const errorCount = scenarioRuns.filter((r: any) => r.status === 'error').length;
-  const total = scenarioRuns.length;
-  const passRate = total > 0 ? (passedCount / total) * 100 : 0;
+  const gradedCount = passedCount + failedCount;
+  const passRate = gradedCount > 0 ? (passedCount / gradedCount) * 100 : 0;
 
   await sql`
     UPDATE test_runs SET
@@ -418,5 +449,5 @@ async function tryFinalizeRun(testRunId: string): Promise<void> {
     pass_rate: passRate,
   });
 
-  log.child({ component: 'scenario-runner', testRunId }).info('Finalized', { passedCount, total });
+  log.child({ component: 'scenario-runner', testRunId }).info('Finalized', { passedCount, gradedCount, errorCount });
 }

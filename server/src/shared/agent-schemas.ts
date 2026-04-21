@@ -84,7 +84,7 @@ export const TriageDetectionSchema = z.object({
   has_recommendation: z.boolean().describe(
     "True if the agent made a clear triage recommendation in this response"
   ),
-  triage_level: z.enum(["Emergency", "Clinician", "Home care"]).nullable().describe(
+  triage_level: z.enum(["Emergency evaluation", "Clinician evaluation", "Home management"]).nullable().describe(
     "Detected triage level, or null if no recommendation found"
   ),
   confidence: z.enum(["clear", "implied", "none"]).describe(
@@ -106,7 +106,7 @@ export const ResponseValidationSchema = z.object({
 export type ResponseValidation = z.infer<typeof ResponseValidationSchema>;
 
 export const TriageExtractionSchema = z.object({
-  extracted_triage: z.enum(["Emergency", "Clinician", "Home care"]).describe(
+  extracted_triage: z.enum(["Emergency evaluation", "Clinician evaluation", "Home management"]).describe(
     "Extracted triage recommendation from the agent"
   ),
   evidence: z.string().describe("Brief quote or description supporting the classification"),

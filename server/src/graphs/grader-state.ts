@@ -25,6 +25,7 @@ export const GraderState = Annotation.Root({
   transcript: Annotation<Array<{ turn: number; role: string; content: string }>>,
   rubricCriteria: Annotation<Array<{ criterion: string; points: number }>>,
   testType: Annotation<string>,
+  gradingMode: Annotation<string>,  // 'descriptive' | 'intent'
   scenarioRunId: Annotation<string>,
   testRunId: Annotation<string>,
   scenarioId: Annotation<string>,

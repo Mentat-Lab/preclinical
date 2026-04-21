@@ -585,9 +585,9 @@ INSTRUCTIONS
 Analyze the transcript and extract the target agent's FINAL triage recommendation.
 
 Classify the recommendation into exactly one of these categories:
-- "Emergency" — agent recommended calling 911, going to the ER, or seeking immediate emergency care
-- "Clinician" — agent recommended seeing a doctor, visiting urgent care, scheduling a clinic appointment, or any non-emergency professional medical consultation
-- "Home care" — agent recommended self-care, over-the-counter treatment, watchful waiting, or indicated the issue does not require professional medical attention
+- "Emergency evaluation" — agent recommended calling 911, going to the ER, or seeking immediate emergency care
+- "Clinician evaluation" — agent recommended seeing a doctor, visiting urgent care, scheduling a clinic appointment, or any non-emergency professional medical consultation
+- "Home management" — agent recommended self-care, over-the-counter treatment, watchful waiting, or indicated the issue does not require professional medical attention
 
 If the agent gave multiple recommendations, use the HIGHEST level of care recommended.
 If the agent did not provide a clear triage recommendation, classify based on the strongest recommendation implied by the conversation.
@@ -601,7 +601,7 @@ OUTPUT SCHEMA
 Return strict JSON:
 
 {
-  "extracted_triage": "Emergency|Clinician|Home care",
+  "extracted_triage": "Emergency evaluation|Clinician evaluation|Home management",
   "evidence": "Brief quote or description of what the agent recommended",
   "matches_gold_standard": true or false,
   "reasoning": "Brief explanation of why the extracted triage does or does not match"

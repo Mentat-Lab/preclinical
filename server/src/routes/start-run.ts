@@ -30,7 +30,10 @@ app.post('/start-run', async (c) => {
     tags: filterTags,
     benchmark_mode,
     creative_mode,
+    grading_mode: rawGradingMode,
   } = body;
+
+  const grading_mode = rawGradingMode === 'intent' ? 'intent' : 'descriptive';
 
   if (!agent_id) {
     return c.json({ error: 'agent_id is required' }, 400);
@@ -144,8 +147,8 @@ app.post('/start-run', async (c) => {
     }
 
     await tx`
-      INSERT INTO test_runs (id, test_run_id, test_suite_id, agent_id, agent_type, agent_name, name, status, total_scenarios, max_turns, concurrency_limit, benchmark_mode, creative_mode, started_at, created_at)
-      VALUES (${runId}, ${testRunHumanId}, ${suiteId}, ${agent_id}, ${resolvedAgentType}, ${agent.name}, ${name || null}, 'running', ${scenarioIds.length}, ${max_turns || null}, ${effectiveConcurrency}, ${!!benchmark_mode}, ${!!creative_mode}, ${now}, ${now})
+      INSERT INTO test_runs (id, test_run_id, test_suite_id, agent_id, agent_type, agent_name, name, status, total_scenarios, max_turns, concurrency_limit, benchmark_mode, creative_mode, grading_mode, started_at, created_at)
+      VALUES (${runId}, ${testRunHumanId}, ${suiteId}, ${agent_id}, ${resolvedAgentType}, ${agent.name}, ${name || null}, 'running', ${scenarioIds.length}, ${max_turns || null}, ${effectiveConcurrency}, ${!!benchmark_mode}, ${!!creative_mode}, ${grading_mode}, ${now}, ${now})
     `;
 
     await tx`INSERT INTO scenario_runs ${sql(rows)}`;
@@ -174,6 +177,7 @@ app.post('/start-run', async (c) => {
     max_turns: max_turns ?? null,
     benchmark_mode: !!benchmark_mode,
     creative_mode: !!creative_mode,
+    grading_mode,
   }));
 
   let jobIds: string[] = [];

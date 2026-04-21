@@ -23,6 +23,7 @@ export interface ScenarioJobData {
   max_turns?: number | null;
   benchmark_mode?: boolean;
   creative_mode?: boolean;
+  grading_mode?: string;
 }
 
 export type JobHandler = (data: ScenarioJobData) => Promise<void>;

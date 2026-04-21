@@ -81,6 +81,8 @@ CREATE TABLE test_runs (
   pass_rate             REAL        NOT NULL DEFAULT 0,
   benchmark_mode        BOOLEAN     NOT NULL DEFAULT FALSE,
   creative_mode         BOOLEAN     NOT NULL DEFAULT FALSE,
+  grading_mode          TEXT        NOT NULL DEFAULT 'descriptive'
+                          CHECK (grading_mode IN ('descriptive','intent')),
   is_finalizing         BOOLEAN     NOT NULL DEFAULT FALSE,
   finalize_started_at   TIMESTAMPTZ,
   started_at            TIMESTAMPTZ,

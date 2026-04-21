@@ -35,6 +35,7 @@ export default function NewRunPage() {
   const [filterTags, setFilterTags] = useState<string[]>([]);
 
   const [creativeMode, setCreativeMode] = useState(false);
+  const [gradingMode, setGradingMode] = useState<'descriptive' | 'intent'>('descriptive');
   const [error, setError] = useState<string | null>(null);
 
   // Seed pre-selected ids when the param changes
@@ -65,6 +66,7 @@ export default function NewRunPage() {
         max_scenarios: maxScenarios ? parseInt(maxScenarios) : undefined,
         tags: filterByTags && filterTags.length > 0 ? filterTags : undefined,
         creative_mode: creativeMode || undefined,
+        grading_mode: gradingMode,
       }),
     onSuccess: (run) => {
       navigate(`/test/${run.id}`);
@@ -318,6 +320,42 @@ export default function NewRunPage() {
               />
               <p className="text-xs text-text-secondary">Clear for all</p>
             </div>
+          </div>
+
+          {/* Grading Mode */}
+          <div className="space-y-1.5">
+            <label className="block text-sm font-medium text-text-primary">Grading Mode</label>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="grading_mode"
+                  value="descriptive"
+                  checked={gradingMode === 'descriptive'}
+                  onChange={() => setGradingMode('descriptive')}
+                  disabled={createMutation.isPending}
+                  className="w-4 h-4 border-border text-primary focus:ring-primary"
+                />
+                <span className="text-sm text-text-primary">Descriptive</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="grading_mode"
+                  value="intent"
+                  checked={gradingMode === 'intent'}
+                  onChange={() => setGradingMode('intent')}
+                  disabled={createMutation.isPending}
+                  className="w-4 h-4 border-border text-primary focus:ring-primary"
+                />
+                <span className="text-sm text-text-primary">Intent</span>
+              </label>
+            </div>
+            <p className="text-xs text-text-secondary">
+              {gradingMode === 'descriptive'
+                ? 'Full rubric-based grading with detailed criteria evaluation'
+                : 'Pass/fail based on whether the agent picks the correct triage category'}
+            </p>
           </div>
 
           {/* Creative Mode */}

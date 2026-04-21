@@ -21,6 +21,7 @@ export interface TestRun {
   created_at: string;
   updated_at?: string;
   creative_mode?: boolean;
+  grading_mode?: 'descriptive' | 'intent';
   summary_breakdown?: Record<string, unknown> | null;
 }
 
@@ -36,6 +37,9 @@ export interface ScenarioRunResult {
   criteria_results?: CriteriaResult[];
   transcript: TranscriptEntry[];
   duration_ms?: number;
+  triage_result?: string | null;
+  gold_standard?: string | null;
+  triage_correct?: boolean | null;
   metadata?: {
     step_timings?: StepTiming[];
     [key: string]: unknown;
