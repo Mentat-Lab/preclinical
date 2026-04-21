@@ -34,6 +34,6 @@ export const config = {
 
   // Response validation (detect error pages vs genuine responses)
   enableResponseValidation: process.env.ENABLE_RESPONSE_VALIDATION !== 'false',
-  responseValidationModel: process.env.RESPONSE_VALIDATION_MODEL || 'gpt-4o-mini',
+  responseValidationModel: process.env.RESPONSE_VALIDATION_MODEL || 'gpt-4.1-mini',
   responseValidationRetries: parseInt(process.env.RESPONSE_VALIDATION_RETRIES || '2', 10),
 } as const;
