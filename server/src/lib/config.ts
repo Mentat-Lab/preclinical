@@ -33,7 +33,7 @@ export const config = {
   turnIntentModel: process.env.TURN_INTENT_MODEL || 'gpt-4o-mini',
 
   // Response validation (detect error pages vs genuine responses)
-  enableResponseValidation: process.env.ENABLE_RESPONSE_VALIDATION === 'true',
+  enableResponseValidation: process.env.ENABLE_RESPONSE_VALIDATION !== 'false',
   responseValidationModel: process.env.RESPONSE_VALIDATION_MODEL || 'gpt-4o-mini',
   responseValidationRetries: parseInt(process.env.RESPONSE_VALIDATION_RETRIES || '2', 10),
 } as const;

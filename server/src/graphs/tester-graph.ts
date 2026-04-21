@@ -298,13 +298,15 @@ async function executeTurn(state: typeof TesterState.State) {
       persona,
     });
 
-    // Response validation: detect error pages and retry
+    // Response validation: detect error pages, retry, and fail if unresolved
     if (config.enableResponseValidation) {
       let retriesLeft = config.responseValidationRetries;
+      let lastErrorType = 'none';
       while (retriesLeft > 0) {
         const validation = await isErrorResponse(targetResponse);
         if (!validation.isError) break;
 
+        lastErrorType = validation.errorType;
         retriesLeft--;
         logger.warn('Error response detected, retrying', {
           turn,
@@ -313,7 +315,10 @@ async function executeTurn(state: typeof TesterState.State) {
           scenarioRunId: state.scenarioRunId,
         });
 
-        if (retriesLeft <= 0) break; // All retries exhausted, proceed with what we have
+        if (retriesLeft <= 0) {
+          // All retries exhausted — fail the scenario instead of grading garbage
+          throw new Error(`Target returned error response after ${config.responseValidationRetries} retries (${lastErrorType}): ${targetResponse.slice(0, 200)}`);
+        }
 
         await new Promise((r) => setTimeout(r, RESPONSE_RETRY_DELAY_MS));
         targetResponse = await provider.sendMessage(state.providerSession!, state.currentMessage, {

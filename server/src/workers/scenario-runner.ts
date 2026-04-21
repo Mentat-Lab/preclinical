@@ -31,8 +31,8 @@ const MAX_MAX_TURNS = config.maxMaxTurns;
 const DEFAULT_MAX_TURNS = config.defaultMaxTurns;
 const SLOT_WAIT_TIMEOUT_MS = parseInt(process.env.SLOT_WAIT_TIMEOUT_MS || String(2 * 60 * 60_000), 10); // 2 hours
 const SLOT_WAIT_POLL_MS = 1000;
-const SCENARIO_MAX_RETRIES = 3;
-const SCENARIO_BASE_DELAY_MS = 5_000; // 5s, 10s, 20s exponential backoff
+const SCENARIO_MAX_RETRIES = 6;
+const SCENARIO_BASE_DELAY_MS = 10_000; // 10s, 20s, 40s, 80s, 160s, 320s exponential backoff
 
 function clampMaxTurns(requested: number | null | undefined): number {
   const value = requested ?? DEFAULT_MAX_TURNS;
