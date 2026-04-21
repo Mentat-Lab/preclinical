@@ -189,23 +189,65 @@ Rules:
 // ---------------------------------------------------------------------------
 
 /**
- * Use a small model to check if a provider response is a genuine chatbot reply
- * or an error (e.g. network failures, login walls, rate limiting, 404s).
+ * Detect error/non-genuine responses using deterministic pattern matching first,
+ * then an LLM fallback. Catches login walls, auth failures, browser errors, etc.
  *
  * Only runs when ENABLE_RESPONSE_VALIDATION=true.
  */
+const ERROR_RESPONSE_PATTERNS = [
+  // Login / auth walls
+  /login\s+(required|wall)/i,
+  /sign[\s-]?in\s+(required|page|screen)/i,
+  /requires?\s+(authentication|login|sign[\s-]?in|credentials)/i,
+  /redirected\s+to\s+.*(sign[\s-]?in|login|auth)/i,
+  /provide\s+(your\s+)?(credentials|login)/i,
+  /encountered\s+a\s+login/i,
+  // Browser automation failures
+  /I\s+(cannot|could\s+not|am\s+unable\s+to)\s+(access|proceed|complete|send)/i,
+  /browser\s+profile/i,
+  /session\s+(has\s+been\s+)?(stopped|closed|dead|expired)/i,
+  // CAPTCHAs / blocks
+  /captcha/i,
+  /access\s+denied/i,
+  /cloudflare/i,
+  // Network / HTTP
+  /fetch\s+failed/i,
+  /connection\s+refused/i,
+  /ECONNRESET/i,
+  /status\s+code\s+(4|5)\d{2}/i,
+];
+
+function isPatternError(response: string): { isError: boolean; errorType: string } {
+  const text = response.toLowerCase();
+  for (const pattern of ERROR_RESPONSE_PATTERNS) {
+    if (pattern.test(response)) {
+      if (/login|sign[\s-]?in|auth|credentials/i.test(text)) return { isError: true, errorType: 'auth' };
+      if (/captcha|cloudflare|access.denied/i.test(text)) return { isError: true, errorType: 'auth' };
+      if (/cannot|unable|could not/i.test(text)) return { isError: true, errorType: 'page_error' };
+      if (/fetch|connection|ECONN/i.test(text)) return { isError: true, errorType: 'network' };
+      return { isError: true, errorType: 'page_error' };
+    }
+  }
+  return { isError: false, errorType: 'none' };
+}
+
 async function isErrorResponse(response: string): Promise<{ isError: boolean; errorType: string }> {
+  // Fast deterministic check first
+  const patternResult = isPatternError(response);
+  if (patternResult.isError) return patternResult;
+
+  // LLM fallback for subtler cases
   try {
     const result = await invokeStructuredWithCaching<ResponseValidation>(
       { model: config.responseValidationModel, temperature: 0 },
-      'You classify whether a text is a genuine chatbot/AI assistant response or an error message (network errors, login walls, CAPTCHAs, rate limits, HTTP errors, etc.). Be precise — only flag actual errors, not chatbot responses that mention technical topics.',
-      `Is this a genuine chatbot response or an error?\n\nTEXT:\n${response.slice(0, 1000)}`,
+      'You classify whether a text is a genuine medical/health chatbot response to a patient, or a non-medical error. A genuine response discusses symptoms, asks health questions, or gives medical advice. An error is anything else: login walls, authentication requests, CAPTCHAs, network errors, HTTP errors, rate limits, browser automation failures, or any message about website access problems instead of health.',
+      `Is this text a genuine medical chatbot response, or an error/access problem?\n\nTEXT:\n${response.slice(0, 1000)}`,
       ResponseValidationSchema,
       RESPONSE_VALIDATION_TIMEOUT_MS,
     );
     return { isError: result.is_error, errorType: result.error_type };
   } catch (err) {
-    logger.warn('Response validation failed, assuming genuine', {
+    logger.warn('Response validation LLM failed, assuming genuine', {
       error: err instanceof Error ? err.message : String(err),
     });
     return { isError: false, errorType: 'none' };
