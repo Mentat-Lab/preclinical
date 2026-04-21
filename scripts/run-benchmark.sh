@@ -31,6 +31,7 @@ TARGET_FILTER="all"
 SCENARIO_MODE="all"
 CUSTOM_SCENARIOS=""
 CONCURRENCY=3
+MAX_TURNS=11
 WAIT=false
 
 # Sample scenario IDs (TB-001, TB-002, TB-021, TB-022, TB-041, TB-042)
@@ -46,6 +47,7 @@ while [[ $# -gt 0 ]]; do
     --targets)      TARGET_FILTER="$2"; shift 2 ;;
     --grading)      GRADING_MODE="$2"; shift 2 ;;
     --concurrency)  CONCURRENCY="$2"; shift 2 ;;
+    --max-turns)    MAX_TURNS="$2"; shift 2 ;;
     --wait)         WAIT=true; shift ;;
     -h|--help)
       sed -n '2,/^$/p' "$0" | sed 's/^# \?//'
@@ -125,6 +127,7 @@ esac
 
 echo "Targets:     $AGENT_COUNT agents ($TARGET_FILTER)"
 echo "Grading:     $GRADING_MODE"
+echo "Max turns:   $MAX_TURNS"
 echo "Concurrency: $CONCURRENCY"
 echo ""
 
@@ -145,7 +148,7 @@ for i in $(seq 0 $((AGENT_COUNT - 1))); do
     RUN_CONCURRENCY=1
   fi
 
-  BODY="{\"agent_id\":\"$AGENT_ID\",\"name\":\"Benchmark: $AGENT_NAME\",$SCENARIO_PAYLOAD,\"grading_mode\":\"$GRADING_MODE\",\"concurrency_limit\":$RUN_CONCURRENCY}"
+  BODY="{\"agent_id\":\"$AGENT_ID\",\"name\":\"Benchmark: $AGENT_NAME\",$SCENARIO_PAYLOAD,\"grading_mode\":\"$GRADING_MODE\",\"max_turns\":$MAX_TURNS,\"concurrency_limit\":$RUN_CONCURRENCY}"
 
   RESULT=$(curl -sf "$API_BASE/start-run" -H 'Content-Type: application/json' -d "$BODY")
   RUN_ID=$(echo "$RESULT" | jq -r '.id')
