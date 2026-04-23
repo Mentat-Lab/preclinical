@@ -39,8 +39,8 @@ describe('config defaults', () => {
     expect(config.port).toBe(parseInt(process.env.PORT || '8000', 10));
   });
 
-  it('workerConcurrency defaults to 5', () => {
-    expect(config.workerConcurrency).toBe(parseInt(process.env.WORKER_CONCURRENCY || '5', 10));
+  it('workerConcurrency defaults to 10', () => {
+    expect(config.workerConcurrency).toBe(parseInt(process.env.WORKER_CONCURRENCY || '10', 10));
   });
 
   it('turn limits maintain min < default < max invariant', () => {

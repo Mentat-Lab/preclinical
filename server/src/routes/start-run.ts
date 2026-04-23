@@ -183,7 +183,10 @@ app.post('/start-run', async (c) => {
   let jobIds: string[] = [];
   try {
     const queue = await getQueue();
-    jobIds = await queue.enqueue(jobs);
+    const tier = effectiveConcurrency !== 6 ? `c${effectiveConcurrency}` : undefined;
+    jobIds = await queue.enqueue(jobs, {
+      group: { id: runId, ...(tier ? { tier } : {}) },
+    });
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     logger.error('Failed to enqueue test run jobs', {

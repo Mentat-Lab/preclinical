@@ -12,7 +12,7 @@ export const config = {
   graderTemperature: parseFloat(process.env.GRADER_TEMPERATURE || '0.1'),
 
   // Worker
-  workerConcurrency: parseInt(process.env.WORKER_CONCURRENCY || '5', 10),
+  workerConcurrency: parseInt(process.env.WORKER_CONCURRENCY || '10', 10),
 
   // Browser provider
   browserUseApiKey: process.env.BROWSER_USE_API_KEY || '',

@@ -29,8 +29,6 @@ import { graderGraph } from '../graphs/grader-graph.js';
 const MIN_MAX_TURNS = config.minMaxTurns;
 const MAX_MAX_TURNS = config.maxMaxTurns;
 const DEFAULT_MAX_TURNS = config.defaultMaxTurns;
-const SLOT_WAIT_TIMEOUT_MS = parseInt(process.env.SLOT_WAIT_TIMEOUT_MS || String(2 * 60 * 60_000), 10); // 2 hours
-const SLOT_WAIT_POLL_MS = 1000;
 const SCENARIO_MAX_RETRIES = 6;
 const SCENARIO_BASE_DELAY_MS = 10_000; // 10s, 20s, 40s, 80s, 160s, 320s exponential backoff
 
@@ -41,78 +39,6 @@ function clampMaxTurns(requested: number | null | undefined): number {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function isTerminalScenarioStatus(status: string | null | undefined): boolean {
-  return ['passed', 'failed', 'error', 'canceled'].includes(String(status || '').toLowerCase());
-}
-
-async function tryClaimScenarioSlot(testRunId: string, scenarioRunId: string): Promise<'claimed' | 'wait' | 'skip'> {
-  return await sql.begin(async (txRaw) => {
-    const tx = txRaw as unknown as typeof sql;
-    await tx`SELECT pg_advisory_xact_lock(hashtext(${testRunId}))`;
-
-    const [run] = await tx`
-      SELECT status, concurrency_limit
-      FROM test_runs
-      WHERE id = ${testRunId}
-    `;
-    if (!run || run.status !== 'running') return 'skip';
-
-    const [scenarioRun] = await tx`
-      SELECT status
-      FROM scenario_runs
-      WHERE id = ${scenarioRunId}
-    `;
-    if (!scenarioRun) return 'skip';
-    if (isTerminalScenarioStatus(scenarioRun.status)) return 'skip';
-    if (scenarioRun.status !== 'pending') return 'skip';
-
-    const [active] = await tx`
-      SELECT COUNT(*)::int AS count
-      FROM scenario_runs
-      WHERE test_run_id = ${testRunId}
-        AND status IN ('running', 'grading')
-    `;
-
-    const activeCount = Number(active?.count || 0);
-    const runConcurrencyLimit = Math.max(1, Number(run.concurrency_limit || 1));
-    if (activeCount >= runConcurrencyLimit) {
-      return 'wait';
-    }
-
-    const claimed = await tx`
-      UPDATE scenario_runs
-      SET status = 'running',
-          started_at = COALESCE(started_at, NOW()),
-          last_heartbeat_at = NOW()
-      WHERE id = ${scenarioRunId}
-        AND status = 'pending'
-      RETURNING id
-    `;
-
-    return claimed.length > 0 ? 'claimed' : 'wait';
-  });
-}
-
-async function waitForScenarioSlot(
-  testRunId: string,
-  scenarioRunId: string,
-  jobLog: ReturnType<typeof log.child>,
-): Promise<'claimed' | 'skip'> {
-  const deadline = Date.now() + SLOT_WAIT_TIMEOUT_MS;
-
-  while (Date.now() < deadline) {
-    const result = await tryClaimScenarioSlot(testRunId, scenarioRunId);
-    if (result === 'claimed') return 'claimed';
-    if (result === 'skip') return 'skip';
-    await sleep(SLOT_WAIT_POLL_MS);
-  }
-
-  jobLog.warn('Timed out waiting for concurrency slot', {
-    timeoutMs: SLOT_WAIT_TIMEOUT_MS,
-  });
-  throw new Error(`Timed out waiting for run concurrency slot after ${SLOT_WAIT_TIMEOUT_MS}ms`);
 }
 
 // =============================================================================
@@ -127,10 +53,22 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
   jobLog.info('Starting', { agentType: agent_type });
 
   try {
-    // Respect per-run concurrency_limit and atomically claim this scenario.
-    const slotStatus = await waitForScenarioSlot(test_run_id, scenario_run_id, jobLog);
-    if (slotStatus === 'skip') {
-      jobLog.info('Scenario run is terminal or run is not active, skipping');
+    // Per-run concurrency is enforced by pg-boss groupConcurrency (SKIP LOCKED).
+    // Just verify the run/scenario are still valid and atomically mark as running.
+    const [run] = await sql`SELECT status FROM test_runs WHERE id = ${test_run_id}`;
+    if (!run || run.status !== 'running') {
+      jobLog.info('Test run is not active, skipping');
+      return;
+    }
+
+    const [claimed] = await sql`
+      UPDATE scenario_runs
+      SET status = 'running', started_at = COALESCE(started_at, NOW()), last_heartbeat_at = NOW()
+      WHERE id = ${scenario_run_id} AND status = 'pending'
+      RETURNING id
+    `;
+    if (!claimed) {
+      jobLog.info('Scenario already claimed or terminal, skipping');
       await tryFinalizeRun(test_run_id);
       return;
     }

@@ -33,7 +33,7 @@ export interface JobQueue {
   start(): Promise<void>;
 
   /** Enqueue scenario jobs. Returns job IDs. */
-  enqueue(jobs: ScenarioJobData[]): Promise<string[]>;
+  enqueue(jobs: ScenarioJobData[], options?: { group?: { id: string; tier?: string } }): Promise<string[]>;
 
   /** Cancel queued/active jobs by ID. */
   cancel(jobIds: string[]): Promise<{ canceled: number; failed: number }>;
@@ -77,30 +77,19 @@ class PgBossQueue implements JobQueue {
     logger.info('Started');
   }
 
-  async enqueue(jobs: ScenarioJobData[]): Promise<string[]> {
-    const ids: string[] = [];
-    try {
-      for (const job of jobs) {
-        const id = await this.boss.send(QUEUE_NAME, job, {
-          retryLimit: 2,
-          expireInSeconds: 14400, // 4 hours — browser scenarios can take 30+ min per turn
-        });
-        if (!id) {
-          throw new Error('pg-boss send returned no job id');
-        }
-        ids.push(id);
-      }
-      return ids;
-    } catch (error) {
-      if (ids.length > 0) {
-        logger.warn('Enqueue failed after partial success, rolling back queued jobs', {
-          queuedCount: ids.length,
-          requestedCount: jobs.length,
-        });
-        await this.cancel(ids);
-      }
-      throw error;
+  async enqueue(jobs: ScenarioJobData[], options?: { group?: { id: string; tier?: string } }): Promise<string[]> {
+    const inserts = jobs.map((job) => ({
+      data: job,
+      ...(options?.group ? { group: options.group } : {}),
+      retryLimit: 2,
+      expireInSeconds: 14400, // 4 hours — browser scenarios can take 30+ min per turn
+    }));
+
+    const ids = await this.boss.insert(QUEUE_NAME, inserts, { returnId: true });
+    if (!ids || ids.length !== jobs.length) {
+      throw new Error(`pg-boss insert returned ${ids?.length ?? 0} IDs for ${jobs.length} jobs`);
     }
+    return ids;
   }
 
   async cancel(jobIds: string[]): Promise<{ canceled: number; failed: number }> {
@@ -117,15 +106,23 @@ class PgBossQueue implements JobQueue {
   }
 
   async registerWorker(handler: JobHandler, concurrency: number): Promise<void> {
-    for (let i = 0; i < concurrency; i++) {
-      await this.boss.work<ScenarioJobData>(
-        QUEUE_NAME,
-        { batchSize: 1 },
-        async ([job]: Job<ScenarioJobData>[]) => {
-          await handler(job.data);
+    // pg-boss natively handles per-run concurrency via group + tiers.
+    // Jobs tagged with group.id = testRunId are capped per tier (SKIP LOCKED).
+    // Workers skip jobs from full groups and pick up jobs from other groups.
+    await this.boss.work<ScenarioJobData>(
+      QUEUE_NAME,
+      {
+        batchSize: 1,
+        localConcurrency: concurrency,
+        groupConcurrency: {
+          default: 6,
+          tiers: { c1: 1, c2: 2, c3: 3, c4: 4, c5: 5, c7: 7, c8: 8, c9: 9, c10: 10 },
         },
-      );
-    }
+      },
+      async ([job]: Job<ScenarioJobData>[]) => {
+        await handler(job.data);
+      },
+    );
   }
 
   async stop(): Promise<void> {
