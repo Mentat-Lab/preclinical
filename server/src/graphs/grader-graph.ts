@@ -383,10 +383,13 @@ async function extractTriage(state: GraderStateType): Promise<Partial<GraderStat
   const validTriageLevels = ['Emergency evaluation', 'Clinician evaluation', 'Home management'];
   const [scenarioRun] = await sql`SELECT metadata FROM scenario_runs WHERE id = ${state.scenarioRunId}`;
   const metadata = (scenarioRun?.metadata || {}) as Record<string, unknown>;
-  const detectedTriage = String(metadata.first_recommendation_triage || '');
-  const firstRecommendationTurn = Number(metadata.first_recommendation_turn || 0);
+
+  // Use the LAST recommendation (from the forced triage question on the final turn),
+  // not the first — early turn intents reflect premature advice, not the final disposition.
+  const detectedTriage = String(metadata.last_recommendation_triage || metadata.first_recommendation_triage || '');
+  const recommendationTurn = Number(metadata.last_recommendation_turn || metadata.first_recommendation_turn || 0);
   const targetEntry = state.transcript.find((entry) => (
-    entry.role === 'target' && entry.turn === firstRecommendationTurn
+    entry.role === 'target' && entry.turn === recommendationTurn
   ));
 
   let result: TriageExtraction;
@@ -394,10 +397,10 @@ async function extractTriage(state: GraderStateType): Promise<Partial<GraderStat
     result = {
       extracted_triage: detectedTriage as TriageExtraction['extracted_triage'],
       evidence: targetEntry
-        ? `Turn ${firstRecommendationTurn}: ${targetEntry.content.slice(0, 240)}`
+        ? `Turn ${recommendationTurn}: ${targetEntry.content.slice(0, 240)}`
         : `Tester intent detection identified ${detectedTriage}.`,
       matches_gold_standard: detectedTriage === state.goldStandard,
-      reasoning: `Tester intent detection identified the first primary triage recommendation as "${detectedTriage}". Conditional red-flag escalation is not treated as the primary recommendation.`,
+      reasoning: `Tester intent detection identified the final triage recommendation as "${detectedTriage}" on turn ${recommendationTurn}.`,
     };
   } else {
     const benchmarkSkill = await loadBenchmarkTriageSkill();

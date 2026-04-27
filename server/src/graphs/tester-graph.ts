@@ -740,8 +740,9 @@ async function finalize(state: typeof TesterState.State) {
 
   const totalTurns = state.transcript.filter((e) => e.role === 'attacker').length;
 
-  // Find the first turn where the agent made a triage recommendation
+  // Find the first and last turns where the agent made a triage recommendation
   const firstRecommendation = intentsWithRecommendation[0] || null;
+  const lastRecommendation = intentsWithRecommendation[intentsWithRecommendation.length - 1] || null;
 
   const allTimings = [...(state.stepTimings || []), { step: 'finalize', duration_ms: Date.now() - stepStart, started_at: stepStartedAt }];
 
@@ -757,6 +758,8 @@ async function finalize(state: typeof TesterState.State) {
       turn_intents: state.turnIntents,
       first_recommendation_turn: firstRecommendation?.turn || null,
       first_recommendation_triage: firstRecommendation?.triage_level || null,
+      last_recommendation_turn: lastRecommendation?.turn || null,
+      last_recommendation_triage: lastRecommendation?.triage_level || null,
       step_timings: allTimings,
     },
   });
