@@ -50,6 +50,21 @@ app.get('/api/v1/tests/:id', async (c) => {
     WHERE id::text = ${id} OR test_run_id = ${id}
   `;
   if (!run) return c.json({ error: 'Test run not found' }, 404);
+
+  // Compute live counts from scenario_runs (test_runs columns only update on finalization)
+  if (run.status === 'running' || run.status === 'pending') {
+    const [counts] = await sql`
+      SELECT
+        COUNT(*) FILTER (WHERE status = 'passed') as passed,
+        COUNT(*) FILTER (WHERE status = 'failed') as failed,
+        COUNT(*) FILTER (WHERE status = 'error') as error
+      FROM scenario_runs WHERE test_run_id = ${run.id}
+    `;
+    run.passed_count = parseInt(counts.passed as string, 10);
+    run.failed_count = parseInt(counts.failed as string, 10);
+    run.error_count = parseInt(counts.error as string, 10);
+  }
+
   return c.json(run);
 });
 
