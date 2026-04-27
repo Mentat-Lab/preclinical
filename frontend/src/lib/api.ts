@@ -92,6 +92,17 @@ export async function getScenarioRunById(id: string): Promise<ScenarioRunResult>
   return fetchJSON(`/api/v1/scenario-runs/${id}`);
 }
 
+export async function deleteScenarioRun(id: string): Promise<void> {
+  return fetchJSON(`/api/v1/scenario-runs/${id}`, { method: 'DELETE' });
+}
+
+export async function deleteScenarioRuns(ids: string[]): Promise<{ deleted: number }> {
+  return fetchJSON('/api/v1/scenario-runs', {
+    method: 'DELETE',
+    body: JSON.stringify({ ids }),
+  });
+}
+
 // ==================== SCENARIOS ====================
 
 export async function getScenarios(): Promise<{ scenarios: Scenario[]; total: number }> {

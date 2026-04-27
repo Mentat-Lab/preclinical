@@ -16,6 +16,11 @@ interface OpenAIState {
   systemPrompt: string;
 }
 
+function supportsTemperature(model: string): boolean {
+  const normalized = model.toLowerCase();
+  return !normalized.includes('anthropic.claude');
+}
+
 const openaiProvider: Provider = {
   name: 'openai',
 
@@ -48,13 +53,18 @@ const openaiProvider: Provider = {
     }
     messages.push({ role: 'user', content: message });
 
+    const requestBody: Record<string, unknown> = { model, messages, max_tokens: 1024 };
+    if (supportsTemperature(model)) {
+      requestBody.temperature = 0.7;
+    }
+
     const response = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({ model, messages, temperature: 0.7, max_tokens: 1024 }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {

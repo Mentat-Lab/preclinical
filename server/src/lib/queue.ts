@@ -80,7 +80,7 @@ class PgBossQueue implements JobQueue {
   async enqueue(jobs: ScenarioJobData[], options?: { group?: { id: string; tier?: string } }): Promise<string[]> {
     const inserts = jobs.map((job) => ({
       data: job,
-      ...(options?.group ? { group: options.group } : {}),
+      ...(options?.group ? { groupId: options.group.id, groupTier: options.group.tier } : {}),
       retryLimit: 2,
       expireInSeconds: 14400, // 4 hours — browser scenarios can take 30+ min per turn
     }));
@@ -108,19 +108,28 @@ class PgBossQueue implements JobQueue {
   async registerWorker(handler: JobHandler, concurrency: number): Promise<void> {
     // pg-boss natively handles per-run concurrency via group + tiers.
     // Jobs tagged with group.id = testRunId are capped per tier (SKIP LOCKED).
-    // Workers skip jobs from full groups and pick up jobs from other groups.
+    // batchSize = concurrency so a single atomic fetch respects group limits
+    // (multiple localConcurrency workers race and bypass group filtering).
     await this.boss.work<ScenarioJobData>(
       QUEUE_NAME,
       {
-        batchSize: 1,
-        localConcurrency: concurrency,
+        batchSize: concurrency,
         groupConcurrency: {
           default: 6,
           tiers: { c1: 1, c2: 2, c3: 3, c4: 4, c5: 5, c7: 7, c8: 8, c9: 9, c10: 10 },
         },
       },
-      async ([job]: Job<ScenarioJobData>[]) => {
-        await handler(job.data);
+      async (jobs: Job<ScenarioJobData>[]) => {
+        const results = await Promise.allSettled(jobs.map((job) => handler(job.data)));
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            logger.error('Scenario job failed after app-level handling', {
+              jobId: jobs[index]?.id,
+              scenarioRunId: jobs[index]?.data.scenario_run_id,
+              error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+            });
+          }
+        });
       },
     );
   }

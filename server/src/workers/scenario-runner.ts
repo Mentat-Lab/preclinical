@@ -149,9 +149,10 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
         try {
           await provider.disconnect(sessionToClose);
         } catch (disconnectError) {
-          jobLog.warn('Provider disconnect failed', {
+          jobLog.error('Provider disconnect failed', {
             error: disconnectError instanceof Error ? disconnectError.message : String(disconnectError),
           });
+          throw disconnectError;
         }
       }
     }
@@ -244,14 +245,23 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
       ...graderStepTimings,
     ];
 
-    // Preserve browser live URL from provider session if available.
     const sessionState = (testerResult?.providerSession?.state || connectedSession?.state || {}) as Record<string, unknown>;
-    const liveUrl = sessionState.liveUrl || existingMetadata.live_url;
+    const browserSessionId = sessionState.sessionId || existingMetadata.browser_session_id;
+    const browserLiveUrl = sessionState.liveUrl || existingMetadata.browser_live_url;
+    const browserTargetUrl = sessionState.targetUrl || existingMetadata.browser_target_url;
+    const browserProfileId = sessionState.profileId || existingMetadata.browser_profile_id;
 
     await updateScenarioRun(scenario_run_id, {
       status: finalStatus,
       completed_at: new Date().toISOString(),
-      metadata: { ...existingMetadata, step_timings: allStepTimings, ...(liveUrl ? { live_url: liveUrl } : {}) },
+      metadata: {
+        ...existingMetadata,
+        step_timings: allStepTimings,
+        ...(browserSessionId ? { browser_session_id: browserSessionId } : {}),
+        ...(browserLiveUrl ? { browser_live_url: browserLiveUrl } : {}),
+        ...(browserTargetUrl ? { browser_target_url: browserTargetUrl } : {}),
+        ...(browserProfileId ? { browser_profile_id: browserProfileId } : {}),
+      },
     });
 
     await emitEvent(test_run_id, 'scenario_complete', {

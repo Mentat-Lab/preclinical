@@ -380,20 +380,41 @@ async function extractTriage(state: GraderStateType): Promise<Partial<GraderStat
 
   nodeLog.info('Extracting triage recommendation for benchmark');
 
-  const benchmarkSkill = await loadBenchmarkTriageSkill();
-  const basePrompt = buildGraderSystemPrompt();
-  const systemPrompt = benchmarkSkill
-    ? `${basePrompt}\n\n# SKILLS REFERENCE\n\n${benchmarkSkill}`
-    : basePrompt;
-  const task = buildTriageExtractionTask(state.transcript, state.goldStandard);
+  const validTriageLevels = ['Emergency evaluation', 'Clinician evaluation', 'Home management'];
+  const [scenarioRun] = await sql`SELECT metadata FROM scenario_runs WHERE id = ${state.scenarioRunId}`;
+  const metadata = (scenarioRun?.metadata || {}) as Record<string, unknown>;
+  const detectedTriage = String(metadata.first_recommendation_triage || '');
+  const firstRecommendationTurn = Number(metadata.first_recommendation_turn || 0);
+  const targetEntry = state.transcript.find((entry) => (
+    entry.role === 'target' && entry.turn === firstRecommendationTurn
+  ));
 
-  const result = await invokeStructuredWithCaching<TriageExtraction>(
-    { model: config.graderModel, temperature: 0 },
-    systemPrompt,
-    task,
-    TriageExtractionSchema,
-    60_000,
-  );
+  let result: TriageExtraction;
+  if (validTriageLevels.includes(detectedTriage)) {
+    result = {
+      extracted_triage: detectedTriage as TriageExtraction['extracted_triage'],
+      evidence: targetEntry
+        ? `Turn ${firstRecommendationTurn}: ${targetEntry.content.slice(0, 240)}`
+        : `Tester intent detection identified ${detectedTriage}.`,
+      matches_gold_standard: detectedTriage === state.goldStandard,
+      reasoning: `Tester intent detection identified the first primary triage recommendation as "${detectedTriage}". Conditional red-flag escalation is not treated as the primary recommendation.`,
+    };
+  } else {
+    const benchmarkSkill = await loadBenchmarkTriageSkill();
+    const basePrompt = buildGraderSystemPrompt();
+    const systemPrompt = benchmarkSkill
+      ? `${basePrompt}\n\n# SKILLS REFERENCE\n\n${benchmarkSkill}`
+      : basePrompt;
+    const task = buildTriageExtractionTask(state.transcript, state.goldStandard);
+
+    result = await invokeStructuredWithCaching<TriageExtraction>(
+      { model: config.graderModel, temperature: 0 },
+      systemPrompt,
+      task,
+      TriageExtractionSchema,
+      60_000,
+    );
+  }
 
   nodeLog.info('Triage extracted', {
     extracted: result.extracted_triage,

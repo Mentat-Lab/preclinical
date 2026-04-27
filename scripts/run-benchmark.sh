@@ -3,14 +3,18 @@
 # run-benchmark.sh — Run TriageBench scenarios against target agents
 #
 # Usage:
-#   ./scripts/run-benchmark.sh                         # all 60 scenarios, all 9 targets
+#   ./scripts/run-benchmark.sh                         # all 60 scenarios, all targets if within browser session limit
 #   ./scripts/run-benchmark.sh --sample                 # 6 sample scenarios (1,2,21,22,41,42)
 #   ./scripts/run-benchmark.sh --scenarios ID1,ID2,...   # specific scenario UUIDs
-#   ./scripts/run-benchmark.sh --targets api            # only API targets (openai provider)
-#   ./scripts/run-benchmark.sh --targets browser        # only browser targets
+#   ./scripts/run-benchmark.sh --targets category1      # API model targets
+#   ./scripts/run-benchmark.sh --targets category2      # ChatGPT, Claude AI, Gemini web
+#   ./scripts/run-benchmark.sh --targets category3      # PranaDoc, Doctronic, One Medical
+#   ./scripts/run-benchmark.sh --targets api            # alias for category1
+#   ./scripts/run-benchmark.sh --targets browser        # all browser targets
 #   ./scripts/run-benchmark.sh --grading intent         # intent-based grading (default)
 #   ./scripts/run-benchmark.sh --grading descriptive    # full rubric grading
 #   ./scripts/run-benchmark.sh --concurrency 3          # parallel scenarios per run (default: 3)
+#   ./scripts/run-benchmark.sh --browser-target-parallelism 3
 #   ./scripts/run-benchmark.sh --wait                   # block until all runs complete
 #
 # Browser agents require profile_id in their agent config for authenticated
@@ -31,6 +35,7 @@ TARGET_FILTER="all"
 SCENARIO_MODE="all"
 CUSTOM_SCENARIOS=""
 CONCURRENCY=3
+BROWSER_TARGET_PARALLELISM="${BROWSER_TARGET_PARALLELISM:-3}"
 MAX_TURNS=11
 WAIT=false
 
@@ -47,6 +52,7 @@ while [[ $# -gt 0 ]]; do
     --targets)      TARGET_FILTER="$2"; shift 2 ;;
     --grading)      GRADING_MODE="$2"; shift 2 ;;
     --concurrency)  CONCURRENCY="$2"; shift 2 ;;
+    --browser-target-parallelism) BROWSER_TARGET_PARALLELISM="$2"; shift 2 ;;
     --max-turns)    MAX_TURNS="$2"; shift 2 ;;
     --wait)         WAIT=true; shift ;;
     -h|--help)
@@ -71,17 +77,30 @@ fi
 ALL_AGENTS=$(curl -sf "$API_BASE/api/v1/agents")
 API_AGENTS=$(echo "$ALL_AGENTS" | jq -c '[.[] | select(.provider == "openai" and .is_active == true and .deleted_at == null) | {id, name, provider, has_profile: false}]')
 BROWSER_AGENTS=$(echo "$ALL_AGENTS" | jq -c '[.[] | select(.provider == "browser" and .is_active == true and .deleted_at == null) | {id, name, provider, has_profile: ((.config.profile_id // "") != "")}]')
+CATEGORY2_AGENTS=$(echo "$BROWSER_AGENTS" | jq -c '[.[] | select(.name == "ChatGPT" or .name == "Claude AI" or .name == "Gemini")]')
+CATEGORY3_AGENTS=$(echo "$BROWSER_AGENTS" | jq -c '[.[] | select(.name == "PranaDoc" or .name == "Doctronic" or .name == "One Medical")]')
 
 case "$TARGET_FILTER" in
-  api)     AGENTS="$API_AGENTS" ;;
-  browser) AGENTS="$BROWSER_AGENTS" ;;
+  api|category1) AGENTS="$API_AGENTS" ;;
+  category2)     AGENTS="$CATEGORY2_AGENTS" ;;
+  category3)     AGENTS="$CATEGORY3_AGENTS" ;;
+  browser)       AGENTS="$BROWSER_AGENTS" ;;
   all)     AGENTS=$(echo "$API_AGENTS $BROWSER_AGENTS" | jq -sc 'add') ;;
-  *)       echo "Invalid --targets: $TARGET_FILTER (use api, browser, or all)"; exit 1 ;;
+  *)       echo "Invalid --targets: $TARGET_FILTER (use category1, category2, category3, api, browser, or all)"; exit 1 ;;
 esac
 
 AGENT_COUNT=$(echo "$AGENTS" | jq 'length')
 if [[ "$AGENT_COUNT" -eq 0 ]]; then
   echo "No agents found for filter: $TARGET_FILTER"
+  exit 1
+fi
+
+BROWSER_SELECTED_COUNT=$(echo "$AGENTS" | jq '[.[] | select(.provider == "browser")] | length')
+if [[ "$BROWSER_SELECTED_COUNT" -gt "$BROWSER_TARGET_PARALLELISM" ]]; then
+  echo "Error: selected $BROWSER_SELECTED_COUNT browser targets, but BrowserUse account limit is $BROWSER_TARGET_PARALLELISM active sessions."
+  echo "Run browser targets by category so each chatbot gets one scenario at a time:"
+  echo "  ./scripts/run-benchmark.sh --targets category2 --wait --concurrency $BROWSER_TARGET_PARALLELISM"
+  echo "  ./scripts/run-benchmark.sh --targets category3 --wait --concurrency $BROWSER_TARGET_PARALLELISM"
   exit 1
 fi
 
@@ -129,6 +148,9 @@ echo "Targets:     $AGENT_COUNT agents ($TARGET_FILTER)"
 echo "Grading:     $GRADING_MODE"
 echo "Max turns:   $MAX_TURNS"
 echo "Concurrency: $CONCURRENCY"
+if [[ "$BROWSER_SELECTED_COUNT" -gt 0 ]]; then
+  echo "Browser mode: one scenario per chatbot target; up to $BROWSER_SELECTED_COUNT browser targets in parallel"
+fi
 echo ""
 
 # ---------------------------------------------------------------------------

@@ -2,8 +2,8 @@
  * BrowserUse SDK helpers — session lifecycle and task execution.
  *
  * Uses the official browser-use-sdk (v3) for session management and task
- * execution. Output parsing is done locally with graceful fallback so a
- * schema mismatch never causes a duplicate task.
+ * execution. Output parsing is strict so malformed extraction is an explicit
+ * scenario error instead of transcript text that can be graded as success.
  */
 
 import { BrowserUse } from 'browser-use-sdk';
@@ -91,14 +91,20 @@ export async function runTask(
     throw new Error(`Browser Use Cloud task failed: status=${task.status}, output=${output}`);
   }
 
-  // Try structured parse → fall back to raw output string.
+  // Try structured parse. If extraction fails, fail the scenario explicitly
+  // instead of treating raw output as a chatbot response.
   const raw = task.output ?? '';
   try {
     const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
     return ResponseSchema.parse(parsed);
-  } catch {
-    logger.warn('Structured extraction failed, using raw output', { taskId });
-    return { bot_response: String(raw), overlay_text: '' };
+  } catch (err) {
+    const output = String(raw).slice(0, 500);
+    logger.error('Structured extraction failed', {
+      taskId,
+      error: err instanceof Error ? err.message : String(err),
+      output,
+    });
+    throw new Error(`Browser Use Cloud structured extraction failed: ${err instanceof Error ? err.message : String(err)}; output=${output}`);
   }
 }
 
@@ -175,16 +181,27 @@ export async function validateSession(
   }
 }
 
-export async function closeSession(apiKey: string, sessionId: string): Promise<void> {
+export async function closeSession(apiKey: string, sessionId: string): Promise<boolean> {
   const client = getClient(apiKey);
-  const maxAttempts = 3;
+  const maxAttempts = 6;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       await client.sessions.stop(sessionId);
-      logger.info('Closed browser session', { sessionId, attempt });
-      return;
+      for (let check = 1; check <= 5; check++) {
+        const session = await client.sessions.get(sessionId);
+        if (session.status !== 'active') {
+          logger.info('Closed browser session', { sessionId, attempt, status: session.status });
+          return true;
+        }
+        await new Promise((r) => setTimeout(r, 1000));
+      }
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (/not found|already (stopped|closed)|session.*(stopped|closed)/i.test(message)) {
+        logger.info('Browser session already closed', { sessionId, attempt });
+        return true;
+      }
       if (attempt < maxAttempts) {
         logger.warn('Retrying session close', { sessionId, attempt, error: err });
         await new Promise((r) => setTimeout(r, 1000 * attempt));
@@ -197,4 +214,5 @@ export async function closeSession(apiKey: string, sessionId: string): Promise<v
       }
     }
   }
+  return false;
 }

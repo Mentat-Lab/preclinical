@@ -83,6 +83,7 @@ export default function TestRunPage() {
 
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [shareCopied, setShareCopied] = useState(false);
+  const [selectedScenarioIds, setSelectedScenarioIds] = useState<Set<string>>(() => new Set());
 
   const { data, isLoading, error } = useTestRun(id || '');
   const { data: scenarioRunsData, isLoading: scenariosLoading } = useScenarioRuns({ testRunId: id || '' });
@@ -98,10 +99,22 @@ export default function TestRunPage() {
 
   const run = data?.run;
   const allResults = scenarioRunsData?.results ?? [];
+  const selectedCount = selectedScenarioIds.size;
 
   const filteredResults = filter === 'all'
     ? allResults
     : allResults.filter((result) => getDisplayStatus(result) === filter);
+  const filteredIds = filteredResults.map((result) => result.id);
+  const selectedVisibleCount = filteredIds.filter((resultId) => selectedScenarioIds.has(resultId)).length;
+  const allVisibleSelected = filteredIds.length > 0 && selectedVisibleCount === filteredIds.length;
+
+  useEffect(() => {
+    const currentIds = new Set(allResults.map((result) => result.id));
+    setSelectedScenarioIds((prev) => {
+      const next = new Set([...prev].filter((resultId) => currentIds.has(resultId)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [allResults]);
 
   const summary = (() => {
     const pass = allResults.filter((r) => getDisplayStatus(r) === 'pass').length;
@@ -117,6 +130,30 @@ export default function TestRunPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['testRuns'] });
       navigate(run?.agent_id ? `/agents/${run.agent_id}` : '/');
+    },
+  });
+
+  const deleteScenarioMutation = useMutation({
+    mutationFn: (scenarioRunId: string) => api.deleteScenarioRun(scenarioRunId),
+    onSuccess: (_, scenarioRunId) => {
+      setSelectedScenarioIds((prev) => {
+        const next = new Set(prev);
+        next.delete(scenarioRunId);
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey: ['scenarioRuns', id] });
+      queryClient.invalidateQueries({ queryKey: ['testRun', id] });
+      queryClient.invalidateQueries({ queryKey: ['testRuns'] });
+    },
+  });
+
+  const deleteSelectedMutation = useMutation({
+    mutationFn: (scenarioRunIds: string[]) => api.deleteScenarioRuns(scenarioRunIds),
+    onSuccess: () => {
+      setSelectedScenarioIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ['scenarioRuns', id] });
+      queryClient.invalidateQueries({ queryKey: ['testRun', id] });
+      queryClient.invalidateQueries({ queryKey: ['testRuns'] });
     },
   });
 
@@ -186,6 +223,26 @@ export default function TestRunPage() {
     await navigator.clipboard.writeText(window.location.href);
     setShareCopied(true);
     setTimeout(() => setShareCopied(false), 1500);
+  };
+
+  const toggleScenarioSelection = (scenarioRunId: string, selected: boolean) => {
+    setSelectedScenarioIds((prev) => {
+      const next = new Set(prev);
+      if (selected) next.add(scenarioRunId);
+      else next.delete(scenarioRunId);
+      return next;
+    });
+  };
+
+  const toggleVisibleSelection = (selected: boolean) => {
+    setSelectedScenarioIds((prev) => {
+      const next = new Set(prev);
+      for (const resultId of filteredIds) {
+        if (selected) next.add(resultId);
+        else next.delete(resultId);
+      }
+      return next;
+    });
   };
 
   if (isLoading) {
@@ -316,6 +373,22 @@ export default function TestRunPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {selectedCount > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                const idsToDelete = Array.from(selectedScenarioIds);
+                if (window.confirm(`Delete ${idsToDelete.length} selected scenario run${idsToDelete.length === 1 ? '' : 's'}? This cannot be undone.`)) {
+                  deleteSelectedMutation.mutate(idsToDelete);
+                }
+              }}
+              disabled={deleteSelectedMutation.isPending}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-fail/60 text-fail hover:bg-fail/5 disabled:opacity-50"
+            >
+              {deleteSelectedMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              Delete selected ({selectedCount})
+            </button>
+          )}
           {filterButtons.map((button) => {
             const active = filter === button.key;
             return (
@@ -341,25 +414,38 @@ export default function TestRunPage() {
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b border-border">
+              <th className="w-12 py-3 px-5">
+                <input
+                  type="checkbox"
+                  aria-label="Select visible scenario runs"
+                  checked={allVisibleSelected}
+                  ref={(input) => {
+                    if (input) input.indeterminate = selectedVisibleCount > 0 && !allVisibleSelected;
+                  }}
+                  onChange={(e) => toggleVisibleSelection(e.currentTarget.checked)}
+                  className="h-4 w-4 rounded border-border"
+                />
+              </th>
               <th className="text-left py-3 px-5 text-sm uppercase tracking-wider text-text-secondary">Scenario</th>
               <th className="text-left py-3 px-5 text-sm uppercase tracking-wider text-text-secondary w-48">Result</th>
               <th className="text-left py-3 px-5 text-sm uppercase tracking-wider text-text-secondary w-40">Duration</th>
-              <th className="w-12" />
+              <th className="w-24" />
             </tr>
           </thead>
           <tbody>
             {scenariosLoading && filteredResults.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-5 py-6 text-sm text-text-secondary">Loading scenario runs...</td>
+                <td colSpan={5} className="px-5 py-6 text-sm text-text-secondary">Loading scenario runs...</td>
               </tr>
             ) : filteredResults.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-5 py-6 text-sm text-text-secondary">No scenario runs for this filter.</td>
+                <td colSpan={5} className="px-5 py-6 text-sm text-text-secondary">No scenario runs for this filter.</td>
               </tr>
             ) : (
               filteredResults.map((result) => {
                 const status = getDisplayStatus(result);
                 const scenarioHref = `/test/${id}/scenario/${result.id}`;
+                const selected = selectedScenarioIds.has(result.id);
                 return (
                   <tr
                     key={result.id}
@@ -376,6 +462,16 @@ export default function TestRunPage() {
                     }}
                   >
                     <td className="px-5 py-4">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${result.scenario_name || result.scenario_id}`}
+                        checked={selected}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => toggleScenarioSelection(result.id, e.currentTarget.checked)}
+                        className="h-4 w-4 rounded border-border"
+                      />
+                    </td>
+                    <td className="px-5 py-4">
                       <span className="text-sm font-medium text-text-primary">
                         {result.scenario_name || result.scenario_id}
                       </span>
@@ -389,10 +485,26 @@ export default function TestRunPage() {
                     <td className="px-5 py-4 text-sm text-text-secondary">
                       {formatDuration(result.duration_ms)}
                     </td>
-                    <td className="px-5 py-4 text-right">
-                      <span className="inline-flex text-text-secondary">
+                    <td className="px-5 py-4">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          aria-label={`Delete ${result.scenario_name || result.scenario_id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm('Delete this scenario run? This cannot be undone.')) {
+                              deleteScenarioMutation.mutate(result.id);
+                            }
+                          }}
+                          disabled={deleteScenarioMutation.isPending}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-fail hover:bg-fail/5 disabled:opacity-50"
+                        >
+                          {deleteScenarioMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                        </button>
+                        <span className="inline-flex text-text-secondary">
                         <ChevronRight className="w-5 h-5" />
-                      </span>
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 );

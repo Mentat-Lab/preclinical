@@ -27,7 +27,7 @@ ON CONFLICT DO NOTHING;
 -- Agents — API models (openai provider via gateway)
 -- ---------------------------------------------------------------------------
 INSERT INTO agents (provider, name, description, config) VALUES
-  ('openai', 'Claude Sonnet 4.6', 'Anthropic Claude Sonnet 4.6', '{"target_model": "testmodel/global.anthropic.claude-sonnet-4-6"}'),
+  ('openai', 'Claude Opus 4.7', 'Anthropic Claude Opus 4.7 via Bedrock', '{"target_model": "bedrock/us.anthropic.claude-opus-4-7"}'),
   ('openai', 'GPT-5.4', 'OpenAI GPT-5.4', '{"target_model": "openai-main/gpt-5.4"}'),
   ('openai', 'Gemini 3.1 Pro', 'Google Gemini 3.1 Pro', '{"target_model": "flash/gemini-3.1-pro-preview"}')
 ON CONFLICT DO NOTHING;

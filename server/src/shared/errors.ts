@@ -37,18 +37,62 @@ export const ERROR_LABELS: Record<ErrorCategory, string> = {
 export function classifyError(error: unknown): { category: ErrorCategory; retryable: boolean } {
   const message = (error instanceof Error ? error.message : String(error)).toLowerCase();
   const status = (error as any)?.status as number | undefined;
+  const statusText = (status ? String(status) : '');
 
   // --- Rate limit (429) ---
   if (
     status === 429 ||
     message.includes('rate limit') ||
     message.includes('too many requests') ||
+    message.includes('too many concurrent active sessions') ||
     message.includes('429')
   ) {
     return { category: 'RATE_LIMIT', retryable: true };
   }
 
+  // --- Provider auth errors must be checked before browser text matching.
+  // Some providers include words like "browser" in 403 payloads; a 401/403
+  // should never be retried or hidden as a browser extraction issue.
+  if (
+    status === 401 ||
+    status === 403 ||
+    /\b(401|403)\b/.test(message) ||
+    message.includes('unauthorized') ||
+    message.includes('forbidden') ||
+    message.includes('permission denied')
+  ) {
+    return { category: 'PROVIDER_AUTH', retryable: false };
+  }
+
   // --- Browser-specific errors ---
+  if (
+    message.includes('target returned error response') &&
+    message.includes('(auth)')
+  ) {
+    return { category: 'BROWSER_AUTH', retryable: false };
+  }
+
+  if (
+    message.includes('target returned error response') &&
+    message.includes('(network)')
+  ) {
+    return { category: 'SERVER_ERROR', retryable: true };
+  }
+
+  if (
+    message.includes('target returned error response') &&
+    (message.includes('(page_error)') || message.includes('(extraction)'))
+  ) {
+    return { category: 'BROWSER_EXTRACTION', retryable: true };
+  }
+
+  if (
+    message.includes('browser use cloud task failed') &&
+    (message.includes('status=stopped') || message.includes('consecutive step failures'))
+  ) {
+    return { category: 'BROWSER_EXTRACTION', retryable: true };
+  }
+
   if (
     message.includes('browseruse') ||
     message.includes('browser') ||
@@ -107,18 +151,15 @@ export function classifyError(error: unknown): { category: ErrorCategory; retrya
   // --- Server errors (5xx) or transient network issues ---
   if (
     (status && status >= 500 && status < 600) ||
-    /econnreset|etimedout|timeout|socket hang up|connection refused/.test(message)
+    /\b5\d{2}\b/.test(message) ||
+    message.includes('did not complete within') ||
+    /econnreset|etimedout|timeout|timed out|socket hang up|connection refused|fetch failed|failed to fetch/.test(message)
   ) {
     return { category: 'SERVER_ERROR', retryable: true };
   }
 
-  // --- Provider auth errors ---
-  if (status === 401 || status === 403 || message.includes('unauthorized') || message.includes('forbidden')) {
-    return { category: 'PROVIDER_AUTH', retryable: false };
-  }
-
   // --- Invalid input (400) ---
-  if (status === 400 || message.includes('bad request')) {
+  if (status === 400 || statusText === '400' || message.includes('bad request')) {
     return { category: 'INVALID_INPUT', retryable: false };
   }
 

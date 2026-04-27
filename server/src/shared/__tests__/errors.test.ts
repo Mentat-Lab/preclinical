@@ -27,6 +27,12 @@ describe('classifyError', () => {
       expect(category).toBe('RATE_LIMIT');
     });
 
+    it('classifies BrowserUse active-session limit as retryable RATE_LIMIT', () => {
+      const { category, retryable } = classifyError(new Error('Too many concurrent active sessions. Please wait for one to finish, kill one, or upgrade your plan.'));
+      expect(category).toBe('RATE_LIMIT');
+      expect(retryable).toBe(true);
+    });
+
     it('classifies "429" in message as RATE_LIMIT', () => {
       const { category } = classifyError(new Error('Error 429 from upstream'));
       expect(category).toBe('RATE_LIMIT');
@@ -53,9 +59,37 @@ describe('classifyError', () => {
       }
     });
 
+    it('classifies textual provider 500 responses as SERVER_ERROR', () => {
+      const error = new Error('OpenAI target call failed (500): {"message":"aws-bedrock error: The system encountered an unexpected error during processing."}');
+      const { category, retryable } = classifyError(error);
+      expect(category).toBe('SERVER_ERROR');
+      expect(retryable).toBe(true);
+    });
+
+    it('classifies textual timeout messages as SERVER_ERROR', () => {
+      const { category, retryable } = classifyError(new Error('Timed out after 15000ms'));
+      expect(category).toBe('SERVER_ERROR');
+      expect(retryable).toBe(true);
+    });
+
+    it('classifies BrowserUse task wait timeouts as SERVER_ERROR', () => {
+      const error = new Error('Task d0214726-677e-4b43-94d9-a7d25f810743 did not complete within 300000ms');
+      const { category, retryable } = classifyError(error);
+      expect(category).toBe('SERVER_ERROR');
+      expect(retryable).toBe(true);
+    });
+
     it('classifies socket errors as SERVER_ERROR', () => {
       for (const msg of ['econnreset', 'etimedout', 'socket hang up', 'connection refused']) {
         expect(classifyError(new Error(msg)).category).toBe('SERVER_ERROR');
+      }
+    });
+
+    it('classifies fetch failures as retryable SERVER_ERROR', () => {
+      for (const msg of ['fetch failed', 'failed to fetch']) {
+        const { category, retryable } = classifyError(new Error(msg));
+        expect(category).toBe('SERVER_ERROR');
+        expect(retryable).toBe(true);
       }
     });
 
@@ -137,6 +171,20 @@ describe('classifyError', () => {
     it('classifies extraction failure', () => {
       expect(classifyError(new Error('Chrome extraction failed')).category).toBe('BROWSER_EXTRACTION');
     });
+
+    it('classifies response validation page errors as retryable extraction failures', () => {
+      const error = new Error('Target returned error response after 2 retries (page_error): The website failed to load');
+      const { category, retryable } = classifyError(error);
+      expect(category).toBe('BROWSER_EXTRACTION');
+      expect(retryable).toBe(true);
+    });
+
+    it('classifies BrowserUse consecutive step failures as retryable extraction failures', () => {
+      const error = new Error('Browser Use Cloud task failed: status=stopped, output=Agent stopped because of consecutive step failures');
+      const { category, retryable } = classifyError(error);
+      expect(category).toBe('BROWSER_EXTRACTION');
+      expect(retryable).toBe(true);
+    });
   });
 
   // ── Provider errors ─────────────────────────────────────────────────────
@@ -150,6 +198,11 @@ describe('classifyError', () => {
     it('classifies 403 as PROVIDER_AUTH', () => {
       const err = Object.assign(new Error(''), { status: 403 });
       expect(classifyError(err).category).toBe('PROVIDER_AUTH');
+    });
+
+    it('classifies textual 403 failures as PROVIDER_AUTH', () => {
+      expect(classifyError(new Error('OpenAI target call failed (403): Forbidden')).category).toBe('PROVIDER_AUTH');
+      expect(classifyError(new Error('Browser Use Cloud task failed: status=403, output=Forbidden')).category).toBe('PROVIDER_AUTH');
     });
 
     it('PROVIDER_AUTH is not retryable', () => {

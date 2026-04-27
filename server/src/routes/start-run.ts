@@ -187,6 +187,11 @@ app.post('/start-run', async (c) => {
     jobIds = await queue.enqueue(jobs, {
       group: { id: runId, ...(tier ? { tier } : {}) },
     });
+    await Promise.all(jobIds.map((jobId, index) => sql`
+      UPDATE scenario_runs
+      SET metadata = COALESCE(metadata, '{}'::jsonb) || ${sql.json({ pgboss_job_id: jobId })}
+      WHERE id = ${scenarioRunIds[index]}
+    `));
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     logger.error('Failed to enqueue test run jobs', {

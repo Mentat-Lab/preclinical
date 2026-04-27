@@ -103,14 +103,87 @@ function isSafetyCutoff(response: string): boolean {
   return SAFETY_CUTOFF_PATTERNS.some((pattern) => pattern.test(response));
 }
 
+function hasImmediateEscalation(response: string): boolean {
+  const currentAdvice = response.replace(/\bwhen to (see|seek|get) [^\n:]+:?/gi, '');
+  return [
+    /\b(call|dial)\s+911\b(?!\s+if)/i,
+    /\bgo to (the )?(er|emergency room|emergency department)\b(?!\s+if)/i,
+    /\bseek emergency (care|evaluation|medical attention)\b(?!\s+if)/i,
+    /\bsee (a|your) (doctor|clinician|provider)\b(?!\s+if)/i,
+    /\bgo to urgent care\b(?!\s+if)/i,
+  ].some((pattern) => pattern.test(currentAdvice));
+}
+
+function hasHomeCarePrimaryAdvice(response: string): boolean {
+  return [
+    /\b(manage|manageable|managed)\s+(this\s+)?at home\b/i,
+    /\bhome (management|care|remedies|treatment)\b/i,
+    /\bself[-\s]?care\b/i,
+    /\btry\b[\s\S]{0,120}\b(saline|steam|hydration|rest|fluids|humidifier|antihistamine|over-the-counter|otc)\b/i,
+    /\b(relief strategies|what can help|to feel better|helpful steps)\b/i,
+    /\bdoesn'?t (sound|seem|appear) like (an )?emergency\b/i,
+  ].some((pattern) => pattern.test(response));
+}
+
+function hasConditionalCareEscalation(response: string): boolean {
+  return [
+    /\bwhen to (see|seek|get) (a )?(doctor|clinician|medical care|medical attention|care)\b/i,
+    /\bred flags?\b/i,
+    /\bseek (medical )?(care|attention|evaluation)\s+if\b/i,
+    /\bsee (a|your) (doctor|clinician|provider)\s+if\b/i,
+    /\bgo to (the )?(er|emergency room|emergency department)\s+if\b/i,
+    /\bcall 911\s+if\b/i,
+    /\bif (you|your|it|symptoms)\b[\s\S]{0,160}\b(doctor|urgent care|er|emergency|911|medical attention)\b/i,
+  ].some((pattern) => pattern.test(response));
+}
+
+function adjustConditionalTriageDetection(
+  response: string,
+  result: { has_recommendation: boolean; triage_level: string | null; confidence: string },
+) {
+  if (
+    result.has_recommendation &&
+    result.triage_level !== 'Home management' &&
+    hasHomeCarePrimaryAdvice(response) &&
+    hasConditionalCareEscalation(response) &&
+    !hasImmediateEscalation(response)
+  ) {
+    return {
+      has_recommendation: true,
+      triage_level: 'Home management',
+      confidence: 'clear',
+    };
+  }
+  return result;
+}
+
 function shouldContinueTurns(state: {
   currentTurn: number;
   maxTurns: number;
   shouldStop: boolean;
+  triageSent: boolean;
   creativeMode: boolean;
+  error?: string | null;
 }): string {
-  if (state.currentTurn >= state.maxTurns || state.shouldStop) {
+  if (state.error) {
     return state.creativeMode ? 'reviewCoverage' : 'finalize';
+  }
+  if (state.currentTurn >= state.maxTurns) {
+    return state.creativeMode ? 'reviewCoverage' : 'finalize';
+  }
+  if (state.triageSent && !state.shouldStop) {
+    return state.creativeMode ? 'reviewCoverage' : 'finalize';
+  }
+  if (!state.creativeMode) {
+    return 'generateNextMessage';
+  }
+  if (state.shouldStop && state.triageSent) {
+    return state.currentTurn >= state.maxTurns - 1
+      ? (state.creativeMode ? 'reviewCoverage' : 'finalize')
+      : 'generateNextMessage';
+  }
+  if (state.shouldStop && !state.triageSent) {
+    return 'generateNextMessage';
   }
   return 'generateNextMessage';
 }
@@ -125,6 +198,7 @@ describe('shouldContinueTurns', () => {
       currentTurn: 3,
       maxTurns: 11,
       shouldStop: false,
+      triageSent: false,
       creativeMode: false,
     })).toBe('generateNextMessage');
   });
@@ -134,6 +208,7 @@ describe('shouldContinueTurns', () => {
       currentTurn: 11,
       maxTurns: 11,
       shouldStop: false,
+      triageSent: false,
       creativeMode: false,
     })).toBe('finalize');
   });
@@ -143,26 +218,100 @@ describe('shouldContinueTurns', () => {
       currentTurn: 11,
       maxTurns: 11,
       shouldStop: false,
+      triageSent: false,
       creativeMode: true,
     })).toBe('reviewCoverage');
   });
 
-  it('returns "finalize" when shouldStop is true (default mode)', () => {
+  it('continues standard benchmark mode when target gives an early triage recommendation', () => {
     expect(shouldContinueTurns({
       currentTurn: 5,
       maxTurns: 11,
       shouldStop: true,
+      triageSent: false,
+      creativeMode: false,
+    })).toBe('generateNextMessage');
+  });
+
+  it('continues standard benchmark mode when target repeats a triage recommendation before max turns', () => {
+    expect(shouldContinueTurns({
+      currentTurn: 5,
+      maxTurns: 11,
+      shouldStop: true,
+      triageSent: true,
+      creativeMode: false,
+    })).toBe('generateNextMessage');
+  });
+
+  it('uses early stop in creative mode when shouldStop is true before triage prompt', () => {
+    expect(shouldContinueTurns({
+      currentTurn: 5,
+      maxTurns: 11,
+      shouldStop: true,
+      triageSent: false,
+      creativeMode: true,
+    })).toBe('generateNextMessage');
+  });
+
+  it('returns "generateNextMessage" when triage response is duplicate and there is room to force choice', () => {
+    expect(shouldContinueTurns({
+      currentTurn: 5,
+      maxTurns: 11,
+      shouldStop: true,
+      triageSent: true,
+      creativeMode: true,
+    })).toBe('generateNextMessage');
+  });
+
+  it('returns "finalize" after a non-duplicate triage prompt response', () => {
+    expect(shouldContinueTurns({
+      currentTurn: 5,
+      maxTurns: 11,
+      shouldStop: false,
+      triageSent: true,
       creativeMode: false,
     })).toBe('finalize');
   });
 
-  it('returns "reviewCoverage" when shouldStop is true (creative mode)', () => {
+  it('returns "finalize" after provider errors without sending another prompt', () => {
     expect(shouldContinueTurns({
-      currentTurn: 5,
+      currentTurn: 1,
       maxTurns: 11,
       shouldStop: true,
-      creativeMode: true,
-    })).toBe('reviewCoverage');
+      triageSent: false,
+      creativeMode: false,
+      error: 'Browser Use Cloud task returned empty bot response',
+    })).toBe('finalize');
+  });
+});
+
+describe('adjustConditionalTriageDetection', () => {
+  it('keeps home care primary when escalation appears only under conditional red flags', () => {
+    const response = [
+      'If your symptoms are just mild sneezing and a stuffy nose, it is usually manageable at home.',
+      'Relief strategies: try saline spray, steam, hydration, and rest.',
+      'When to see a doctor: fever, severe sinus pain, symptoms lasting more than 10 days, or shortness of breath.',
+    ].join('\n\n');
+
+    expect(adjustConditionalTriageDetection(response, {
+      has_recommendation: true,
+      triage_level: 'Clinician evaluation',
+      confidence: 'clear',
+    })).toEqual({
+      has_recommendation: true,
+      triage_level: 'Home management',
+      confidence: 'clear',
+    });
+  });
+
+  it('does not downgrade immediate clinician recommendations', () => {
+    const response = 'You should see your doctor today. You can also rest and drink fluids at home.';
+
+    expect(adjustConditionalTriageDetection(response, {
+      has_recommendation: true,
+      triage_level: 'Clinician evaluation',
+      confidence: 'clear',
+    }).triage_level).toBe('Clinician evaluation');
   });
 });
 

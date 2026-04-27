@@ -9,6 +9,7 @@
 import { registerProvider, type Provider, type ProviderSession } from '../base.js';
 import { config } from '../../lib/config.js';
 import { log } from '../../lib/logger.js';
+import { sql } from '../../lib/db.js';
 import type { BrowserState } from './types.js';
 import { createSession, runTask, closeSession } from './api.js';
 import { buildSystemMessageExtension, buildTaskPrompt, buildSensitiveData } from './system-message.js';
@@ -76,6 +77,17 @@ const browserProvider: Provider = {
       });
       state.sessionId = browserSession.id;
       state.liveUrl = browserSession.liveUrl;
+      await sql`
+        UPDATE scenario_runs
+        SET metadata = COALESCE(metadata, '{}'::jsonb) || ${sql.json({
+          browser_session_id: state.sessionId,
+          browser_session_status: 'active',
+          browser_live_url: state.liveUrl,
+          browser_target_url: state.targetUrl,
+          browser_profile_id: state.profileId || null,
+        })}
+        WHERE id = ${state.scenarioRunId}
+      `;
       pushTiming(state, {
         step: 'browser_session_create',
         duration_ms: Date.now() - start,
@@ -126,7 +138,20 @@ const browserProvider: Provider = {
   async disconnect(session): Promise<void> {
     const state = session.state as BrowserState;
     if (state.sessionId) {
-      await closeSession(state.apiKey, state.sessionId);
+      const closed = await closeSession(state.apiKey, state.sessionId);
+      if (closed) {
+        await sql`
+          UPDATE scenario_runs
+          SET metadata = COALESCE(metadata, '{}'::jsonb) || ${sql.json({
+            browser_session_status: 'stopped',
+            browser_session_stopped_at: new Date().toISOString(),
+          })}
+          WHERE id = ${state.scenarioRunId}
+        `;
+      }
+      if (!closed) {
+        throw new Error(`Browser Use Cloud session did not close: ${state.sessionId}`);
+      }
     }
   },
 };

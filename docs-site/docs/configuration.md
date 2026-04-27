@@ -28,7 +28,7 @@ For browser-based runs, you also need `BROWSER_USE_API_KEY`.
 |----------|---------|-------------|
 | `PORT` | `8000` | API server port (Docker Compose maps this to 3000 externally) |
 | `NODE_ENV` | `development` | Environment mode |
-| `WORKER_CONCURRENCY` | `5` | Parallel scenario execution limit |
+| `WORKER_CONCURRENCY` | `10` | Parallel scenario execution limit |
 | `DEFAULT_MAX_TURNS` | `11` | Default number of conversation turns per scenario |
 | `MIN_MAX_TURNS` | `5` | Minimum allowed value for max_turns |
 | `MAX_MAX_TURNS` | `15` | Maximum allowed value for max_turns |

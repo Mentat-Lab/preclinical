@@ -3,6 +3,27 @@ import { sql, emitEvent } from '../lib/db.js';
 
 const app = new Hono();
 
+const ACTIVE_SCENARIO_RUN_STATUSES = ['pending', 'running', 'grading'] as const;
+
+async function refreshTestRunCounts(testRunId: string) {
+  const rows = await sql`SELECT status FROM scenario_runs WHERE test_run_id = ${testRunId}`;
+  const passedCount = rows.filter((r: any) => r.status === 'passed').length;
+  const failedCount = rows.filter((r: any) => r.status === 'failed').length;
+  const errorCount = rows.filter((r: any) => r.status === 'error').length;
+  const gradedCount = passedCount + failedCount;
+  const passRate = gradedCount > 0 ? (passedCount / gradedCount) * 100 : 0;
+
+  await sql`
+    UPDATE test_runs SET
+      total_scenarios = ${rows.length},
+      passed_count = ${passedCount},
+      failed_count = ${failedCount},
+      error_count = ${errorCount},
+      pass_rate = ${passRate}
+    WHERE id = ${testRunId}
+  `;
+}
+
 // ==================== TESTS (runs) ====================
 
 app.get('/api/v1/tests', async (c) => {
@@ -361,6 +382,37 @@ app.get('/api/v1/tests/:id/analysis', async (c) => {
 
 // ==================== SCENARIO RUNS ====================
 
+app.delete('/api/v1/scenario-runs', async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+  const ids = Array.isArray(body.ids)
+    ? body.ids.filter((id: unknown): id is string => typeof id === 'string' && id.trim().length > 0)
+    : [];
+
+  if (ids.length === 0) return c.json({ error: 'ids required' }, 400);
+
+  const rows = await sql`
+    SELECT id, test_run_id, status FROM scenario_runs
+    WHERE id = ANY(${ids})
+  `;
+  if (rows.length === 0) return c.json({ error: 'Scenario runs not found' }, 404);
+
+  const active = rows.filter((row: any) => ACTIVE_SCENARIO_RUN_STATUSES.includes(row.status));
+  if (active.length > 0) {
+    return c.json({ error: 'Cancel the test run before deleting active scenario runs.' }, 409);
+  }
+
+  const deleteIds = rows.map((row: any) => row.id);
+  const testRunIds = Array.from(new Set(rows.map((row: any) => String(row.test_run_id))));
+  await sql`DELETE FROM scenario_runs WHERE id = ANY(${deleteIds})`;
+
+  await Promise.all(testRunIds.map(async (testRunId) => {
+    await refreshTestRunCounts(testRunId);
+    await emitEvent(testRunId, 'scenario_runs_deleted', { scenario_run_ids: deleteIds });
+  }));
+
+  return c.json({ deleted: deleteIds.length });
+});
+
 app.get('/api/v1/scenario-runs', async (c) => {
   const testRunId = c.req.query('test_run_id');
   if (!testRunId) return c.json({ error: 'test_run_id required' }, 400);
@@ -413,6 +465,26 @@ app.get('/api/v1/scenario-runs/:id', async (c) => {
 
   if (!result) return c.json({ error: 'Scenario run not found' }, 404);
   return c.json(result);
+});
+
+app.delete('/api/v1/scenario-runs/:id', async (c) => {
+  const id = c.req.param('id');
+
+  const [row] = await sql`
+    SELECT id, test_run_id, status FROM scenario_runs
+    WHERE id = ${id}
+  `;
+  if (!row) return c.json({ error: 'Scenario run not found' }, 404);
+
+  if (ACTIVE_SCENARIO_RUN_STATUSES.includes(row.status)) {
+    return c.json({ error: 'Cancel the test run before deleting active scenario runs.' }, 409);
+  }
+
+  await sql`DELETE FROM scenario_runs WHERE id = ${id}`;
+  await refreshTestRunCounts(row.test_run_id);
+  await emitEvent(row.test_run_id, 'scenario_run_deleted', { scenario_run_id: id });
+
+  return c.body(null, 204);
 });
 
 export default app;
