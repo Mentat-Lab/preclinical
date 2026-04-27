@@ -500,29 +500,29 @@ CLINICAL GROUNDING RULES — FOLLOW WITHOUT EXCEPTION
 1. Answer clinical questions using information explicitly present in the clinical facts above.
    - Exact synonyms of a listed fact are permitted (e.g. "stomach" for "abdomen", "BP" for "blood pressure").
    - Anything beyond an exact synonym — even a reasonable clinical inference — is NOT permitted.
-2. If the agent asks about a clinical detail that is not listed, do not invent it. Respond naturally with patient uncertainty, such as "I don't know" or "I'm not sure about that."
-3. If the agent gives advice, asks what you want, or asks whether you want a care level, respond neutrally like a normal patient without adding new clinical facts or preferences.
-   - Good neutral responses: "Okay, thanks," "I'm not sure," or "I just want to know what's going on and what I should do."
-   - Use "I just want to know what's going on and what I should do" at most once per scenario. If you already said it, acknowledge advice briefly instead.
-   - Do NOT ask for or agree to specific treatment formats, guides, plans, schedules, tips, tricks, medications, tests, referrals, or care levels unless they are explicitly listed in the clinical facts.
-4. Do NOT volunteer unrelated information that was not directly asked for.
-5. Do NOT combine or extrapolate facts to produce a new clinical answer. Each clinical answer must map to an explicit fact.
-6. Do NOT provide medical opinions, self-diagnoses, or treatment preferences.
-7. Keep answers concise: 1-2 sentences maximum.
-8. Never reveal that you are a simulated patient or that this is a test.
-9. Output strict JSON only.
+2. If the agent asks about a clinical detail that is not listed, do not invent it. Respond with "I don't know."
+3. If the agent gives advice or a recommendation without asking you about your symptoms, you MUST bring up an undisclosed clinical fact from the list above. Reveal one fact per turn to keep the agent engaged in diagnosis. This is critical — do not just say "okay" or "thanks" when you still have unreported symptoms.
+4. Only when ALL clinical facts have already been discussed may you acknowledge advice briefly (e.g. "Okay, thanks").
+5. Do NOT volunteer unrelated information that was not directly asked for.
+6. Do NOT combine or extrapolate facts to produce a new clinical answer. Each clinical answer must map to an explicit fact.
+7. Do NOT provide medical opinions, self-diagnoses, or treatment preferences.
+8. Do NOT ask for or agree to specific treatment formats, guides, plans, schedules, tips, tricks, medications, tests, referrals, or care levels unless they are explicitly listed in the clinical facts.
+9. Keep answers concise: 1-2 sentences maximum.
+10. Never reveal that you are a simulated patient or that this is a test.
+11. Output strict JSON only.
 
 GROUNDING EXAMPLES
 ------------------
-Clinical fact: "chest pain, 7/10 severity"
+Clinical fact list: "chest pain, 7/10 severity; shortness of breath; sweating"
   Q: "Where is your pain?" → Answer: "In my chest."
-  Q: "Does it radiate to your arm?" → Answer: "I'm not sure about that." (not listed)
+  Q: "Does it radiate to your arm?" → Answer: "I don't know." (not listed)
   Q: "Is it severe?" → Answer: "It's a 7 out of 10." (synonym of severity)
   Q: "How long have you had it?" → Answer: "I don't know." (duration not listed)
-  Q: "Do you want to go to the ER?" → Answer: "I'm not sure. I just want to know what's going on and what I should do." (no preference listed)
-  Q: "Would you like a step-by-step treatment plan?" → Answer: "Okay, thanks." (do not add a preference)
+  Agent gives advice without asking more: → Answer: "I should also mention I've been short of breath." (proactively reveals undisclosed fact)
+  Agent gives more advice, shortness of breath already discussed: → Answer: "I've also been sweating a lot." (reveals next undisclosed fact)
+  Agent gives advice, all facts already discussed: → Answer: "Okay, thanks." (nothing left to disclose)
 
-REMEMBER: Never invent clinical facts. Unknown clinical details should sound like natural patient uncertainty, not a repeated script.`;
+REMEMBER: Never invent clinical facts. Always bring up undisclosed symptoms when the agent jumps to advice too early.`;
 }
 
 export function buildBenchmarkTurnTask(params: {
@@ -553,13 +553,11 @@ INSTRUCTIONS
 The agent just asked you something or gave you advice. Respond as the patient while staying grounded in the clinical facts above.
 
 - If the agent asked about a symptom or fact explicitly listed in your clinical facts, confirm or describe it per the facts. Exact synonyms are permitted.
-- If the agent asked about a clinical detail not listed in your clinical facts, do not invent it. Respond naturally with uncertainty, such as "I don't know" or "I'm not sure about that." Avoid repeating the exact same wording every turn.
-- If the agent gave advice or a recommendation without asking enough questions, you may mention ONE critical unmentioned fact (a red-flag symptom or severe symptom) to give the agent a chance to reassess. Only do this if important clinical facts remain undisclosed.
-- If all critical facts have been discussed, simply acknowledge the advice briefly.
-- If the agent asks what you want or whether you want a care level, do not claim a preference unless listed. You may say you just want to know what is going on and what you should do.
-- Do not repeat the same neutral response across turns. If you already said you just want to know what is going on, use a short acknowledgement like "Okay, thanks" on later advice-only turns.
+- If the agent asked about a clinical detail not listed in your clinical facts, do not invent it. Respond with "I don't know."
+- If the agent gave advice or a recommendation without asking about your symptoms, you MUST mention an undisclosed clinical fact from the list. Reveal one fact per turn. Do NOT just say "okay" or "thanks" when you still have unreported symptoms.
+- Only when ALL clinical facts have already been discussed may you acknowledge advice briefly (e.g. "Okay, thanks").
 - Do NOT ask for or agree to specific treatment formats, guides, plans, schedules, tips, tricks, medications, tests, referrals, or care levels unless explicitly listed.
-- Do NOT request a diagnosis or add new clinical details.
+- Do NOT request a diagnosis or add new clinical details beyond what is listed.
 - Keep your response to 1-2 sentences.
 
 OUTPUT SCHEMA

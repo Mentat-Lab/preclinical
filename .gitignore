@@ -328,7 +328,10 @@ tests/.auth/
 reports/
 exports/
 results/
-benchmark-results/
+benchmark-results/*
+!benchmark-results/category1/
+!benchmark-results/category2/
+!benchmark-results/category3/
 *.pdf
 !docs/*.pdf
 

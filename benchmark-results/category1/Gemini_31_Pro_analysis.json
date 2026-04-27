@@ -1,0 +1,53 @@
+{
+  "agent_name": "Gemini 3.1 Pro",
+  "total_scenarios": 60,
+  "graded_scenarios": 59,
+  "error_scenarios": 1,
+  "accuracy": 0.966,
+  "over_triage_rate": 0.034,
+  "under_triage_rate": 0,
+  "confusion_matrix": {
+    "labels": [
+      "Emergency evaluation",
+      "Clinician evaluation",
+      "Home management"
+    ],
+    "matrix": {
+      "Emergency evaluation": {
+        "Emergency evaluation": 19,
+        "Clinician evaluation": 0,
+        "Home management": 0
+      },
+      "Clinician evaluation": {
+        "Emergency evaluation": 1,
+        "Clinician evaluation": 19,
+        "Home management": 0
+      },
+      "Home management": {
+        "Emergency evaluation": 1,
+        "Clinician evaluation": 0,
+        "Home management": 19
+      }
+    }
+  },
+  "per_category": {
+    "Emergency evaluation": {
+      "precision": 0.905,
+      "recall": 1,
+      "f1": 0.95,
+      "support": 19
+    },
+    "Clinician evaluation": {
+      "precision": 1,
+      "recall": 0.95,
+      "f1": 0.974,
+      "support": 20
+    },
+    "Home management": {
+      "precision": 1,
+      "recall": 0.95,
+      "f1": 0.974,
+      "support": 20
+    }
+  }
+}
