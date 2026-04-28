@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useActiveAgent } from '@/lib/active-agent-context';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Download, Loader2, Share2, Trash2, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Download, Loader2, RotateCw, Share2, Trash2, ChevronRight } from 'lucide-react';
 import { useScenarioRuns, useTestRun, queryKeys } from '@/hooks/use-queries';
 import { useRealtimeRun } from '@/lib/sse';
 import * as api from '@/lib/api';
@@ -84,6 +84,7 @@ export default function TestRunPage() {
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [shareCopied, setShareCopied] = useState(false);
   const [selectedScenarioIds, setSelectedScenarioIds] = useState<Set<string>>(() => new Set());
+  const [rerunning, setRerunning] = useState(false);
 
   const { data, isLoading, error } = useTestRun(id || '');
   const { data: scenarioRunsData, isLoading: scenariosLoading } = useScenarioRuns({ testRunId: id || '' });
@@ -245,6 +246,26 @@ export default function TestRunPage() {
     });
   };
 
+  const isTerminal = run && ['completed', 'failed', 'canceled'].includes(run.status);
+  const canRerun = isTerminal && run.agent_id;
+
+  const handleRerun = async (scenarioIds: string[]) => {
+    if (!run || scenarioIds.length === 0) return;
+    setRerunning(true);
+    try {
+      const res = await api.createTestRun({
+        agent_id: run.agent_id,
+        scenario_ids: scenarioIds,
+        max_turns: run.max_turns || undefined,
+        creative_mode: run.creative_mode || undefined,
+        grading_mode: run.grading_mode || undefined,
+      });
+      navigate(`/test/${res.id}`);
+    } catch {
+      setRerunning(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex-1 min-h-screen p-8">
@@ -299,6 +320,17 @@ export default function TestRunPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {canRerun && (
+            <button
+              type="button"
+              onClick={() => handleRerun([...new Set(allResults.map((r) => r.scenario_id))])}
+              disabled={rerunning}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-accent text-accent hover:bg-accent/5 disabled:opacity-50"
+            >
+              {rerunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCw className="w-4 h-4" />}
+              Rerun All
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -373,6 +405,20 @@ export default function TestRunPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {selectedCount > 0 && canRerun && (
+            <button
+              type="button"
+              onClick={() => {
+                const ids = [...new Set(allResults.filter((r) => selectedScenarioIds.has(r.id)).map((r) => r.scenario_id))];
+                handleRerun(ids);
+              }}
+              disabled={rerunning}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-accent text-accent hover:bg-accent/5 disabled:opacity-50"
+            >
+              {rerunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCw className="w-4 h-4" />}
+              Rerun selected ({selectedCount})
+            </button>
+          )}
           {selectedCount > 0 && (
             <button
               type="button"
@@ -487,6 +533,20 @@ export default function TestRunPage() {
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center justify-end gap-2">
+                        {canRerun && status !== 'pending' && (
+                          <button
+                            type="button"
+                            aria-label={`Rerun ${result.scenario_name || result.scenario_id}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRerun([result.scenario_id]);
+                            }}
+                            disabled={rerunning}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-accent hover:bg-accent/5 disabled:opacity-50"
+                          >
+                            <RotateCw className="w-4 h-4" />
+                          </button>
+                        )}
                         <button
                           type="button"
                           aria-label={`Delete ${result.scenario_name || result.scenario_id}`}

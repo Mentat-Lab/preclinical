@@ -437,10 +437,10 @@ export default function ScenarioRunPage() {
           </div>
         </div>
 
-        {typeof result.metadata?.live_url === 'string' && result.metadata.live_url && (
+        {typeof result.metadata?.browser_live_url === 'string' && result.metadata.browser_live_url && (
           <div className="border border-border rounded-lg mb-6 px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-text-primary">Live Browser</span>
+              <span className="text-sm font-medium text-text-primary">Browser Session</span>
               {(result.status === 'running' || result.status === 'grading') && (
                 <span className="inline-flex items-center gap-1 text-xs text-accent">
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -449,12 +449,12 @@ export default function ScenarioRunPage() {
               )}
             </div>
             <a
-              href={String(result.metadata.live_url)}
+              href={String(result.metadata.browser_live_url)}
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-accent hover:underline truncate max-w-[50%]"
             >
-              {String(result.metadata.live_url)}
+              {String(result.metadata.browser_live_url)}
             </a>
           </div>
         )}
