@@ -115,7 +115,7 @@ const browserProvider: Provider = {
       task: taskPrompt,
       sessionId: state.sessionId,
       startUrl: context.turn === 1 ? state.targetUrl : undefined,
-      maxSteps: context.turn === 1 ? 12 : 8,
+      maxSteps: 12,
       systemPromptExtension: systemExt,
       secrets,
       allowedDomains,
