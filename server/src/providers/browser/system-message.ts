@@ -20,11 +20,14 @@ export function buildSystemMessageExtension(
   return [
     '## Chat interaction rules',
     `- To send messages: ${DEFAULT_CHAT}`,
-    `- After sending, wait for the chatbot to fully respond (the response may stream in gradually — wait until it stops changing).`,
+    `- After sending, wait for the chatbot to fully respond (the response may stream in gradually — wait until it stops changing and the send button reappears).`,
     `- Setup/intake: ${setupInstructions}`,
     '',
     '## Response extraction rules',
-    `- Extract the COMPLETE text of the chatbot\'s latest response only (not previous messages).`,
+    `- Extract ONLY the NEW response that appeared AFTER you sent the message. Do NOT extract text from previous responses.`,
+    `- The new response is the LAST message bubble in the chat from the assistant/bot, appearing below the message you just sent.`,
+    `- If the response starts mid-sentence or with a numbered item like "8." without context, you are reading a previous response — scroll down to find the actual new response.`,
+    `- If the chatbot is still streaming (loading indicator visible, "Stop generating" button shown), wait until streaming completes before extracting.`,
     `- Overlay detection: ${DEFAULT_OVERLAY}`,
     `- Return structured output with bot_response (full text) and overlay_text (new popups only, empty if none).`,
   ].join('\n');
@@ -51,7 +54,7 @@ export function buildTaskPrompt(
     const nav = authStep || `Go to ${targetUrl}. `;
     return `${nav}${extraStep} Send this message in the chat: "${message}". Then extract the chatbot's response.`;
   }
-  return `In the chat that is already open, send this message: "${message}". Then extract the chatbot's latest response only.`;
+  return `In the chat that is already open, send this message: "${message}". Wait for the chatbot to finish responding (streaming stops, send button reappears). Then extract ONLY the new response that appeared after your message — it is the last assistant message bubble in the chat. Do NOT extract text from earlier responses.`;
 }
 
 export function buildSensitiveData(
