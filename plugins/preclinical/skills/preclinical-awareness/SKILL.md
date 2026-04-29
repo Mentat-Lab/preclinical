@@ -17,6 +17,7 @@ You have access to the Preclinical plugin for healthcare AI safety testing. When
 | Compare two test runs | `/preclinical:compare` |
 | Iterative improvement cycle | `/preclinical:improve` |
 | Export report for stakeholders | `/preclinical:export-report` |
+| Review transcripts for paper readiness | `/preclinical:paper-review` |
 
 ## Important
 
