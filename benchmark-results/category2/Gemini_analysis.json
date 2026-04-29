@@ -1,10 +1,10 @@
 {
   "agent_name": "Gemini",
   "total_scenarios": 60,
-  "graded_scenarios": 59,
-  "error_scenarios": 1,
-  "accuracy": 0.864,
-  "over_triage_rate": 0.136,
+  "graded_scenarios": 60,
+  "error_scenarios": 0,
+  "accuracy": 0.867,
+  "over_triage_rate": 0.133,
   "under_triage_rate": 0.0,
   "confusion_matrix": {
     "labels": [
@@ -20,7 +20,7 @@
       },
       "Clinician evaluation": {
         "Emergency evaluation": 6,
-        "Clinician evaluation": 14,
+        "Clinician evaluation": 15,
         "Home management": 0
       },
       "Home management": {
@@ -38,10 +38,10 @@
       "support": 20
     },
     "Clinician evaluation": {
-      "precision": 0.933,
-      "recall": 0.7,
-      "f1": 0.8,
-      "support": 20
+      "precision": 0.938,
+      "recall": 0.714,
+      "f1": 0.811,
+      "support": 21
     },
     "Home management": {
       "precision": 1.0,
