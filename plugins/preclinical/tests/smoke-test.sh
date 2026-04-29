@@ -56,6 +56,7 @@ EXPECTED_COMMANDS=(
   "compare"
   "improve"
   "export-report"
+  "paper-review"
 )
 
 for cmd in "${EXPECTED_COMMANDS[@]}"; do
