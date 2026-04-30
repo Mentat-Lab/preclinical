@@ -17,7 +17,7 @@ import { config } from '../lib/config.js';
 import { log } from '../lib/logger.js';
 import type { ScenarioJobData } from '../lib/queue.js';
 import { getProvider } from '../providers/index.js';
-import { createEmptyTurnState, normalizeCriteria } from '../shared/agent-schemas.js';
+import { normalizeCriteria } from '../shared/agent-schemas.js';
 import { classifyError } from '../shared/errors.js';
 import { testerGraph } from '../graphs/tester-graph.js';
 import { graderGraph } from '../graphs/grader-graph.js';
@@ -84,8 +84,6 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
     const rubricCriteria = (scenario.rubric_criteria || []) as Array<Record<string, unknown>>;
     const maxTurns = clampMaxTurns(data.max_turns);
 
-    // Mode fields
-    const creativeMode = !!data.creative_mode;
     const gradingMode = data.grading_mode || 'descriptive';
     const scenarioContent = (scenario.content || {}) as Record<string, unknown>;
     const initialMessage = String(scenarioContent.initial_message || '');
@@ -126,19 +124,19 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
         testRunId: test_run_id,
         scenarioRunId: scenario_run_id,
         agentType: agent_type,
-        creativeMode,
         initialMessage,
         clinicalFacts,
-        attackPlan: null,
+        goldStandard,
         transcript: [],
-        turnState: createEmptyTurnState(),
         currentMessage: '',
         currentTurn: 0,
         providerSession: connectedSession,
-        coverageReview: null,
         turnIntents: [],
+        patientValidations: [],
+        validationRetryCount: 0,
+        validationFeedback: null,
         stepTimings: [],
-        shouldStop: false,
+        triageSent: false,
         error: null,
       });
 

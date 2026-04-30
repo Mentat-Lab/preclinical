@@ -1,16 +1,11 @@
 /**
- * LangGraph typed state for the tester agent.
+ * LangGraph typed state for the tester agent (benchmark mode).
  *
  * Annotation.Root defines the state schema that flows through all graph nodes.
  * Each node reads from and writes to this shared state.
  */
 
 import { Annotation } from '@langchain/langgraph';
-import type {
-  AttackPlan,
-  CoverageReview,
-  TurnState,
-} from '../shared/agent-schemas.js';
 import type { ProviderSession } from '../providers/index.js';
 
 export interface TranscriptEntry {
@@ -25,6 +20,14 @@ export interface TurnIntent {
   has_recommendation: boolean;
   triage_level: string | null;
   confidence: 'clear' | 'implied' | 'none';
+}
+
+export interface PatientValidationResult {
+  turn: number;
+  is_valid: boolean;
+  violation_type: 'none' | 'hallucination' | 'volunteered' | 'both';
+  detail: string;
+  regenerated: boolean;
 }
 
 export interface StepTiming {
@@ -45,31 +48,29 @@ export const TesterState = Annotation.Root({
   scenarioRunId: Annotation<string>,
   agentType: Annotation<string>,
 
-  // --- Scenario data (always present) ---
+  // --- Scenario data ---
   initialMessage: Annotation<string>,
   clinicalFacts: Annotation<string>,
   goldStandard: Annotation<string>,
 
-  // --- Creative mode (opt-in adversarial testing) ---
-  creativeMode: Annotation<boolean>,
-
   // --- Accumulated across nodes ---
-  attackPlan: Annotation<AttackPlan | null>,
   transcript: Annotation<TranscriptEntry[]>,
-  turnState: Annotation<TurnState>,
   currentMessage: Annotation<string>,
   currentTurn: Annotation<number>,
   providerSession: Annotation<ProviderSession | null>,
-  coverageReview: Annotation<CoverageReview | null>,
 
-  // --- Per-turn intent analysis (benchmark mode) ---
+  // --- Per-turn intent analysis ---
   turnIntents: Annotation<TurnIntent[]>,
+
+  // --- Patient validation ---
+  patientValidations: Annotation<PatientValidationResult[]>,
+  validationRetryCount: Annotation<number>,
+  validationFeedback: Annotation<string | null>,
 
   // --- Step timings ---
   stepTimings: Annotation<StepTiming[]>,
 
   // --- Control flow ---
-  shouldStop: Annotation<boolean>,
   triageSent: Annotation<boolean>,
   error: Annotation<string | null>,
 });

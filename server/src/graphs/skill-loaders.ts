@@ -1,6 +1,6 @@
 /**
- * Per-phase skill loaders with independent caching.
- * Each graph node loads only the SKILL.md files relevant to its task.
+ * Skill loaders with caching.
+ * Loads SKILL.md files for the grader graph.
  */
 
 import { readFile } from 'fs/promises';
@@ -24,26 +24,7 @@ async function loadSkillFile(path: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Tester skills (cached per phase)
-// ---------------------------------------------------------------------------
-
-const testerCache = new Map<string, string>();
-
-async function loadTesterSkill(phase: string): Promise<string> {
-  const cached = testerCache.get(phase);
-  if (cached !== undefined) return cached;
-  const content = await loadSkillFile(join(skillsDir, 'tester', phase, 'SKILL.md'));
-  testerCache.set(phase, content);
-  return content;
-}
-
-export const loadPlanningSkill = () => loadTesterSkill('adversarial-testing');
-export const loadTurnSkill = () => loadTesterSkill('turn-generation');
-export const loadCoverageSkill = () => loadTesterSkill('coverage-analysis');
-export const loadBenchmarkSkill = () => loadTesterSkill('standardized-patient');
-
-// ---------------------------------------------------------------------------
-// Grader skill (single consolidated guide)
+// Grader skills
 // ---------------------------------------------------------------------------
 
 let _graderSkills: string | null = null;

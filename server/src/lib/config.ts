@@ -36,4 +36,8 @@ export const config = {
   enableResponseValidation: process.env.ENABLE_RESPONSE_VALIDATION !== 'false',
   responseValidationModel: process.env.RESPONSE_VALIDATION_MODEL || 'gpt-4.1-mini',
   responseValidationRetries: parseInt(process.env.RESPONSE_VALIDATION_RETRIES || '2', 10),
+
+  // Patient response validation (hallucination / volunteering guard)
+  enablePatientValidation: process.env.ENABLE_PATIENT_VALIDATION !== 'false',
+  patientValidationModel: process.env.PATIENT_VALIDATION_MODEL || 'gpt-4o-mini',
 } as const;

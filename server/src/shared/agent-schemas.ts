@@ -105,6 +105,20 @@ export const ResponseValidationSchema = z.object({
 
 export type ResponseValidation = z.infer<typeof ResponseValidationSchema>;
 
+export const PatientValidationSchema = z.object({
+  is_valid: z.boolean().describe(
+    "True if the patient response is fully grounded in the clinical facts and does not volunteer unasked information"
+  ),
+  violation_type: z.enum(["none", "hallucination", "volunteered", "both"]).describe(
+    "none = valid response, hallucination = contains facts not in clinical facts, volunteered = discloses information the agent did not ask about, both = hallucinated AND volunteered"
+  ),
+  detail: z.string().describe(
+    "If invalid: what specifically was wrong. If valid: empty string."
+  ),
+});
+
+export type PatientValidation = z.infer<typeof PatientValidationSchema>;
+
 export const TriageExtractionSchema = z.object({
   extracted_triage: z.enum(["Emergency evaluation", "Clinician evaluation", "Home management"]).describe(
     "Extracted triage recommendation from the agent"

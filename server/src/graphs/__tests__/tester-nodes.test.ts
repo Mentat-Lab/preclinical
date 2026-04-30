@@ -157,129 +157,58 @@ function adjustConditionalTriageDetection(
   return result;
 }
 
-function shouldContinueTurns(state: {
+function shouldContinue(state: {
   currentTurn: number;
   maxTurns: number;
-  shouldStop: boolean;
   triageSent: boolean;
-  creativeMode: boolean;
   error?: string | null;
 }): string {
   if (state.error) {
-    return state.creativeMode ? 'reviewCoverage' : 'finalize';
+    return 'finalize';
   }
   if (state.currentTurn >= state.maxTurns) {
-    return state.creativeMode ? 'reviewCoverage' : 'finalize';
+    return 'finalize';
   }
-  if (state.triageSent && !state.shouldStop) {
-    return state.creativeMode ? 'reviewCoverage' : 'finalize';
-  }
-  if (!state.creativeMode) {
-    return 'generateNextMessage';
-  }
-  if (state.shouldStop && state.triageSent) {
-    return state.currentTurn >= state.maxTurns - 1
-      ? (state.creativeMode ? 'reviewCoverage' : 'finalize')
-      : 'generateNextMessage';
-  }
-  if (state.shouldStop && !state.triageSent) {
-    return 'generateNextMessage';
+  if (state.triageSent) {
+    return 'finalize';
   }
   return 'generateNextMessage';
 }
 
 // ---------------------------------------------------------------------------
-// shouldContinueTurns
+// shouldContinue
 // ---------------------------------------------------------------------------
 
-describe('shouldContinueTurns', () => {
-  it('returns "generateNextMessage" when turn < maxTurns and no stop', () => {
-    expect(shouldContinueTurns({
+describe('shouldContinue', () => {
+  it('returns "generateNextMessage" when turn < maxTurns', () => {
+    expect(shouldContinue({
       currentTurn: 3,
       maxTurns: 11,
-      shouldStop: false,
       triageSent: false,
-      creativeMode: false,
     })).toBe('generateNextMessage');
   });
 
-  it('returns "finalize" when turn >= maxTurns (default mode)', () => {
-    expect(shouldContinueTurns({
+  it('returns "finalize" when turn >= maxTurns', () => {
+    expect(shouldContinue({
       currentTurn: 11,
       maxTurns: 11,
-      shouldStop: false,
       triageSent: false,
-      creativeMode: false,
     })).toBe('finalize');
   });
 
-  it('returns "reviewCoverage" when turn >= maxTurns (creative mode)', () => {
-    expect(shouldContinueTurns({
-      currentTurn: 11,
-      maxTurns: 11,
-      shouldStop: false,
-      triageSent: false,
-      creativeMode: true,
-    })).toBe('reviewCoverage');
-  });
-
-  it('continues standard benchmark mode when target gives an early triage recommendation', () => {
-    expect(shouldContinueTurns({
+  it('returns "finalize" after triage question answered', () => {
+    expect(shouldContinue({
       currentTurn: 5,
       maxTurns: 11,
-      shouldStop: true,
-      triageSent: false,
-      creativeMode: false,
-    })).toBe('generateNextMessage');
-  });
-
-  it('continues standard benchmark mode when target repeats a triage recommendation before max turns', () => {
-    expect(shouldContinueTurns({
-      currentTurn: 5,
-      maxTurns: 11,
-      shouldStop: true,
       triageSent: true,
-      creativeMode: false,
-    })).toBe('generateNextMessage');
-  });
-
-  it('uses early stop in creative mode when shouldStop is true before triage prompt', () => {
-    expect(shouldContinueTurns({
-      currentTurn: 5,
-      maxTurns: 11,
-      shouldStop: true,
-      triageSent: false,
-      creativeMode: true,
-    })).toBe('generateNextMessage');
-  });
-
-  it('returns "generateNextMessage" when triage response is duplicate and there is room to force choice', () => {
-    expect(shouldContinueTurns({
-      currentTurn: 5,
-      maxTurns: 11,
-      shouldStop: true,
-      triageSent: true,
-      creativeMode: true,
-    })).toBe('generateNextMessage');
-  });
-
-  it('returns "finalize" after a non-duplicate triage prompt response', () => {
-    expect(shouldContinueTurns({
-      currentTurn: 5,
-      maxTurns: 11,
-      shouldStop: false,
-      triageSent: true,
-      creativeMode: false,
     })).toBe('finalize');
   });
 
-  it('returns "finalize" after provider errors without sending another prompt', () => {
-    expect(shouldContinueTurns({
+  it('returns "finalize" on error', () => {
+    expect(shouldContinue({
       currentTurn: 1,
       maxTurns: 11,
-      shouldStop: true,
       triageSent: false,
-      creativeMode: false,
       error: 'Browser Use Cloud task returned empty bot response',
     })).toBe('finalize');
   });

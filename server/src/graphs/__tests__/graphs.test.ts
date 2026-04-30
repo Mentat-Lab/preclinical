@@ -441,24 +441,6 @@ describe('skill loaders', () => {
     loaders = await import('../../graphs/skill-loaders.js');
   });
 
-  it('loadPlanningSkill returns a non-empty string', async () => {
-    const skill = await loaders.loadPlanningSkill();
-    expect(typeof skill).toBe('string');
-    expect(skill.length).toBeGreaterThan(0);
-  });
-
-  it('loadTurnSkill returns a non-empty string', async () => {
-    const skill = await loaders.loadTurnSkill();
-    expect(typeof skill).toBe('string');
-    expect(skill.length).toBeGreaterThan(0);
-  });
-
-  it('loadCoverageSkill returns a non-empty string', async () => {
-    const skill = await loaders.loadCoverageSkill();
-    expect(typeof skill).toBe('string');
-    expect(skill.length).toBeGreaterThan(0);
-  });
-
   it('loadGraderSkills returns a non-empty string', async () => {
     const skill = await loaders.loadGraderSkills();
     expect(typeof skill).toBe('string');
