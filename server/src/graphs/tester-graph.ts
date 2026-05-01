@@ -428,27 +428,35 @@ async function validateResponse(state: typeof TesterState.State) {
   try {
     const result = await invokeStructuredWithCaching<PatientValidation>(
       { model: config.patientValidationModel, temperature: 0 },
-      `You validate a simulated patient response against the TriageBench interaction protocol:
-1. When asked about a DEFINED variable in the case spec → return the encoded value.
-2. When asked about something NOT in the spec → "I don't know."
-3. When agent gives advice without a question → "Okay" or minimal acknowledgment.
-4. NEVER introduce facts not in the spec. NEVER volunteer unasked information.
+      `You validate a simulated patient response against the TriageBench interaction protocol. The patient must ONLY return the encoded value for the specific variable the agent asked about. Nothing more.
 
-CHECK 1 — HALLUCINATION: Does the response contain ANY clinical detail (symptom, history, medication, vital, timeline, severity) NOT explicitly in the case specification?
+PROTOCOL:
+- Agent asks about variable X → patient returns ONLY the value of X from the case spec.
+- Agent asks about something not in spec → "I don't know."
+- Agent gives advice/statement without a question → "Okay."
 
-CHECK 2 — VOLUNTEERING: Does the response disclose information the agent did NOT ask about? Note: if the agent asks about multiple things in one message, answering all of them is NOT volunteering. If the agent asks a broad question ("tell me about your symptoms"), answering with presenting complaint details is NOT volunteering. Volunteering means introducing topics the agent never asked about.
+CHECK 1 — HALLUCINATION: Does the response contain ANY clinical detail NOT explicitly in the case specification? This includes made-up timelines, severities, or details that sound plausible but are not listed.
 
-Be precise. This is for a peer-reviewed paper.`,
-      `CLINICAL FACTS:
+CHECK 2 — VOLUNTEERING: Does the response include information the agent did NOT ask about in their last message? Specifically:
+- Patient adds age, gender, or demographics without being asked → VIOLATION
+- Patient adds symptom timing, severity, or location beyond the specific variable asked → VIOLATION
+- Patient adds negatives ("no fever", "I don't have X") when the agent didn't ask about X → VIOLATION
+- Patient adds related but unasked symptoms (asked about pain, adds swelling) → VIOLATION
+- Patient mentions medications, allergies, vitals, or history without being asked → VIOLATION
+- Agent asks about multiple things → answering all is fine, but adding extra beyond what was asked → VIOLATION
+- Agent asks a broad question ("tell me your symptoms") → answering with chief complaint details is fine
+
+Be strict. Every extra detail the patient adds biases the target agent's triage decision.`,
+      `CASE SPECIFICATION:
 ${state.clinicalFacts}
 
 AGENT'S LAST MESSAGE:
 ${lastAgentMessage}
 
-PATIENT'S RESPONSE TO VALIDATE:
+PATIENT'S RESPONSE:
 ${state.currentMessage}
 
-Is this patient response valid?`,
+Check for hallucination and volunteering.`,
       PatientValidationSchema,
       PATIENT_VALIDATION_TIMEOUT_MS,
     );

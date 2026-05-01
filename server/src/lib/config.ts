@@ -7,7 +7,7 @@ export const config = {
   openaiBaseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
   testerModel: process.env.TESTER_MODEL || 'gpt-4o-mini',
-  testerTemperature: parseFloat(process.env.TESTER_TEMPERATURE || '0.2'),
+  testerTemperature: parseFloat(process.env.TESTER_TEMPERATURE || '0'),
   graderModel: process.env.GRADER_MODEL || 'gpt-4o-mini',
   graderTemperature: parseFloat(process.env.GRADER_TEMPERATURE || '0.1'),
 
@@ -39,5 +39,6 @@ export const config = {
 
   // Patient response validation (hallucination / volunteering guard)
   enablePatientValidation: process.env.ENABLE_PATIENT_VALIDATION !== 'false',
-  patientValidationModel: process.env.PATIENT_VALIDATION_MODEL || 'gpt-4o-mini',
+  patientValidationModel: process.env.PATIENT_VALIDATION_MODEL || 'gpt-5.4',
+  patientValidationMaxRetries: parseInt(process.env.PATIENT_VALIDATION_MAX_RETRIES || '5', 10),
 } as const;
