@@ -382,9 +382,9 @@ async function generateNextMessage(state: typeof TesterState.State) {
     maxTurns: state.maxTurns,
   });
 
-  // If validation failed on previous attempt, append correction
+  // If validation failed on previous attempt, append correction with feedback
   if (state.validationFeedback) {
-    turnTask += `\n\nCORRECTION — YOUR PREVIOUS RESPONSE WAS REJECTED: ${state.validationFeedback}\nGenerate a new response. ONLY use information from the clinical facts. ONLY answer what the agent asked. Do NOT add anything else.`;
+    turnTask += `\n\nREJECTED: ${state.validationFeedback}\nRegenerate. Return ONLY the encoded value from the case spec if asked, "I don't know" if not in spec, or "Okay" if agent gave advice. Nothing else.`;
   }
 
   const result = await invokeStructuredWithCaching<BenchmarkTurn>(
@@ -407,31 +407,38 @@ async function generateNextMessage(state: typeof TesterState.State) {
 
 /**
  * LLM guard: checks the patient's response against clinical facts.
- * Catches hallucination and volunteering. On first failure, routes back
- * to generateNextMessage with correction feedback. On second failure or
- * when disabled, logs and proceeds.
+ * Catches hallucination and volunteering. On failure, routes back to
+ * generateNextMessage with the validator's feedback so the patient LLM
+ * knows exactly what went wrong. Loops up to maxRetries times.
+ * Skips validation on the forced triage turn (hardcoded, not LLM output).
  */
 async function validateResponse(state: typeof TesterState.State) {
-  if (!config.enablePatientValidation) {
+  // Skip when disabled or on the forced triage question (not patient LLM output)
+  if (!config.enablePatientValidation || state.triageSent) {
     return { validationRetryCount: 0, validationFeedback: null };
   }
 
   const stepStart = Date.now();
   const stepStartedAt = new Date().toISOString();
   const turn = state.currentTurn + 1;
+  const maxRetries = config.patientValidationMaxRetries;
 
   const lastAgentMessage = [...state.transcript].reverse().find((e) => e.role === 'target')?.content || '';
 
   try {
     const result = await invokeStructuredWithCaching<PatientValidation>(
       { model: config.patientValidationModel, temperature: 0 },
-      `You validate whether a simulated patient's response is strictly grounded in clinical facts. Check two things:
+      `You validate a simulated patient response against the TriageBench interaction protocol:
+1. When asked about a DEFINED variable in the case spec → return the encoded value.
+2. When asked about something NOT in the spec → "I don't know."
+3. When agent gives advice without a question → "Okay" or minimal acknowledgment.
+4. NEVER introduce facts not in the spec. NEVER volunteer unasked information.
 
-1. HALLUCINATION: Does the response contain ANY symptom, history, medication, vital sign, or clinical detail NOT explicitly listed in the clinical facts? Even if it sounds medically plausible, if it is not in the facts, it is a hallucination.
+CHECK 1 — HALLUCINATION: Does the response contain ANY clinical detail (symptom, history, medication, vital, timeline, severity) NOT explicitly in the case specification?
 
-2. VOLUNTEERING: Does the response disclose clinical information the agent did NOT ask about? The patient must ONLY answer what was directly asked. Bringing up new symptoms, confirming negatives unprompted ("I don't have fever"), or mentioning history/medications/vitals the agent never asked about are all violations.
+CHECK 2 — VOLUNTEERING: Does the response disclose information the agent did NOT ask about? Note: if the agent asks about multiple things in one message, answering all of them is NOT volunteering. If the agent asks a broad question ("tell me about your symptoms"), answering with presenting complaint details is NOT volunteering. Volunteering means introducing topics the agent never asked about.
 
-Be maximally strict. This is for a research paper — any deviation from the clinical facts corrupts the benchmark data.`,
+Be precise. This is for a peer-reviewed paper.`,
       `CLINICAL FACTS:
 ${state.clinicalFacts}
 
@@ -451,7 +458,7 @@ Is this patient response valid?`,
       is_valid: result.is_valid,
       violation_type: result.violation_type,
       detail: result.detail,
-      regenerated: !result.is_valid && state.validationRetryCount < 1,
+      regenerated: !result.is_valid && state.validationRetryCount < maxRetries,
     };
 
     const patientValidations = [...state.patientValidations, validation];
@@ -461,13 +468,14 @@ Is this patient response valid?`,
         turn,
         violation: result.violation_type,
         detail: result.detail,
-        retry: state.validationRetryCount,
+        attempt: state.validationRetryCount + 1,
+        maxRetries,
         scenarioRunId: state.scenarioRunId,
       });
     }
 
-    // First failure → retry with correction
-    if (!result.is_valid && state.validationRetryCount < 1) {
+    // Failed but retries remaining → send back with feedback
+    if (!result.is_valid && state.validationRetryCount < maxRetries) {
       return {
         patientValidations,
         validationRetryCount: state.validationRetryCount + 1,
@@ -476,7 +484,15 @@ Is this patient response valid?`,
       };
     }
 
-    // Valid or second attempt → proceed
+    // Valid or retries exhausted → proceed
+    if (!result.is_valid) {
+      logger.error('Patient validation retries exhausted, proceeding with invalid response', {
+        turn,
+        attempts: state.validationRetryCount + 1,
+        scenarioRunId: state.scenarioRunId,
+      });
+    }
+
     return {
       patientValidations,
       validationRetryCount: 0,
