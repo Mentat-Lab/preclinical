@@ -26,6 +26,10 @@ export interface PatientValidationResult {
   turn: number;
   is_valid: boolean;
   violation_type: 'none' | 'hallucination' | 'volunteered' | 'both';
+  agent_asked_about: string[];
+  patient_disclosed: string[];
+  hallucinated_facts: string[];
+  volunteered_facts: string[];
   detail: string;
   regenerated: boolean;
 }

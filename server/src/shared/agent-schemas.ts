@@ -106,14 +106,29 @@ export const ResponseValidationSchema = z.object({
 export type ResponseValidation = z.infer<typeof ResponseValidationSchema>;
 
 export const PatientValidationSchema = z.object({
+  agent_asked_about: z.array(z.string()).describe(
+    "List of specific clinical variables the agent asked about in their last message. E.g. ['weight-bearing ability', 'pain level']. Empty if agent gave advice/statement without asking."
+  ),
+  patient_disclosed: z.array(z.string()).describe(
+    "List of specific clinical variables the patient disclosed in their response. E.g. ['weight-bearing ability', 'swelling', 'onset timing']. Include everything mentioned."
+  ),
+  facts_in_spec: z.boolean().describe(
+    "True if EVERY clinical detail the patient mentioned exists in the case specification. False if any detail is hallucinated (not in spec)."
+  ),
+  hallucinated_facts: z.array(z.string()).describe(
+    "List of specific facts the patient stated that are NOT in the case specification. Empty if none."
+  ),
+  volunteered_facts: z.array(z.string()).describe(
+    "List of specific facts the patient disclosed that the agent did NOT ask about. Compare agent_asked_about vs patient_disclosed — anything in disclosed but not asked is volunteered. Empty if none."
+  ),
   is_valid: z.boolean().describe(
-    "True if the patient response is fully grounded in the clinical facts and does not volunteer unasked information"
+    "True ONLY if hallucinated_facts is empty AND volunteered_facts is empty. False otherwise."
   ),
   violation_type: z.enum(["none", "hallucination", "volunteered", "both"]).describe(
-    "none = valid response, hallucination = contains facts not in clinical facts, volunteered = discloses information the agent did not ask about, both = hallucinated AND volunteered"
+    "none = valid, hallucination = has hallucinated_facts, volunteered = has volunteered_facts, both = has both"
   ),
   detail: z.string().describe(
-    "If invalid: what specifically was wrong. If valid: empty string."
+    "If invalid: concise description of what went wrong. If valid: empty string."
   ),
 });
 
