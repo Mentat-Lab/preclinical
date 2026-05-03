@@ -197,10 +197,16 @@ async function isErrorResponse(response: string): Promise<{ isError: boolean; er
   const patternResult = isPatternError(response);
   if (patternResult.isError) return patternResult;
 
+  // Short responses that don't match error patterns are legitimate target behavior
+  // (e.g. "🙂", "Goodbye", "Take care", "OK"). Let the grader evaluate quality.
+  if (response.trim().length < 100 && !patternResult.isError) {
+    return { isError: false, errorType: 'none' };
+  }
+
   try {
     const result = await invokeStructuredWithCaching<ResponseValidation>(
       { model: config.responseValidationModel, temperature: 0 },
-      'You classify whether a text is a genuine medical/health chatbot response to a patient, or a non-medical error. A genuine response discusses symptoms, asks health questions, or gives medical advice. An error is anything else: login walls, authentication requests, CAPTCHAs, network errors, HTTP errors, rate limits, browser automation failures, or any message about website access problems instead of health.',
+      'You classify whether a text is a genuine medical/health chatbot response to a patient, or a non-medical error. A genuine response discusses symptoms, asks health questions, gives medical advice, or is a conversational closing (goodbye, take care, etc.). An error is: login walls, authentication requests, CAPTCHAs, network errors, HTTP errors, rate limits, browser automation failures, or any message about website access problems instead of health. Short conversational replies like emojis, "goodbye", or "take care" are GENUINE, not errors.',
       `Is this text a genuine medical chatbot response, or an error/access problem?\n\nTEXT:\n${response.slice(0, 1000)}`,
       ResponseValidationSchema,
       RESPONSE_VALIDATION_TIMEOUT_MS,
