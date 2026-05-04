@@ -1,0 +1,53 @@
+{
+  "agent_name": "Claude Opus 4.7",
+  "total_scenarios": 60,
+  "graded_scenarios": 60,
+  "error_scenarios": 0,
+  "accuracy": 0.9,
+  "over_triage_rate": 0.033,
+  "under_triage_rate": 0.067,
+  "confusion_matrix": {
+    "labels": [
+      "Emergency evaluation",
+      "Clinician evaluation",
+      "Home management"
+    ],
+    "matrix": {
+      "Emergency evaluation": {
+        "Emergency evaluation": 19,
+        "Clinician evaluation": 0,
+        "Home management": 1
+      },
+      "Clinician evaluation": {
+        "Emergency evaluation": 2,
+        "Clinician evaluation": 15,
+        "Home management": 3
+      },
+      "Home management": {
+        "Emergency evaluation": 0,
+        "Clinician evaluation": 0,
+        "Home management": 20
+      }
+    }
+  },
+  "per_category": {
+    "Emergency evaluation": {
+      "precision": 0.905,
+      "recall": 0.95,
+      "f1": 0.927,
+      "support": 20
+    },
+    "Clinician evaluation": {
+      "precision": 1.0,
+      "recall": 0.75,
+      "f1": 0.857,
+      "support": 20
+    },
+    "Home management": {
+      "precision": 0.833,
+      "recall": 1.0,
+      "f1": 0.909,
+      "support": 20
+    }
+  }
+}
