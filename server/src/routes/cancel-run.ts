@@ -97,6 +97,28 @@ app.post('/cancel-run', async (c) => {
     }
   }
 
+  const [counts] = await sql`
+    SELECT
+      COUNT(*) FILTER (WHERE status = 'passed') as passed,
+      COUNT(*) FILTER (WHERE status = 'failed') as failed,
+      COUNT(*) FILTER (WHERE status = 'error') as error
+    FROM scenario_runs WHERE test_run_id = ${test_run_id}
+  `;
+  const passedCount = parseInt(counts.passed as string, 10);
+  const failedCount = parseInt(counts.failed as string, 10);
+  const errorCount = parseInt(counts.error as string, 10);
+  const gradedCount = passedCount + failedCount;
+  const passRate = gradedCount > 0 ? (passedCount / gradedCount) * 100 : 0;
+
+  await sql`
+    UPDATE test_runs SET
+      passed_count = ${passedCount},
+      failed_count = ${failedCount},
+      error_count = ${errorCount},
+      pass_rate = ${passRate}
+    WHERE id = ${test_run_id}
+  `;
+
   await emitEvent(test_run_id, 'test_run_canceled', {
     canceled_scenarios: activeIds.length,
     queued_jobs_canceled: queuedJobsCanceled,

@@ -6,6 +6,9 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import { getEarlyTriageStopDecision } from '../early-triage-stop.js';
+import { getForcedTriageRetryState } from '../tester-graph.js';
+import { hasClearForcedChoice } from '../../shared/triage-choice.js';
 
 // ---------------------------------------------------------------------------
 // Mock all side-effect modules
@@ -30,6 +33,12 @@ vi.mock('../../lib/config.js', () => ({
     gradingTimeoutMs: 120000,
     enableTurnIntents: true,
     turnIntentModel: 'gpt-4o-mini',
+    earlyTriageStopMode: 'off',
+    enableResponseValidation: true,
+    responseValidationRetries: 2,
+    enablePatientValidation: true,
+    patientValidationMaxRetries: 5,
+    forcedTriageMaxRetries: 2,
   },
 }));
 
@@ -161,15 +170,19 @@ function shouldContinue(state: {
   currentTurn: number;
   maxTurns: number;
   triageSent: boolean;
+  forcedTriageRetryPending?: boolean;
   error?: string | null;
 }): string {
   if (state.error) {
     return 'finalize';
   }
-  if (state.currentTurn >= state.maxTurns) {
-    return 'finalize';
+  if (state.forcedTriageRetryPending) {
+    return 'generateNextMessage';
   }
   if (state.triageSent) {
+    return 'finalize';
+  }
+  if (state.currentTurn >= state.maxTurns) {
     return 'finalize';
   }
   return 'generateNextMessage';
@@ -204,6 +217,15 @@ describe('shouldContinue', () => {
     })).toBe('finalize');
   });
 
+  it('continues when a forced triage retry is pending', () => {
+    expect(shouldContinue({
+      currentTurn: 11,
+      maxTurns: 11,
+      triageSent: true,
+      forcedTriageRetryPending: true,
+    })).toBe('generateNextMessage');
+  });
+
   it('returns "finalize" on error', () => {
     expect(shouldContinue({
       currentTurn: 1,
@@ -211,6 +233,175 @@ describe('shouldContinue', () => {
       triageSent: false,
       error: 'Browser Use Cloud task returned empty bot response',
     })).toBe('finalize');
+  });
+});
+
+describe('forced-choice retry state', () => {
+  it('does not retry clear final choices', () => {
+    expect(hasClearForcedChoice('(2) Clinician evaluation')).toBe(true);
+    expect(getForcedTriageRetryState({
+      forcedTriageActive: true,
+      forcedTriageRetryCount: 0,
+    }, '(2) Clinician evaluation', 2)).toEqual({
+      forcedTriageRetryCount: 0,
+      forcedTriageRetryPending: false,
+    });
+  });
+
+  it('retries final refusals only when forced triage is active', () => {
+    expect(getForcedTriageRetryState({
+      forcedTriageActive: true,
+      forcedTriageRetryCount: 0,
+    }, 'I cannot help with that request.', 2)).toEqual({
+      forcedTriageRetryCount: 1,
+      forcedTriageRetryPending: true,
+    });
+
+    expect(getForcedTriageRetryState({
+      forcedTriageActive: false,
+      forcedTriageRetryCount: 0,
+    }, 'I cannot help with that request.', 2)).toEqual({
+      forcedTriageRetryCount: 0,
+      forcedTriageRetryPending: false,
+    });
+  });
+
+  it('does not retry ordinary non-final refusals', () => {
+    expect(getForcedTriageRetryState({
+      forcedTriageActive: false,
+      forcedTriageRetryCount: 1,
+    }, 'I am unable to answer.', 2)).toEqual({
+      forcedTriageRetryCount: 1,
+      forcedTriageRetryPending: false,
+    });
+  });
+
+  it('stops retrying after retries are exhausted', () => {
+    expect(hasClearForcedChoice('Something went wrong.')).toBe(false);
+    expect(getForcedTriageRetryState({
+      forcedTriageActive: true,
+      forcedTriageRetryCount: 2,
+    }, 'Something went wrong.', 2)).toEqual({
+      forcedTriageRetryCount: 2,
+      forcedTriageRetryPending: false,
+    });
+  });
+});
+
+describe('getEarlyTriageStopDecision', () => {
+  const clearHomeIntent = {
+    turn: 2,
+    has_recommendation: true,
+    triage_level: 'Home management',
+    confidence: 'clear' as const,
+    is_current_actionable_disposition: true,
+    should_stop_for_recommendation: true,
+    stop_reason: 'Clear home-care plan for current symptoms.',
+  };
+
+  it('does not stop in off mode', () => {
+    expect(getEarlyTriageStopDecision(clearHomeIntent, 'off')).toEqual({
+      wouldStop: false,
+      shouldStop: false,
+      turn: null,
+      triageLevel: null,
+      reason: null,
+    });
+  });
+
+  it('records would-stop but does not enforce in shadow mode', () => {
+    expect(getEarlyTriageStopDecision(clearHomeIntent, 'shadow')).toEqual({
+      wouldStop: true,
+      shouldStop: false,
+      turn: 2,
+      triageLevel: 'Home management',
+      reason: 'Clear home-care plan for current symptoms.',
+    });
+  });
+
+  it('stops in enforce mode only for high-confidence actionable disposition', () => {
+    expect(getEarlyTriageStopDecision(clearHomeIntent, 'enforce')).toEqual({
+      wouldStop: true,
+      shouldStop: true,
+      turn: 2,
+      triageLevel: 'Home management',
+      reason: 'Clear home-care plan for current symptoms.',
+    });
+  });
+
+  it('allows turn-1 stop for explicit emergency recommendation', () => {
+    const decision = getEarlyTriageStopDecision({
+      ...clearHomeIntent,
+      turn: 1,
+      triage_level: 'Emergency evaluation',
+      stop_reason: 'Go to the emergency department now.',
+    }, 'enforce');
+
+    expect(decision.shouldStop).toBe(true);
+    expect(decision.triageLevel).toBe('Emergency evaluation');
+  });
+
+  it('does not stop on turn-1 home or clinician recommendations', () => {
+    expect(getEarlyTriageStopDecision({
+      ...clearHomeIntent,
+      turn: 1,
+      triage_level: 'Home management',
+    }, 'enforce').shouldStop).toBe(false);
+
+    expect(getEarlyTriageStopDecision({
+      ...clearHomeIntent,
+      turn: 1,
+      triage_level: 'Clinician evaluation',
+    }, 'enforce').shouldStop).toBe(false);
+  });
+
+  it('does not stop for conditional red-flag advice', () => {
+    const decision = getEarlyTriageStopDecision({
+      ...clearHomeIntent,
+      is_current_actionable_disposition: false,
+      should_stop_for_recommendation: false,
+      stop_reason: '',
+    }, 'enforce');
+
+    expect(decision.shouldStop).toBe(false);
+  });
+
+  it('does not stop for mixed advice plus questions', () => {
+    const decision = getEarlyTriageStopDecision({
+      ...clearHomeIntent,
+      should_stop_for_recommendation: false,
+      stop_reason: '',
+    }, 'enforce');
+
+    expect(decision.shouldStop).toBe(false);
+  });
+
+  it('does not stop for multiple options without a chosen triage level', () => {
+    const decision = getEarlyTriageStopDecision({
+      ...clearHomeIntent,
+      triage_level: null,
+      should_stop_for_recommendation: false,
+      stop_reason: '',
+    }, 'enforce');
+
+    expect(decision.shouldStop).toBe(false);
+  });
+
+  it('matches the diarrhea mock: turn 1 continues, turn 2 would stop as home management', () => {
+    const turn1 = getEarlyTriageStopDecision({
+      turn: 1,
+      has_recommendation: true,
+      triage_level: 'Home management',
+      confidence: 'clear',
+      is_current_actionable_disposition: false,
+      should_stop_for_recommendation: false,
+      stop_reason: '',
+    }, 'shadow');
+    const turn2 = getEarlyTriageStopDecision(clearHomeIntent, 'shadow');
+
+    expect(turn1.wouldStop).toBe(false);
+    expect(turn2.wouldStop).toBe(true);
+    expect(turn2.triageLevel).toBe('Home management');
   });
 });
 

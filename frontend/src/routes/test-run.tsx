@@ -2,21 +2,23 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useActiveAgent } from '@/lib/active-agent-context';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Download, Loader2, RotateCw, Share2, Trash2, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Download, Loader2, RotateCw, Share2, Square, Trash2, ChevronRight } from 'lucide-react';
 import { useScenarioRuns, useTestRun, queryKeys } from '@/hooks/use-queries';
 import { useRealtimeRun } from '@/lib/sse';
 import * as api from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { ScenarioRunResult, TestRun } from '@/lib/types';
 
-type StatusFilter = 'all' | 'pass' | 'fail' | 'error' | 'pending' | 'canceled';
-type DisplayStatus = 'pass' | 'fail' | 'error' | 'pending' | 'canceled';
+type StatusFilter = 'all' | 'pass' | 'fail' | 'error' | 'pending' | 'running' | 'grading' | 'canceled';
+type DisplayStatus = 'pass' | 'fail' | 'error' | 'pending' | 'running' | 'grading' | 'canceled';
 
 function getDisplayStatus(result: ScenarioRunResult): DisplayStatus {
   if (result.status === 'canceled') return 'canceled';
   if (result.status === 'error') return 'error';
   if (result.status === 'passed') return 'pass';
   if (result.status === 'failed') return 'fail';
+  if (result.status === 'running') return 'running';
+  if (result.status === 'grading') return 'grading';
   if (result.passed === true) return 'pass';
   if (result.passed === false) return 'fail';
   return 'pending';
@@ -28,6 +30,8 @@ function statusLabel(status: DisplayStatus): string {
     fail: 'Fail',
     error: 'Error',
     pending: 'Pending',
+    running: 'Running',
+    grading: 'Grading',
     canceled: 'Canceled',
   };
   return map[status];
@@ -39,6 +43,8 @@ function statusTextClass(status: DisplayStatus): string {
     fail: 'text-fail',
     error: 'text-amber-500',
     pending: 'text-text-secondary',
+    running: 'text-accent',
+    grading: 'text-accent',
     canceled: 'text-text-secondary',
   };
   return map[status];
@@ -85,6 +91,7 @@ export default function TestRunPage() {
   const [shareCopied, setShareCopied] = useState(false);
   const [selectedScenarioIds, setSelectedScenarioIds] = useState<Set<string>>(() => new Set());
   const [rerunning, setRerunning] = useState(false);
+  const [regrading, setRegrading] = useState(false);
 
   const { data, isLoading, error } = useTestRun(id || '');
   const { data: scenarioRunsData, isLoading: scenariosLoading } = useScenarioRuns({ testRunId: id || '' });
@@ -134,6 +141,24 @@ export default function TestRunPage() {
     },
   });
 
+  const cancelMutation = useMutation({
+    mutationFn: () => api.cancelTestRun(id || ''),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['scenarioRuns', id] });
+      queryClient.invalidateQueries({ queryKey: ['testRun', id] });
+      queryClient.invalidateQueries({ queryKey: ['testRuns'] });
+    },
+  });
+
+  const cancelScenarioMutation = useMutation({
+    mutationFn: (scenarioRunId: string) => api.cancelScenarioRun(scenarioRunId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['scenarioRuns', id] });
+      queryClient.invalidateQueries({ queryKey: ['testRun', id] });
+      queryClient.invalidateQueries({ queryKey: ['testRuns'] });
+    },
+  });
+
   const deleteScenarioMutation = useMutation({
     mutationFn: (scenarioRunId: string) => api.deleteScenarioRun(scenarioRunId),
     onSuccess: (_, scenarioRunId) => {
@@ -152,6 +177,15 @@ export default function TestRunPage() {
     mutationFn: (scenarioRunIds: string[]) => api.deleteScenarioRuns(scenarioRunIds),
     onSuccess: () => {
       setSelectedScenarioIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ['scenarioRuns', id] });
+      queryClient.invalidateQueries({ queryKey: ['testRun', id] });
+      queryClient.invalidateQueries({ queryKey: ['testRuns'] });
+    },
+  });
+
+  const regradeScenarioMutation = useMutation({
+    mutationFn: (scenarioRunId: string) => api.regradeScenarioRun(scenarioRunId),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scenarioRuns', id] });
       queryClient.invalidateQueries({ queryKey: ['testRun', id] });
       queryClient.invalidateQueries({ queryKey: ['testRuns'] });
@@ -247,7 +281,10 @@ export default function TestRunPage() {
   };
 
   const isTerminal = run && ['completed', 'failed', 'canceled'].includes(run.status);
+  const canCancel = run && ['pending', 'running', 'grading', 'scheduled'].includes(run.status);
   const canRerun = isTerminal && run.agent_id;
+  const failedScenarioIds = [...new Set(allResults.filter((r) => getDisplayStatus(r) === 'fail').map((r) => r.scenario_id))];
+  const noClearScenarioIds = [...new Set(allResults.filter((r) => r.triage_result === 'No clear recommendation').map((r) => r.scenario_id))];
 
   const handleRerun = async (scenarioIds: string[]) => {
     if (!run || scenarioIds.length === 0) return;
@@ -263,6 +300,19 @@ export default function TestRunPage() {
       navigate(`/test/${res.id}`);
     } catch {
       setRerunning(false);
+    }
+  };
+
+  const handleRegrade = async (filter: 'all' | 'failed' | 'no-clear') => {
+    if (!run) return;
+    setRegrading(true);
+    try {
+      await api.regradeTestRun(run.id, filter);
+      queryClient.invalidateQueries({ queryKey: ['scenarioRuns', id] });
+      queryClient.invalidateQueries({ queryKey: ['testRun', id] });
+      queryClient.invalidateQueries({ queryKey: ['testRuns'] });
+    } finally {
+      setRegrading(false);
     }
   };
 
@@ -297,6 +347,8 @@ export default function TestRunPage() {
     { key: 'fail', label: 'Fail' },
     { key: 'error', label: 'Error' },
     { key: 'pending', label: 'Pending' },
+    { key: 'running', label: 'Running' },
+    { key: 'grading', label: 'Grading' },
     { key: 'canceled', label: 'Canceled' },
   ];
 
@@ -320,16 +372,38 @@ export default function TestRunPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {canRerun && (
+          {canCancel && (
             <button
               type="button"
-              onClick={() => handleRerun([...new Set(allResults.map((r) => r.scenario_id))])}
-              disabled={rerunning}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-accent text-accent hover:bg-accent/5 disabled:opacity-50"
+              onClick={() => {
+                if (window.confirm('Cancel this test run? Active and pending scenario runs will be stopped.')) {
+                  cancelMutation.mutate();
+                }
+              }}
+              disabled={cancelMutation.isPending}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-amber-500/60 text-amber-600 hover:bg-amber-500/5 disabled:opacity-50"
             >
-              {rerunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCw className="w-4 h-4" />}
-              Rerun All
+              {cancelMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Square className="w-4 h-4" />}
+              Cancel
             </button>
+          )}
+          {canRerun && (
+            <details className="relative">
+              <summary className="list-none inline-flex cursor-pointer items-center gap-2 px-4 py-2 rounded-lg border border-accent text-accent hover:bg-accent/5">
+                {rerunning || regrading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCw className="w-4 h-4" />}
+                Rerun
+                <ChevronDown className="w-4 h-4" />
+              </summary>
+              <div className="absolute right-0 z-20 mt-2 w-56 rounded-lg border border-border bg-card p-1 shadow-lg">
+                <button type="button" className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50" disabled={rerunning} onClick={() => handleRerun([...new Set(allResults.map((r) => r.scenario_id))])}>Rerun all</button>
+                <button type="button" className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50" disabled={rerunning || failedScenarioIds.length === 0} onClick={() => handleRerun(failedScenarioIds)}>Rerun failed</button>
+                <button type="button" className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50" disabled={rerunning || noClearScenarioIds.length === 0} onClick={() => handleRerun(noClearScenarioIds)}>Rerun no-clear</button>
+                <div className="my-1 border-t border-border" />
+                <button type="button" className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50" disabled={regrading} onClick={() => handleRegrade('all')}>Rerun grader for all</button>
+                <button type="button" className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50" disabled={regrading} onClick={() => handleRegrade('failed')}>Rerun grader for failed</button>
+                <button type="button" className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50" disabled={regrading} onClick={() => handleRegrade('no-clear')}>Rerun grader for no-clear</button>
+              </div>
+            </details>
           )}
           <button
             type="button"
@@ -490,6 +564,7 @@ export default function TestRunPage() {
             ) : (
               filteredResults.map((result) => {
                 const status = getDisplayStatus(result);
+                const isActiveScenario = status === 'pending' || status === 'running' || status === 'grading';
                 const scenarioHref = `/test/${id}/scenario/${result.id}`;
                 const selected = selectedScenarioIds.has(result.id);
                 return (
@@ -534,33 +609,64 @@ export default function TestRunPage() {
                     <td className="px-5 py-4">
                       <div className="flex items-center justify-end gap-2">
                         {canRerun && status !== 'pending' && (
+                          <details className="relative" onClick={(e) => e.stopPropagation()}>
+                            <summary
+                              className="list-none inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-accent hover:bg-accent/5"
+                              aria-label={`Rerun actions for ${result.scenario_name || result.scenario_id}`}
+                            >
+                              <RotateCw className="w-4 h-4" />
+                            </summary>
+                            <div className="absolute right-0 z-20 mt-1 w-40 rounded-lg border border-border bg-card p-1 shadow-lg">
+                              <button
+                                type="button"
+                                className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50"
+                                disabled={rerunning}
+                                onClick={() => handleRerun([result.scenario_id])}
+                              >
+                                Rerun scenario
+                              </button>
+                              <button
+                                type="button"
+                                className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50"
+                                disabled={regradeScenarioMutation.isPending}
+                                onClick={() => regradeScenarioMutation.mutate(result.id)}
+                              >
+                                Rerun grader
+                              </button>
+                            </div>
+                          </details>
+                        )}
+                        {isActiveScenario ? (
                           <button
                             type="button"
-                            aria-label={`Rerun ${result.scenario_name || result.scenario_id}`}
+                            aria-label={`Cancel ${result.scenario_name || result.scenario_id}`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleRerun([result.scenario_id]);
+                              if (window.confirm('Cancel this scenario run? Its queue job and browser session will be stopped.')) {
+                                cancelScenarioMutation.mutate(result.id);
+                              }
                             }}
-                            disabled={rerunning}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-accent hover:bg-accent/5 disabled:opacity-50"
+                            disabled={cancelScenarioMutation.isPending}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-amber-600 hover:bg-amber-500/5 disabled:opacity-50"
                           >
-                            <RotateCw className="w-4 h-4" />
+                            {cancelScenarioMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Square className="w-4 h-4" />}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            aria-label={`Delete ${result.scenario_name || result.scenario_id}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm('Delete this scenario run? This cannot be undone.')) {
+                                deleteScenarioMutation.mutate(result.id);
+                              }
+                            }}
+                            disabled={deleteScenarioMutation.isPending}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-fail hover:bg-fail/5 disabled:opacity-50"
+                          >
+                            {deleteScenarioMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                           </button>
                         )}
-                        <button
-                          type="button"
-                          aria-label={`Delete ${result.scenario_name || result.scenario_id}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (window.confirm('Delete this scenario run? This cannot be undone.')) {
-                              deleteScenarioMutation.mutate(result.id);
-                            }
-                          }}
-                          disabled={deleteScenarioMutation.isPending}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-fail hover:bg-fail/5 disabled:opacity-50"
-                        >
-                          {deleteScenarioMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                        </button>
                         <span className="inline-flex text-text-secondary">
                         <ChevronRight className="w-5 h-5" />
                         </span>

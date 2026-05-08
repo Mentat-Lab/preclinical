@@ -108,12 +108,14 @@ class PgBossQueue implements JobQueue {
   async registerWorker(handler: JobHandler, concurrency: number): Promise<void> {
     // pg-boss natively handles per-run concurrency via group + tiers.
     // Jobs tagged with group.id = testRunId are capped per tier (SKIP LOCKED).
-    // batchSize = concurrency so a single atomic fetch respects group limits
-    // (multiple localConcurrency workers race and bypass group filtering).
+    // Fetch a wide window before pg-boss applies group filtering. With a small
+    // batch, one large run at c1 can occupy the whole fetch window and starve
+    // later test-run groups.
+    const fairFetchBatchSize = Math.max(concurrency * 100, 1000);
     await this.boss.work<ScenarioJobData>(
       QUEUE_NAME,
       {
-        batchSize: concurrency,
+        batchSize: fairFetchBatchSize,
         groupConcurrency: {
           default: 6,
           tiers: { c1: 1, c2: 2, c3: 3, c4: 4, c5: 5, c7: 7, c8: 8, c9: 9, c10: 10 },

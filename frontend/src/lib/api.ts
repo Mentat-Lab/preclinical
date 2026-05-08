@@ -72,6 +72,30 @@ export async function deleteTestRun(id: string): Promise<void> {
   return fetchJSON(`/api/v1/tests/${id}`, { method: 'DELETE' });
 }
 
+export async function cancelTestRun(id: string): Promise<{
+  status: string;
+  canceled_scenarios?: number;
+  queued_jobs_canceled?: number;
+  browser_sessions_closed?: number;
+}> {
+  return fetchJSON('/cancel-run', {
+    method: 'POST',
+    body: JSON.stringify({ test_run_id: id }),
+  });
+}
+
+export async function regradeTestRun(id: string, filter: 'all' | 'failed' | 'no-clear' = 'all'): Promise<{
+  filter: string;
+  requested: number;
+  regraded: number;
+  failed: number;
+}> {
+  return fetchJSON(`/api/v1/tests/${id}/regrade`, {
+    method: 'POST',
+    body: JSON.stringify({ filter }),
+  });
+}
+
 // ==================== SCENARIO RUNS ====================
 
 export async function getScenarioRuns(params: {
@@ -94,6 +118,23 @@ export async function getScenarioRunById(id: string): Promise<ScenarioRunResult>
 
 export async function deleteScenarioRun(id: string): Promise<void> {
   return fetchJSON(`/api/v1/scenario-runs/${id}`, { method: 'DELETE' });
+}
+
+export async function cancelScenarioRun(id: string): Promise<{
+  status: string;
+  scenario_run_id?: string;
+  queued_jobs_canceled?: number;
+  browser_sessions_closed?: number;
+}> {
+  return fetchJSON(`/api/v1/scenario-runs/${id}/cancel`, { method: 'POST' });
+}
+
+export async function regradeScenarioRun(id: string): Promise<{
+  scenarioRunId: string;
+  status: string;
+  passed: boolean;
+}> {
+  return fetchJSON(`/api/v1/scenario-runs/${id}/regrade`, { method: 'POST' });
 }
 
 export async function deleteScenarioRuns(ids: string[]): Promise<{ deleted: number }> {

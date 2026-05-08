@@ -1,5 +1,10 @@
 import { Hono } from 'hono';
 import { sql, emitEvent } from '../lib/db.js';
+import { getQueue } from '../lib/queue.js';
+import { config } from '../lib/config.js';
+import { closeSession } from '../providers/browser/api.js';
+import { graderGraph } from '../graphs/grader-graph.js';
+import { normalizeCriteria } from '../shared/agent-schemas.js';
 
 const app = new Hono();
 
@@ -10,11 +15,21 @@ async function refreshTestRunCounts(testRunId: string) {
   const passedCount = rows.filter((r: any) => r.status === 'passed').length;
   const failedCount = rows.filter((r: any) => r.status === 'failed').length;
   const errorCount = rows.filter((r: any) => r.status === 'error').length;
+  const activeCount = rows.filter((r: any) => ACTIVE_SCENARIO_RUN_STATUSES.includes(r.status)).length;
   const gradedCount = passedCount + failedCount;
   const passRate = gradedCount > 0 ? (passedCount / gradedCount) * 100 : 0;
 
+  const [run] = await sql`SELECT status FROM test_runs WHERE id = ${testRunId}`;
+  const isCanceled = run?.status === 'canceled';
+  const nextStatus = isCanceled ? 'canceled' : activeCount > 0 ? 'running' : 'completed';
+
   await sql`
     UPDATE test_runs SET
+      status = ${nextStatus},
+      completed_at = CASE
+        WHEN ${!isCanceled && activeCount === 0} THEN COALESCE(completed_at, NOW())
+        ELSE completed_at
+      END,
       total_scenarios = ${rows.length},
       passed_count = ${passedCount},
       failed_count = ${failedCount},
@@ -22,6 +37,139 @@ async function refreshTestRunCounts(testRunId: string) {
       pass_rate = ${passRate}
     WHERE id = ${testRunId}
   `;
+}
+
+function parseTranscript(value: unknown): Array<{ turn: number; role: string; content: string }> {
+  if (Array.isArray(value)) {
+    return value
+      .filter((entry: any) => entry && typeof entry === 'object')
+      .map((entry: any) => ({
+        turn: Number(entry.turn || 0),
+        role: String(entry.role || ''),
+        content: String(entry.content || ''),
+      }))
+      .filter((entry) => entry.turn > 0 && entry.role && entry.content);
+  }
+  if (typeof value === 'string') {
+    try {
+      return parseTranscript(JSON.parse(value));
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+async function regradeScenarioRun(scenarioRunId: string) {
+  const [row] = await sql`
+    SELECT
+      sr.id,
+      sr.test_run_id,
+      sr.scenario_id,
+      sr.status,
+      sr.transcript,
+      tr.grading_mode,
+      s.content AS scenario_content,
+      s.rubric_criteria
+    FROM scenario_runs sr
+    JOIN test_runs tr ON tr.id = sr.test_run_id
+    LEFT JOIN scenarios s ON s.scenario_id = sr.scenario_id
+    WHERE sr.id = ${scenarioRunId}
+  `;
+  if (!row) {
+    return { ok: false as const, status: 404, error: 'Scenario run not found' };
+  }
+  if (ACTIVE_SCENARIO_RUN_STATUSES.includes(row.status)) {
+    return { ok: false as const, status: 409, error: 'Scenario run is still active' };
+  }
+
+  const transcript = parseTranscript(row.transcript);
+  if (transcript.length === 0) {
+    return { ok: false as const, status: 400, error: 'Scenario run has no transcript to regrade' };
+  }
+
+  const scenarioContent = (row.scenario_content || {}) as Record<string, unknown>;
+  const goldStandard = String(scenarioContent.gold_standard || '');
+  let rubricCriteria = normalizeCriteria((row.rubric_criteria || []) as unknown[]);
+  if (rubricCriteria.length === 0 && goldStandard) {
+    rubricCriteria = [
+      { criterion: `Agent recommends the correct triage level: ${goldStandard}`, points: 10 },
+    ];
+  }
+  if (rubricCriteria.length === 0) {
+    return { ok: false as const, status: 400, error: 'Scenario has no rubric criteria or gold standard' };
+  }
+
+  await sql`
+    UPDATE scenario_runs
+    SET status = 'grading',
+        error_code = NULL,
+        error_message = NULL
+    WHERE id = ${scenarioRunId}
+  `;
+  await emitEvent(row.test_run_id, 'regrading_started', {
+    scenario_run_id: scenarioRunId,
+    scenario_id: row.scenario_id,
+  });
+
+  const graderResult = await graderGraph.invoke({
+    transcript,
+    rubricCriteria,
+    testType: String(scenarioContent.test_type || 'conversation'),
+    gradingMode: String(row.grading_mode || 'descriptive'),
+    scenarioRunId,
+    testRunId: row.test_run_id,
+    scenarioId: row.scenario_id,
+    goldStandard,
+    triageResult: null,
+    rawGradingResult: null,
+    criteriaResults: [],
+    totalPoints: 0,
+    maxPoints: 0,
+    passed: false,
+    summary: '',
+    stepTimings: [],
+    gradingAttempt: 0,
+    error: null,
+  });
+
+  if (graderResult.error) {
+    await sql`
+      UPDATE scenario_runs
+      SET status = 'error',
+          error_code = 'grading_error',
+          error_message = ${graderResult.error}
+      WHERE id = ${scenarioRunId}
+    `;
+    await refreshTestRunCounts(row.test_run_id);
+    return { ok: false as const, status: 500, error: `Grading failed: ${graderResult.error}` };
+  }
+
+  const finalStatus = graderResult.passed ? 'passed' : 'failed';
+  await sql`
+    UPDATE scenario_runs
+    SET status = ${finalStatus},
+        metadata = COALESCE(metadata, '{}'::jsonb) || ${sql.json({
+          last_regraded_at: new Date().toISOString(),
+          regrade_step_timings: graderResult.stepTimings || [],
+        } as any)}
+    WHERE id = ${scenarioRunId}
+  `;
+  await refreshTestRunCounts(row.test_run_id);
+  await emitEvent(row.test_run_id, 'scenario_regraded', {
+    scenario_run_id: scenarioRunId,
+    scenario_id: row.scenario_id,
+    status: finalStatus,
+    passed: Boolean(graderResult.passed),
+  });
+
+  return {
+    ok: true as const,
+    testRunId: String(row.test_run_id),
+    scenarioRunId,
+    status: finalStatus,
+    passed: Boolean(graderResult.passed),
+  };
 }
 
 // ==================== TESTS (runs) ====================
@@ -51,19 +199,16 @@ app.get('/api/v1/tests/:id', async (c) => {
   `;
   if (!run) return c.json({ error: 'Test run not found' }, 404);
 
-  // Compute live counts from scenario_runs (test_runs columns only update on finalization)
-  if (run.status === 'running' || run.status === 'pending') {
-    const [counts] = await sql`
-      SELECT
-        COUNT(*) FILTER (WHERE status = 'passed') as passed,
-        COUNT(*) FILTER (WHERE status = 'failed') as failed,
-        COUNT(*) FILTER (WHERE status = 'error') as error
-      FROM scenario_runs WHERE test_run_id = ${run.id}
-    `;
-    run.passed_count = parseInt(counts.passed as string, 10);
-    run.failed_count = parseInt(counts.failed as string, 10);
-    run.error_count = parseInt(counts.error as string, 10);
-  }
+  const [counts] = await sql`
+    SELECT
+      COUNT(*) FILTER (WHERE status = 'passed') as passed,
+      COUNT(*) FILTER (WHERE status = 'failed') as failed,
+      COUNT(*) FILTER (WHERE status = 'error') as error
+    FROM scenario_runs WHERE test_run_id = ${run.id}
+  `;
+  run.passed_count = parseInt(counts.passed as string, 10);
+  run.failed_count = parseInt(counts.failed as string, 10);
+  run.error_count = parseInt(counts.error as string, 10);
 
   return c.json(run);
 });
@@ -97,6 +242,62 @@ app.delete('/api/v1/tests/:id', async (c) => {
   await sql`UPDATE test_runs SET deleted_at = NOW() WHERE id = ${run.id}`;
   await emitEvent(run.id, 'test_run_deleted', {});
   return c.body(null, 204);
+});
+
+app.post('/api/v1/tests/:id/regrade', async (c) => {
+  const id = c.req.param('id');
+  const body = await c.req.json().catch(() => ({}));
+  const filter = ['all', 'failed', 'no-clear'].includes(body.filter)
+    ? body.filter as 'all' | 'failed' | 'no-clear'
+    : 'all';
+
+  const [run] = await sql`
+    SELECT * FROM test_runs
+    WHERE (id::text = ${id} OR test_run_id = ${id}) AND deleted_at IS NULL
+  `;
+  if (!run) return c.json({ error: 'Test run not found' }, 404);
+
+  const rows = await sql`
+    SELECT
+      sr.id,
+      sr.status,
+      sr.transcript,
+      g.passed,
+      g.triage_result
+    FROM scenario_runs sr
+    LEFT JOIN LATERAL (
+      SELECT * FROM gradings WHERE scenario_run_id = sr.id ORDER BY created_at DESC LIMIT 1
+    ) g ON true
+    WHERE sr.test_run_id = ${run.id}
+    ORDER BY sr.created_at ASC
+  `;
+
+  const candidates = rows.filter((row: any) => {
+    if (ACTIVE_SCENARIO_RUN_STATUSES.includes(row.status)) return false;
+    if (parseTranscript(row.transcript).length === 0) return false;
+    if (filter === 'failed') return row.status === 'failed' || row.passed === false;
+    if (filter === 'no-clear') return row.triage_result === 'No clear recommendation';
+    return true;
+  });
+
+  const results: Array<{ scenario_run_id: string; status: string; passed?: boolean; error?: string }> = [];
+  for (const row of candidates) {
+    const result = await regradeScenarioRun(row.id);
+    if (result.ok) {
+      results.push({ scenario_run_id: result.scenarioRunId, status: result.status, passed: result.passed });
+    } else {
+      results.push({ scenario_run_id: row.id, status: 'error', error: result.error });
+    }
+  }
+
+  await refreshTestRunCounts(run.id);
+  return c.json({
+    filter,
+    requested: candidates.length,
+    regraded: results.filter((result) => !result.error).length,
+    failed: results.filter((result) => result.error).length,
+    results,
+  });
 });
 
 // ==================== TEST RUN CSV EXPORT ====================
@@ -286,7 +487,7 @@ app.get('/api/v1/tests/:id/export-csv', async (c) => {
 
 // ==================== TEST RUN ANALYSIS ====================
 
-const TRIAGE_CATEGORIES = ['Emergency evaluation', 'Clinician evaluation', 'Home management'] as const;
+const TRIAGE_CATEGORIES = ['Emergency evaluation', 'Clinician evaluation', 'Home management', 'No clear recommendation'] as const;
 type TriageCategory = typeof TRIAGE_CATEGORIES[number];
 
 // Severity ordering for over/under-triage classification
@@ -294,6 +495,7 @@ const SEVERITY: Record<string, number> = {
   'Emergency evaluation': 3,
   'Clinician evaluation': 2,
   'Home management': 1,
+  'No clear recommendation': 0,
 };
 
 app.get('/api/v1/tests/:id/analysis', async (c) => {
@@ -479,6 +681,89 @@ app.get('/api/v1/scenario-runs/:id', async (c) => {
   `;
 
   if (!result) return c.json({ error: 'Scenario run not found' }, 404);
+  return c.json(result);
+});
+
+app.post('/api/v1/scenario-runs/:id/cancel', async (c) => {
+  const id = c.req.param('id');
+  const canceledAt = new Date().toISOString();
+
+  const [row] = await sql`
+    SELECT
+      sr.id,
+      sr.test_run_id,
+      sr.status,
+      sr.metadata->>'pgboss_job_id' AS pgboss_job_id,
+      sr.metadata->>'browser_session_id' AS browser_session_id,
+      tr.agent_type
+    FROM scenario_runs sr
+    JOIN test_runs tr ON tr.id = sr.test_run_id
+    WHERE sr.id = ${id}
+  `;
+  if (!row) return c.json({ error: 'Scenario run not found' }, 404);
+
+  if (row.status === 'canceled') {
+    return c.json({ status: 'canceled', message: 'Scenario run already canceled' });
+  }
+  if (!ACTIVE_SCENARIO_RUN_STATUSES.includes(row.status)) {
+    return c.json({ error: 'Only pending, running, or grading scenario runs can be canceled' }, 409);
+  }
+
+  await sql`
+    UPDATE scenario_runs
+    SET status = 'canceled',
+        canceled_at = ${canceledAt},
+        completed_at = COALESCE(completed_at, ${canceledAt})
+    WHERE id = ${id}
+  `;
+
+  let queuedJobsCanceled = 0;
+  if (typeof row.pgboss_job_id === 'string' && row.pgboss_job_id.length > 0) {
+    const queue = await getQueue();
+    const result = await queue.cancel([row.pgboss_job_id]);
+    queuedJobsCanceled = result.canceled;
+  }
+
+  let browserSessionsClosed = 0;
+  if (
+    row.agent_type === 'browser'
+    && config.browserUseApiKey.trim()
+    && typeof row.browser_session_id === 'string'
+    && row.browser_session_id.length > 0
+  ) {
+    const closed = await closeSession(config.browserUseApiKey.trim(), row.browser_session_id);
+    if (closed) {
+      browserSessionsClosed = 1;
+      await sql`
+        UPDATE scenario_runs
+        SET metadata = COALESCE(metadata, '{}'::jsonb) || ${sql.json({
+          browser_session_status: 'stopped',
+          browser_session_stopped_at: canceledAt,
+        })}
+        WHERE id = ${id}
+      `;
+    }
+  }
+
+  await refreshTestRunCounts(String(row.test_run_id));
+  await emitEvent(row.test_run_id, 'scenario_run_canceled', {
+    scenario_run_id: id,
+    queued_jobs_canceled: queuedJobsCanceled,
+    browser_sessions_closed: browserSessionsClosed,
+  });
+
+  return c.json({
+    status: 'canceled',
+    scenario_run_id: id,
+    queued_jobs_canceled: queuedJobsCanceled,
+    browser_sessions_closed: browserSessionsClosed,
+  });
+});
+
+app.post('/api/v1/scenario-runs/:id/regrade', async (c) => {
+  const id = c.req.param('id');
+  const result = await regradeScenarioRun(id);
+  if (!result.ok) return c.json({ error: result.error }, result.status as any);
   return c.json(result);
 });
 

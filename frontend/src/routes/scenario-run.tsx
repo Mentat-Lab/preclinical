@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActiveAgent } from '@/lib/active-agent-context';
-import { useScenarioRun, useScenarioRuns, useTestRun } from '@/hooks/use-queries';
+import { queryKeys, useScenarioRun, useScenarioRuns, useTestRun } from '@/hooks/use-queries';
 import { useRealtimeRun } from '@/lib/sse';
 import { cn } from '@/lib/utils';
-import { createTestRun } from '@/lib/api';
+import { cancelScenarioRun, createTestRun, regradeScenarioRun } from '@/lib/api';
 import type { CriteriaResult, ScenarioRunResult, StepTiming, TranscriptEntry } from '@/lib/types';
 import {
   ArrowLeft,
@@ -16,6 +17,7 @@ import {
   Download,
   Loader2,
   RotateCw,
+  Square,
 } from 'lucide-react';
 
 function parseJsonField<T>(val: unknown): T[] {
@@ -199,8 +201,10 @@ export default function ScenarioRunPage() {
   const [debugOpen, setDebugOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [rerunning, setRerunning] = useState(false);
+  const [regrading, setRegrading] = useState(false);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { id: testRunId, scenarioRunId } = useParams<{ id: string; scenarioRunId: string }>();
   const resolvedTestRunId = testRunId || '';
@@ -214,6 +218,28 @@ export default function ScenarioRunPage() {
   useRealtimeRun(testRunId, scenarioRunId);
 
   const isLive = result?.status === 'running' || result?.status === 'grading';
+  const canCancel = result?.status === 'pending' || result?.status === 'running' || result?.status === 'grading';
+
+  const cancelMutation = useMutation({
+    mutationFn: () => cancelScenarioRun(resolvedScenarioRunId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.scenarioRun(resolvedScenarioRunId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.scenarioRuns(resolvedTestRunId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.testRun(resolvedTestRunId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.testRuns() });
+    },
+  });
+
+  const regradeMutation = useMutation({
+    mutationFn: () => regradeScenarioRun(resolvedScenarioRunId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.scenarioRun(resolvedScenarioRunId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.scenarioRuns(resolvedTestRunId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.testRun(resolvedTestRunId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.testRuns() });
+    },
+    onSettled: () => setRegrading(false),
+  });
 
   // Auto-expand transcript while running, grading when done
   useEffect(() => {
@@ -329,6 +355,11 @@ export default function ScenarioRunPage() {
     }
   };
 
+  const handleRegrade = () => {
+    setRegrading(true);
+    regradeMutation.mutate();
+  };
+
   const testRunLabel = testRunData?.run?.test_run_id || resolvedTestRunId;
 
   return (
@@ -378,16 +409,47 @@ export default function ScenarioRunPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            {canRerun && (
+            {canCancel && (
               <button
                 type="button"
-                onClick={handleRerun}
-                disabled={rerunning}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-text-primary hover:bg-muted disabled:opacity-50"
+                onClick={() => {
+                  if (window.confirm('Cancel this scenario run? Its queue job and browser session will be stopped.')) {
+                    cancelMutation.mutate();
+                  }
+                }}
+                disabled={cancelMutation.isPending}
+                className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/50 px-3 py-1.5 text-sm text-amber-600 hover:bg-amber-500/5 disabled:opacity-50"
               >
-                <RotateCw className={cn('h-3.5 w-3.5', rerunning && 'animate-spin')} />
-                {rerunning ? 'Starting...' : 'Rerun'}
+                {cancelMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}
+                Cancel
               </button>
+            )}
+            {canRerun && (
+              <details className="relative">
+                <summary className="list-none inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-text-primary hover:bg-muted">
+                  <RotateCw className={cn('h-3.5 w-3.5', (rerunning || regrading) && 'animate-spin')} />
+                  Rerun
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </summary>
+                <div className="absolute right-0 z-20 mt-2 w-40 rounded-lg border border-border bg-card p-1 shadow-lg">
+                  <button
+                    type="button"
+                    className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50"
+                    disabled={rerunning}
+                    onClick={handleRerun}
+                  >
+                    Rerun scenario
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted disabled:opacity-50"
+                    disabled={regrading}
+                    onClick={handleRegrade}
+                  >
+                    Rerun grader
+                  </button>
+                </div>
+              </details>
             )}
             <span className="text-sm text-text-secondary">
               {navigation.currentIndex + 1} of {navigation.totalCount || 1}

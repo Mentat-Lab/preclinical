@@ -32,6 +32,12 @@ function pushTiming(
   state.stepTimings.push(timing);
 }
 
+function isNonClinicalOverlay(text: string): boolean {
+  return /unlock personalized health insights/i.test(text)
+    || /subscribe to connect your wearables/i.test(text)
+    || /view plans\s*&\s*subscribe/i.test(text);
+}
+
 const browserProvider: Provider = {
   name: 'browser',
 
@@ -130,7 +136,9 @@ const browserProvider: Provider = {
 
     let botResponse = result.bot_response || '';
     if (!botResponse) throw new Error('Browser Use Cloud task returned empty bot response');
-    if (result.overlay_text) botResponse = `${botResponse}\n\n[Alert: ${result.overlay_text}]`;
+    if (result.overlay_text && !isNonClinicalOverlay(result.overlay_text)) {
+      botResponse = `${botResponse}\n\n[Alert: ${result.overlay_text}]`;
+    }
 
     return botResponse;
   },

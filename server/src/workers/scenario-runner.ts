@@ -137,8 +137,11 @@ export async function handleScenarioJob(data: ScenarioJobData): Promise<void> {
         validationFeedback: null,
         stepTimings: [],
         triageSent: false,
+        forcedTriageActive: false,
+        forcedTriageRetryCount: 0,
+        forcedTriageRetryPending: false,
         error: null,
-      });
+      }, { recursionLimit: 100 });
 
       testerGraphMs = Date.now() - testerGraphStart;
     } finally {

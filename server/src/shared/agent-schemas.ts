@@ -90,6 +90,15 @@ export const TriageDetectionSchema = z.object({
   confidence: z.enum(["clear", "implied", "none"]).describe(
     "clear = explicit recommendation, implied = strong suggestion without direct statement, none = no recommendation"
   ),
+  is_current_actionable_disposition: z.boolean().describe(
+    "True only if the response gives a current care-seeking action for what the patient should do now"
+  ),
+  should_stop_for_recommendation: z.boolean().describe(
+    "True only when the benchmark should stop because the response contains an unmistakable current disposition"
+  ),
+  stop_reason: z.string().describe(
+    "Concise reason for the stop decision. Empty string when should_stop_for_recommendation is false."
+  ),
 });
 
 export type TriageDetection = z.infer<typeof TriageDetectionSchema>;
@@ -135,7 +144,7 @@ export const PatientValidationSchema = z.object({
 export type PatientValidation = z.infer<typeof PatientValidationSchema>;
 
 export const TriageExtractionSchema = z.object({
-  extracted_triage: z.enum(["Emergency evaluation", "Clinician evaluation", "Home management"]).describe(
+  extracted_triage: z.enum(["Emergency evaluation", "Clinician evaluation", "Home management", "No clear recommendation"]).describe(
     "Extracted triage recommendation from the agent"
   ),
   evidence: z.string().describe("Brief quote or description supporting the classification"),

@@ -1,3 +1,13 @@
+const earlyTriageStopModes = ['off', 'shadow', 'enforce'] as const;
+type EarlyTriageStopMode = typeof earlyTriageStopModes[number];
+
+function earlyTriageStopMode(): EarlyTriageStopMode {
+  const value = process.env.EARLY_TRIAGE_STOP_MODE || 'off';
+  return earlyTriageStopModes.includes(value as EarlyTriageStopMode)
+    ? value as EarlyTriageStopMode
+    : 'off';
+}
+
 export const config = {
   port: parseInt(process.env.PORT || '8000', 10),
   databaseUrl: process.env.DATABASE_URL || 'postgres://postgres:preclinical@localhost:5432/preclinical',
@@ -6,7 +16,7 @@ export const config = {
   openaiApiKey: process.env.OPENAI_API_KEY || '',
   openaiBaseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
-  testerModel: process.env.TESTER_MODEL || 'gpt-4o-mini',
+  testerModel: process.env.TESTER_MODEL || 'gpt-5.4',
   testerTemperature: parseFloat(process.env.TESTER_TEMPERATURE || '0'),
   graderModel: process.env.GRADER_MODEL || 'gpt-4o-mini',
   graderTemperature: parseFloat(process.env.GRADER_TEMPERATURE || '0.1'),
@@ -21,6 +31,7 @@ export const config = {
   defaultMaxTurns: parseInt(process.env.DEFAULT_MAX_TURNS || '11', 10),
   minMaxTurns: parseInt(process.env.MIN_MAX_TURNS || '5', 10),
   maxMaxTurns: parseInt(process.env.MAX_MAX_TURNS || '15', 10),
+  forcedTriageMaxRetries: parseInt(process.env.FORCED_TRIAGE_MAX_RETRIES || '2', 10),
 
   // Graph timeouts (ms)
   planningTimeoutMs: parseInt(process.env.PLANNING_TIMEOUT_MS || '60000', 10),
@@ -30,11 +41,12 @@ export const config = {
 
   // Per-turn intent analysis (benchmark mode)
   enableTurnIntents: process.env.ENABLE_TURN_INTENTS !== 'false',
-  turnIntentModel: process.env.TURN_INTENT_MODEL || 'gpt-4o-mini',
+  turnIntentModel: process.env.TURN_INTENT_MODEL || 'gpt-5.4',
+  earlyTriageStopMode: earlyTriageStopMode(),
 
   // Response validation (detect error pages vs genuine responses)
   enableResponseValidation: process.env.ENABLE_RESPONSE_VALIDATION !== 'false',
-  responseValidationModel: process.env.RESPONSE_VALIDATION_MODEL || 'gpt-4.1-mini',
+  responseValidationModel: process.env.RESPONSE_VALIDATION_MODEL || 'gpt-5.4',
   responseValidationRetries: parseInt(process.env.RESPONSE_VALIDATION_RETRIES || '2', 10),
 
   // Patient response validation (hallucination / volunteering guard)

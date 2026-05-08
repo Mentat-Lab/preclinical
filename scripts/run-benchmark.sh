@@ -6,11 +6,13 @@
 #   ./scripts/run-benchmark.sh                         # all 60 scenarios, all targets if within browser session limit
 #   ./scripts/run-benchmark.sh --sample                 # 6 sample scenarios (1,2,21,22,41,42)
 #   ./scripts/run-benchmark.sh --scenarios ID1,ID2,...   # specific scenario UUIDs
+#   ./scripts/run-benchmark.sh --cases TB-038,TB-039      # specific TriageBench case numbers
 #   ./scripts/run-benchmark.sh --targets category1      # API model targets
 #   ./scripts/run-benchmark.sh --targets category2      # ChatGPT, Claude AI, Gemini web
 #   ./scripts/run-benchmark.sh --targets category3      # PranaDoc, Doctronic, One Medical
 #   ./scripts/run-benchmark.sh --targets api            # alias for category1
 #   ./scripts/run-benchmark.sh --targets browser        # all browser targets
+#   ./scripts/run-benchmark.sh --agent-name PranaDoc    # exact agent name within the selected target filter
 #   ./scripts/run-benchmark.sh --grading intent         # intent-based grading (default)
 #   ./scripts/run-benchmark.sh --grading descriptive    # full rubric grading
 #   ./scripts/run-benchmark.sh --concurrency 3          # parallel scenarios per run (default: 3)
@@ -34,6 +36,8 @@ GRADING_MODE="intent"
 TARGET_FILTER="all"
 SCENARIO_MODE="all"
 CUSTOM_SCENARIOS=""
+CUSTOM_CASES=""
+AGENT_NAME_FILTER=""
 CONCURRENCY=3
 BROWSER_TARGET_PARALLELISM="${BROWSER_TARGET_PARALLELISM:-3}"
 MAX_TURNS=11
@@ -49,7 +53,9 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --sample)       SCENARIO_MODE="sample"; shift ;;
     --scenarios)    SCENARIO_MODE="custom"; CUSTOM_SCENARIOS="$2"; shift 2 ;;
+    --cases)        SCENARIO_MODE="cases"; CUSTOM_CASES="$2"; shift 2 ;;
     --targets)      TARGET_FILTER="$2"; shift 2 ;;
+    --agent-name)   AGENT_NAME_FILTER="$2"; shift 2 ;;
     --grading)      GRADING_MODE="$2"; shift 2 ;;
     --concurrency)  CONCURRENCY="$2"; shift 2 ;;
     --browser-target-parallelism) BROWSER_TARGET_PARALLELISM="$2"; shift 2 ;;
@@ -89,9 +95,13 @@ case "$TARGET_FILTER" in
   *)       echo "Invalid --targets: $TARGET_FILTER (use category1, category2, category3, api, browser, or all)"; exit 1 ;;
 esac
 
+if [[ -n "$AGENT_NAME_FILTER" ]]; then
+  AGENTS=$(echo "$AGENTS" | jq -c --arg name "$AGENT_NAME_FILTER" '[.[] | select(.name == $name)]')
+fi
+
 AGENT_COUNT=$(echo "$AGENTS" | jq 'length')
 if [[ "$AGENT_COUNT" -eq 0 ]]; then
-  echo "No agents found for filter: $TARGET_FILTER"
+  echo "No agents found for filter: $TARGET_FILTER${AGENT_NAME_FILTER:+ and agent name: $AGENT_NAME_FILTER}"
   exit 1
 fi
 
@@ -137,6 +147,26 @@ case "$SCENARIO_MODE" in
     IDS_JSON=$(echo "$CUSTOM_SCENARIOS" | tr ',' '\n' | jq -R . | jq -sc .)
     SCENARIO_PAYLOAD="\"scenario_ids\":$IDS_JSON"
     echo "Scenarios: $(echo "$IDS_JSON" | jq 'length') custom"
+    ;;
+  cases)
+    SCENARIOS_JSON=$(curl -sf "$API_BASE/api/v1/scenarios")
+    IDS_JSON="[]"
+    while IFS= read -r RAW_CASE; do
+      CASE_NUM=$(echo "$RAW_CASE" | tr -d '[:space:]' | sed -E 's/^[Tt][Bb]-?//' | sed -E 's/^0*([0-9]+)$/\1/')
+      if [[ -z "$CASE_NUM" ]]; then
+        echo "Invalid case: $RAW_CASE"
+        exit 1
+      fi
+      PREFIX=$(printf "TB-%03d:" "$CASE_NUM")
+      SCENARIO_ID=$(echo "$SCENARIOS_JSON" | jq -r --arg prefix "$PREFIX" '.scenarios[] | select(.name | startswith($prefix)) | .scenario_id' | head -1)
+      if [[ -z "$SCENARIO_ID" || "$SCENARIO_ID" == "null" ]]; then
+        echo "No scenario found for case $RAW_CASE ($PREFIX)"
+        exit 1
+      fi
+      IDS_JSON=$(echo "$IDS_JSON" | jq -c --arg id "$SCENARIO_ID" '. + [$id]')
+    done < <(echo "$CUSTOM_CASES" | tr ',' '\n')
+    SCENARIO_PAYLOAD="\"scenario_ids\":$IDS_JSON"
+    echo "Scenarios: $(echo "$IDS_JSON" | jq 'length') TriageBench cases ($CUSTOM_CASES)"
     ;;
   all)
     SCENARIO_PAYLOAD="\"max_scenarios\":60"
@@ -334,13 +364,14 @@ for i in "${!RUN_IDS[@]}"; do
 
   echo ""
   echo "  Confusion Matrix (rows=reference, cols=predicted):"
-  printf "  %-24s  %8s  %8s  %8s\n" "" "Emerg" "Clinic" "Home"
+  printf "  %-24s  %8s  %8s  %8s  %8s\n" "" "Emerg" "Clinic" "Home" "NoClear"
   for REF in "Emergency evaluation" "Clinician evaluation" "Home management"; do
     SHORT=$(echo "$REF" | cut -d' ' -f1)
     E=$(echo "$ANALYSIS" | jq -r ".confusion_matrix.matrix[\"$REF\"][\"Emergency evaluation\"]")
     C=$(echo "$ANALYSIS" | jq -r ".confusion_matrix.matrix[\"$REF\"][\"Clinician evaluation\"]")
     H=$(echo "$ANALYSIS" | jq -r ".confusion_matrix.matrix[\"$REF\"][\"Home management\"]")
-    printf "  %-24s  %8s  %8s  %8s\n" "$SHORT" "$E" "$C" "$H"
+    N=$(echo "$ANALYSIS" | jq -r ".confusion_matrix.matrix[\"$REF\"][\"No clear recommendation\"]")
+    printf "  %-24s  %8s  %8s  %8s  %8s\n" "$SHORT" "$E" "$C" "$H" "$N"
   done
 
   echo ""

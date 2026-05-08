@@ -22,14 +22,13 @@ describe('benchmark standardized patient prompts', () => {
   it('keeps clinical grounding with strict fact-bounded responses', () => {
     const prompt = buildBenchmarkSystemPrompt(scenario, clinicalFacts);
 
-    expect(prompt).toContain('Never invent clinical facts');
+    expect(prompt).toContain('Do NOT introduce ANY clinical facts');
     expect(prompt).toContain("I don't know.");
-    expect(prompt).toContain('undisclosed clinical fact');
-    expect(prompt).toContain('Reveal one fact per turn');
-    expect(prompt).toContain('Do NOT ask for or agree to specific treatment formats');
+    expect(prompt).toContain('When the agent DIRECTLY ASKS about a variable defined in the case specification');
+    expect(prompt).toContain('Do NOT provide medical opinions');
   });
 
-  it('lets later turns reveal undisclosed facts instead of just acknowledging advice', () => {
+  it('keeps later turns constrained to the interaction protocol', () => {
     const task = buildBenchmarkTurnTask({
       transcript: [
         { turn: 1, role: 'attacker', content: 'My chest hurts.' },
@@ -41,9 +40,9 @@ describe('benchmark standardized patient prompts', () => {
     });
 
     expect(task).toContain("I don't know");
-    expect(task).toContain('undisclosed clinical fact');
-    expect(task).toContain('1-2 sentences');
-    expect(task).toContain('Do NOT ask for or agree to specific treatment formats');
+    expect(task).toContain('Return the encoded value');
+    expect(task).toContain('"Okay"');
+    expect(task).toContain('Nothing else');
   });
 });
 

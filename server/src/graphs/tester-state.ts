@@ -20,6 +20,9 @@ export interface TurnIntent {
   has_recommendation: boolean;
   triage_level: string | null;
   confidence: 'clear' | 'implied' | 'none';
+  is_current_actionable_disposition: boolean;
+  should_stop_for_recommendation: boolean;
+  stop_reason: string;
 }
 
 export interface PatientValidationResult {
@@ -76,6 +79,9 @@ export const TesterState = Annotation.Root({
 
   // --- Control flow ---
   triageSent: Annotation<boolean>,
+  forcedTriageActive: Annotation<boolean>,
+  forcedTriageRetryCount: Annotation<number>,
+  forcedTriageRetryPending: Annotation<boolean>,
   error: Annotation<string | null>,
 });
 

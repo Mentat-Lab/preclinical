@@ -10,7 +10,7 @@ const targetsRegistryPath = path.join(repoRoot, 'target-agents/registry.json');
 
 function readProviderNamesFromRegistry(): string[] {
   const content = readFileSync(providersIndexPath, 'utf8');
-  const matches = [...content.matchAll(/import '\.\/([a-z0-9-]+)\.js';/g)];
+  const matches = [...content.matchAll(/import '\.\/(?:[a-z0-9-]+\/)*([a-z0-9-]+)\.js';/g)];
   return matches.map((m) => m[1]);
 }
 

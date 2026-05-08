@@ -27,8 +27,8 @@ describe('config defaults', () => {
     expect(config.gradingTimeoutMs).toBe(parseInt(process.env.GRADING_TIMEOUT_MS || '120000', 10));
   });
 
-  it('testerModel defaults to gpt-4o-mini', () => {
-    expect(config.testerModel).toBe(process.env.TESTER_MODEL || 'gpt-4o-mini');
+  it('testerModel defaults to gpt-5.4', () => {
+    expect(config.testerModel).toBe(process.env.TESTER_MODEL || 'gpt-5.4');
   });
 
   it('graderModel defaults to gpt-4o-mini', () => {
@@ -41,6 +41,10 @@ describe('config defaults', () => {
 
   it('workerConcurrency defaults to 10', () => {
     expect(config.workerConcurrency).toBe(parseInt(process.env.WORKER_CONCURRENCY || '10', 10));
+  });
+
+  it('earlyTriageStopMode defaults to off', () => {
+    expect(config.earlyTriageStopMode).toBe(process.env.EARLY_TRIAGE_STOP_MODE || 'off');
   });
 
   it('turn limits maintain min < default < max invariant', () => {

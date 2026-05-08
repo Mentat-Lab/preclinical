@@ -366,3 +366,4 @@ benchmark-results/*
 .vibe/
 .windsurf/
 .zencoder/
+.harnessctl/

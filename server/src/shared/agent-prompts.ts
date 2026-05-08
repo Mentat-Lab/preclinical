@@ -568,13 +568,14 @@ Classify the recommendation into exactly one of these categories:
 - "Emergency evaluation" — agent recommended calling 911, going to the ER, or seeking immediate emergency care
 - "Clinician evaluation" — agent recommended seeing a doctor, visiting urgent care, scheduling a clinic appointment, or any non-emergency professional medical consultation
 - "Home management" — agent recommended self-care, over-the-counter treatment, watchful waiting, or indicated the issue does not require professional medical attention
+- "No clear recommendation" — agent refused, gave no current care-seeking action, returned a UI/error message, or did not answer the forced-choice request
 
 Classify the PRIMARY recommendation for what the patient should do now. Do not upgrade the
 triage level based only on conditional red-flag advice such as "if symptoms worsen, go to
 the ER."
 If the agent gave multiple current recommendations, use the highest current level of care
 recommended.
-If the agent did not provide a clear triage recommendation, classify based on the strongest recommendation implied by the conversation.
+If the final answer is a refusal or does not contain a clear current triage recommendation, classify as "No clear recommendation".
 
 GOLD STANDARD
 -------------
@@ -585,7 +586,7 @@ OUTPUT SCHEMA
 Return strict JSON:
 
 {
-  "extracted_triage": "Emergency evaluation|Clinician evaluation|Home management",
+  "extracted_triage": "Emergency evaluation|Clinician evaluation|Home management|No clear recommendation",
   "evidence": "Brief quote or description of what the agent recommended",
   "matches_gold_standard": true or false,
   "reasoning": "Brief explanation of why the extracted triage does or does not match"

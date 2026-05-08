@@ -32,6 +32,7 @@ For browser-based runs, you also need `BROWSER_USE_API_KEY`.
 | `DEFAULT_MAX_TURNS` | `11` | Default number of conversation turns per scenario |
 | `MIN_MAX_TURNS` | `5` | Minimum allowed value for max_turns |
 | `MAX_MAX_TURNS` | `15` | Maximum allowed value for max_turns |
+| `EARLY_TRIAGE_STOP_MODE` | `off` | Benchmark early-stop mode: `off`, `shadow`, or `enforce`. Shadow records where a clear triage disposition would have stopped without changing run behavior. |
 
 ## Provider Keys
 
