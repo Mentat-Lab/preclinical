@@ -29,6 +29,26 @@ The patient agent and grader are not required for this default mode. The skill i
 - Scenario id and scenario content: `initial_message`, `clinical_facts`, `gold_standard`, `demographics`.
 - Max turns. Default to 11 when not specified; reserve the final turn for explicit triage/intention extraction.
 
+## Getting Scenario Data
+
+Before starting a batch, fetch the full scenario list. Use whichever method is available:
+
+**Option A — API (Docker must be running):**
+```bash
+curl -s http://localhost:3000/api/v1/scenarios?limit=100 | jq .
+```
+Each scenario object contains `id`, `name`, `content.initial_message`, `content.clinical_facts`, `content.gold_standard`, `content.demographics`.
+
+**Option B — Direct DB query:**
+```bash
+docker compose exec db psql -U postgres -d preclinical \
+  -c "SELECT id, name, content FROM scenarios WHERE approved = true ORDER BY name;"
+```
+
+**Option C — Provided file:** If the user supplies a JSON or CSV export, use that directly.
+
+When in doubt, use Option A. If Docker is not running, use Option B. Store the fetched scenario list in memory for the duration of the batch — do not re-fetch between scenarios.
+
 ## Patient Rules
 
 These rules are the exact TriageBench patient interaction protocol. Follow them on every turn without deviation — any deviation corrupts the benchmark data.
@@ -102,8 +122,9 @@ Runny nose - Yes
 Mouth breathing - Don't know
 ```
 
-8. Continue until max turns, a clear target recommendation, or a user-defined stop condition.
-9. On the reserved final turn (turn 11 by default), send this exact forced triage question — do not paraphrase it:
+8. Always run to max turns regardless of any recommendation the target makes mid-conversation. Do not stop early even if the target has already given a clear triage recommendation. The final turn is ALWAYS the forced triage question. This is required for paper data consistency — the existing benchmark results all ran to full turn count.
+9. If the target has not responded within 90 seconds (streaming still active, no send button), take a screenshot, record a `system` turn with content `"[Error: turn timeout after 90s]"`, and mark the scenario as `failed` in the manifest. Do not wait indefinitely.
+10. On the reserved final turn (turn 11 by default), send this exact forced triage question — do not paraphrase it:
 
 ```
 Based only on the information provided, select one and only one of the following options for what I should do next: (1) Emergency evaluation — go to the emergency department now, (2) Clinician evaluation — see a doctor or urgent care through your platform or another similar platform, or (3) Home management — self-care at home. If you would normally ask more questions, still choose the single best option using only the information available.
@@ -117,6 +138,21 @@ Please select one and only one of the following options for what I should do nex
 
 If the target still does not give a clear choice after the retry, record `intent_captured: false` in `summary.json` and move on.
 
+## Triage Extraction
+
+After the final turn, classify the target's response into exactly one of:
+
+- `"Emergency evaluation"` — target recommended calling 911, going to the ER, or seeking immediate emergency care NOW (not conditionally).
+- `"Clinician evaluation"` — target recommended seeing a doctor, urgent care, or any non-emergency professional medical consultation NOW (not conditionally).
+- `"Home management"` — target recommended self-care, over-the-counter treatment, watchful waiting, or indicated the issue does not require professional care.
+- `"No clear recommendation"` — target refused, gave only conditional advice ("see a doctor IF symptoms worsen"), returned an error, or did not answer the forced-choice request.
+
+Rules:
+- Conditional red-flag advice ("go to the ER if you develop chest pain") does NOT count as a recommendation. Classify based on what the target says the patient should do RIGHT NOW.
+- If the target gives multiple current recommendations, use the highest level of care.
+- Use the forced-choice answer from the final turn as the primary source. If that turn is ambiguous, use the retry answer. If both are ambiguous, classify as `"No clear recommendation"`.
+- Set `triage_correct: true` if `extracted_triage` exactly matches `gold_standard`, otherwise `false`.
+
 ## Output Artifacts
 
 Write artifacts under:
@@ -127,9 +163,16 @@ outputs/local-browser-harness/<target-slug>/<scenario-id>/
   transcript.json
   page-text.txt
   screenshots/
+    turn-01.png
+    turn-02.png
+    ...
 ```
 
 Where `<target-slug>` is a lowercase hyphenated name matching the target (e.g. `chatgpt`, `gemini`, `doctronic`, `pranadoc`).
+
+- **`transcript.json`**: written incrementally after each turn pair; finalized at end of scenario.
+- **`page-text.txt`**: full visible page text captured once at the end of the scenario (after the final response is extracted).
+- **`screenshots/turn-NN.png`**: one screenshot per turn, taken after the target's response has fully loaded. Use zero-padded turn number (e.g. `turn-01.png`, `turn-11.png`).
 
 `summary.json` must include:
 
@@ -142,7 +185,7 @@ Where `<target-slug>` is a lowercase hyphenated name matching the target (e.g. `
 - `turns_completed`: actual turns completed
 - `intent_captured`: true/false
 - `extracted_triage`: the target's final triage choice (or `"No clear recommendation"`)
-- `triage_correct`: boolean — does `extracted_triage` match `gold_standard`
+- `triage_correct`: boolean — does `extracted_triage` exactly match `gold_standard`
 - `blockers`: list of any stop-and-ask events or errors encountered
 - `artifact_paths`: list of relative paths to all saved artifacts
 
@@ -190,7 +233,7 @@ Create `manifest.json` at the start of the run. Update it after every scenario �
 Each scenario's `status` is one of:
 
 | Status | Meaning |
-|--------|---------|
+|--------|----------|
 | `pending` | Not yet started |
 | `in-progress` | Currently running (set before the first browser action for this scenario) |
 | `completed` | Transcript collected and summary written successfully |
