@@ -289,6 +289,7 @@ skills-lock.json
 
 # Playwright/test output
 output/
+outputs/
 preclinical-skills/
 
 # Cursor
