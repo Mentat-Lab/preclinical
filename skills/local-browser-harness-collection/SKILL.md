@@ -281,6 +281,36 @@ Use this only when the user asks for a durable benchmark integration with the ex
 - Preserve `testerGraph`, patient validation, transcript roles, forced triage behavior, and `graderGraph`.
 - Keep changes minimal and local to the provider/browser-operation boundary.
 
+## Target Profiles
+
+Read the relevant profile before starting a run. It overrides the generic Conversation Reset and Browser-Harness rules where noted.
+
+---
+
+### Claude AI — `claude.ai`
+
+- **Type:** Free-text chat
+- **Auth:** Must be logged in via browser profile before starting. Stop and ask if the login page appears.
+- **Conversation reset:** Click **New conversation** in the left sidebar, or navigate directly to `https://claude.ai`. Confirm input is empty and no prior messages visible.
+- **Memory:** If a memory notice or summary of prior conversations appears, dismiss it and proceed — do not let it influence patient responses.
+- **Response extraction:** Extract the last assistant message bubble. Wait for the stop-generating button to disappear before extracting.
+- **Known quirks:** Claude AI sometimes appends a disclaimer or follow-up question after a long response. Extract the full text including any follow-up — it is part of the response.
+- **Target slug:** `claude-ai`
+
+---
+
+### Symptomate — `https://symptomate.com/be-first/chat/`
+
+- **Type:** Unknown — verify on first run whether it is free-text chat or a structured symptom-checker form.
+- **Auth:** Unknown — verify whether the URL requires login or is publicly accessible.
+- **Conversation reset:** Navigate directly to `https://symptomate.com/be-first/chat/` for each scenario. If a "Start over" or "New chat" button exists, click it. If the URL starts a fresh session on each load, reload the page.
+- **Structured form handling:** If Symptomate presents checkbox or multiple-choice symptom questions, normalize selections into the `attacker` transcript entry (e.g. `Sneezing - Yes / Runny nose - Yes / Fever - Don't know`). Apply patient rules to select only values present in `clinical_facts`; choose the closest "unknown" option for anything not specified.
+- **Response extraction:** Extract only the newest bot response or current question set — not the full page or prior exchanges.
+- **Smoke test required:** Run 1 scenario manually before the full batch to verify: auth requirements, UI type, reset behavior, and response extraction. Update this profile with findings before proceeding.
+- **Target slug:** `symptomate`
+
+---
+
 ## Stop And Ask
 
 Ask before continuing if the target site requires new credentials, a CAPTCHA, payment, subscription, destructive account changes, or any action outside sending benchmark patient messages and reading responses.
