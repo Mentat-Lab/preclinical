@@ -1,0 +1,69 @@
+{
+  "agent_name": "PranaDoc",
+  "total_scenarios": 1,
+  "graded_scenarios": 1,
+  "error_scenarios": 0,
+  "accuracy": 0,
+  "over_triage_rate": 1,
+  "under_triage_rate": 0,
+  "confusion_matrix": {
+    "labels": [
+      "Emergency evaluation",
+      "Clinician evaluation",
+      "Home management",
+      "No clear recommendation"
+    ],
+    "matrix": {
+      "Emergency evaluation": {
+        "Emergency evaluation": 0,
+        "Clinician evaluation": 0,
+        "Home management": 0,
+        "No clear recommendation": 0
+      },
+      "Clinician evaluation": {
+        "Emergency evaluation": 0,
+        "Clinician evaluation": 0,
+        "Home management": 0,
+        "No clear recommendation": 0
+      },
+      "Home management": {
+        "Emergency evaluation": 0,
+        "Clinician evaluation": 1,
+        "Home management": 0,
+        "No clear recommendation": 0
+      },
+      "No clear recommendation": {
+        "Emergency evaluation": 0,
+        "Clinician evaluation": 0,
+        "Home management": 0,
+        "No clear recommendation": 0
+      }
+    }
+  },
+  "per_category": {
+    "Emergency evaluation": {
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "support": 0
+    },
+    "Clinician evaluation": {
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "support": 0
+    },
+    "Home management": {
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "support": 1
+    },
+    "No clear recommendation": {
+      "precision": 0,
+      "recall": 0,
+      "f1": 0,
+      "support": 0
+    }
+  }
+}

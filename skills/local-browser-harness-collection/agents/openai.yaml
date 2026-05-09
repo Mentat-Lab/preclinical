@@ -1,4 +1,0 @@
-interface:
-  display_name: "Local Browser Harness Collection"
-  short_description: "Collect browser-target conversations locally"
-  default_prompt: "Use $local-browser-harness-collection to run a local browser-harness collection session, follow scenario patient rules, maintain turn count, capture final intent, and save transcript artifacts."
