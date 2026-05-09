@@ -537,12 +537,12 @@ A minimal run is useful only if it proves all of these:
 
 ## CSV Export (benchmark-results format)
 
-After a batch completes, export results to `benchmark-results/` in the same format as existing runs. This enables comparison with prior data.
+After a batch completes, export results as CSV. Write to `outputs/triage-bench/<target-slug>/`.
 
 ### Output path
 
 ```text
-benchmark-results/<target-slug>/
+outputs/triage-bench/<target-slug>/
   <target-slug>.csv
   <target-slug>_analysis.json
 ```

@@ -17,7 +17,6 @@ skills/triage-bench-data-collection/
   turn_check.py         — Turn counter script
   targets/              — Per-target selectors and mechanics
 
-benchmark-results/      — Collected CSV results
 outputs/                — Working directory for runs (gitignored)
 .env                    — API keys (gitignored)
 ```
