@@ -9,7 +9,7 @@
 
 ## Conversation Reset
 
-Click **New chat** in the left sidebar, or navigate directly to `https://claude.ai`. Confirm input is empty and no prior messages visible.
+Open a new tab to `https://claude.ai/new`. Confirm input is empty and no prior messages visible.
 
 If a memory notice or summary of prior conversations appears, dismiss it — do not let it influence patient responses.
 

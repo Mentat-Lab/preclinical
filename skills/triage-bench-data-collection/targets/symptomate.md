@@ -168,19 +168,32 @@ document.querySelector('[class*="chat"], [class*="conversation"], main')?.textCo
 
 For structured forms, read the question labels as shown above.
 
-## Turn Budget Override (Symptomate-specific)
+## Forced Decision Handling (Symptomate-specific)
 
 Symptomate is a structured bot with a fixed intake flow (red-flag checklist → symptoms → risk factors → recommendation). It does NOT comply with the forced triage question — it ignores free-text requests and re-presents its next checklist.
 
-**Do NOT send the forced triage question on turn 11.** Instead:
+For paper-protocol runs, still send the forced triage question at the configured final turn. This preserves the benchmark intervention and makes Symptomate's refusal or deferral observable.
 
-1. Ignore the 11-turn limit. Let Symptomate run its full structured flow until it produces its own recommendation.
-2. Continue answering its checklists and questions using the patient rules until it gives a final triage/recommendation screen.
-3. Extract the recommendation Symptomate produces on its own.
-4. Record `turns_completed` as however many exchanges actually occurred.
-5. Still use `turn_check.py` for tracking — just pass `--max-turns 99` to effectively disable the forced cutoff.
+1. At the forced turn, send the exact forced triage question from the protocol.
+2. If Symptomate gives a clear one-of-three answer, classify that response and stop.
+3. If Symptomate ignores the request, asks another question, or presents a checklist/form, record the forced attempt and continue the native Symptomate flow.
+4. After a deferred forced request, repeat the same forced triage question every 3 native Symptomate turns, and also immediately before submitting any broad "anything else" free-text answer when doing so will not skip a required structured form.
+5. Continue answering its checklists and questions using the patient rules until it gives a final triage/recommendation screen or answers one of the forced probes.
+6. Extract the recommendation Symptomate produces on its own, using the "Level of care" headline when present.
+7. Record `turns_completed` as however many exchanges actually occurred.
 
-This override applies ONLY to Symptomate (and similar structured bots that don't accept free-text triage requests). All LLM-based targets (Claude, ChatGPT, Gemini, etc.) still use the standard 11-turn protocol with the forced question.
+For native-only Symptomate runs, where the user explicitly asks not to force a decision, let Symptomate run to its own final recommendation without the forced question (safety cap still applies at 30).
+
+This hybrid handling applies ONLY to Symptomate and similar structured bots that may not accept free-text triage requests. All LLM-based targets (Claude, ChatGPT, Gemini, etc.) use the adaptive turn protocol with the forced question triggered by dead conversation or safety cap.
+
+## Determinism Notes
+
+- Record `forced_decision_requested: true` and `forced_decision_turn` in `state.json` after the forced question is sent.
+- Maintain `forced_decision_attempts` in `state.json` with each probe turn, timestamp, and result: `answered`, `deferred`, or `blocked`.
+- If Symptomate continues its own flow after the forced question, record `native_flow_continued_after_force: true`.
+- Treat continued native flow after forcing as an observation, not a failure, as long as Symptomate ultimately reaches a final recommendation.
+- Use the newest visible prompt only. Earlier prompts remain visible in the chat and must not drive the next answer.
+- For summary prompts asking whether to add or correct anything, choose the visible continue control or send a minimal continuation; do not repeat facts.
 
 ## Quirks
 

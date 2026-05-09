@@ -23,7 +23,9 @@ Thumbs.db
 !.claude/settings.json
 
 # AI tool directories
-.agents/
+.agents/*
+!.agents/skills/
+!.agents/skills/**
 skills-lock.json
 
 # Temp

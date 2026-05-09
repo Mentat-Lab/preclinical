@@ -1,43 +1,29 @@
 ---
 name: triage-bench-data-collection
-description: Collect TriageBench conversations against browser targets or API endpoints. Codex acts as the coordinator, follows the exact TriageBench patient protocol, drives the target (browser or API), maintains turn count, forces final triage intent extraction using the paper-exact wording, and writes transcript/artifacts. Use for smoke tests, local data collection, or prototyping benchmark runs.
+description: Collect TriageBench conversations against browser targets or API endpoints. The agent acts as a standardized patient, drives the target (browser or API), tracks turns adaptively, forces triage intent extraction, and writes transcript/artifacts.
 ---
 
 # TriageBench Data Collection
 
-Use this skill when Codex should run a data collection session against a browser target or an API endpoint.
+Use this skill to run a data collection session against a browser target or an API endpoint.
 
 ## How to Invoke
 
 Say any of:
-- "Run triage-bench collection against Claude AI"
-- "Run triage-bench for GPT-5.4 (API mode)"
-- "Run triage-bench against Symptomate for TB-001 only"
-- "Resume Claude AI collection"
-- "Run all 60 scenarios against gemini-31-pro"
+- "Run triage-bench collection against <target>"
+- "Run triage-bench for <target> (API mode)"
+- "Run triage-bench against <target> for TB-001 only"
+- "Resume <target> collection"
+- "Run all 60 scenarios against <target>"
 
-## Default Mode: Skill-Led Collection
+## How It Works
 
-Codex is the loop controller:
-
-```text
-scenario facts + turn budget
-  -> Codex chooses the next patient reply using the patient rules
-  -> browser-harness operates the target website (Browser Mode)
-     OR POST to /chat/completions (API Mode)
-  -> Codex extracts the newest target response
-  -> Codex records transcript + browser artifacts
-  -> repeat until turn budget or target intent is captured
-  -> force a final triage/intention answer if needed
-```
-
-The patient agent and grader are not required for this default mode. The skill itself enforces patient behavior and produces a collection artifact. Use the existing runner/grader only when the user explicitly wants a benchmark-grade database run or scoring.
+The agent is the loop controller: reads scenario facts, acts as the standardized patient, drives the target (browser-harness or API), tracks turns via `state.json`, forces triage extraction, and writes artifacts. No external runner or grader needed.
 
 ## Required Inputs
 
-- Target name (e.g. `ChatGPT`, `Gemini`, `Doctronic`, `PranaDoc`, `gpt-4o`, `claude-sonnet-4-20250514`) and URL or model identifier.
+- Target name and URL or model identifier. Check `targets/` for existing profiles; if none exists, create one during the run.
 - Scenario id and scenario content: `initial_message`, `clinical_facts`, `gold_standard`, `demographics`.
-- Max turns. Default to 11 when not specified (10 model response turns + 1 forced triage question, per paper protocol).
 
 ## Getting Scenario Data
 
@@ -96,25 +82,15 @@ Spec: "chest pain 7/10; onset 2 days; shortness of breath; sweating; age 55; mal
 - WRONG: "I'm a 55-year-old male with chest pain." (not asked about age/gender)
 - WRONG: "I haven't had a fever." (not asked)
 
-## API Mode (Category 1)
+## API Mode
 
-Use this mode for API-accessible models (OpenAI-compatible endpoints) that do not require a browser. This covers models like GPT-5.4, Claude Opus 4.7, Gemini 3.1 Pro, etc.
+Use this mode for API-accessible models (OpenAI-compatible endpoints) that do not require a browser.
 
 ### Inputs
 
-- **Model name**: the model identifier for the gateway (see target profiles below)
+- **Model name**: the model identifier for the gateway (see `targets/api-models.md` for current list)
 - **Base URL**: the OpenAI-compatible endpoint base (default: `OPENAI_BASE_URL` env var)
 - **API key env var**: default `OPENAI_API_KEY`
-
-### API Target Profiles
-
-| Target | Model ID | Base URL | Slug |
-|--------|----------|----------|------|
-| GPT-5.5 | `openai-main/gpt-5.5` | `$OPENAI_BASE_URL` | `gpt-55` |
-| Claude Opus 4.7 | `bedrock/us.anthropic.claude-opus-4-7` | `$OPENAI_BASE_URL` | `claude-opus-47` |
-| Gemini 3.1 Pro | `flash/gemini-3.1-pro-preview` | `$OPENAI_BASE_URL` | `gemini-31-pro` |
-
-All three use the same gateway. The base URL and API key come from the environment — do not hardcode them.
 
 ### Execution
 
@@ -187,12 +163,7 @@ browser-harness -c 'print(page_info())'
 
 ### Conversation Reset (Required Between Scenarios)
 
-Every scenario MUST start in a completely fresh conversation with no prior context. Before sending the first message of each scenario:
-
-- **ChatGPT (chatgpt.com)**: Click the "New chat" button in the sidebar. Confirm the chat input is empty and the conversation history is gone before typing.
-- **Gemini (gemini.google.com)**: Click "New chat" or navigate to `https://gemini.google.com` directly. Confirm the input field is empty.
-- **Claude AI (claude.ai)**: Click "New conversation" or navigate to `https://claude.ai` directly. Confirm the input field is empty.
-- **Doctronic, PranaDoc, and other health chatbots**: Reload the page at the root/start URL. If the site offers a "Start over" or "New session" button, click it. Confirm no prior messages appear.
+Every scenario MUST start in a completely fresh conversation with no prior context. Open a new tab to the target's start URL (see target profile for the URL). Confirm the input is empty and no prior messages are visible before typing.
 
 Never continue a previous conversation. If any prior message is visible, stop and reset before proceeding.
 
@@ -205,21 +176,27 @@ outputs/triage-bench/<target-slug>/<scenario-id>/
   summary.json
   transcript.json
   page-text.txt
-  screenshots/
-    turn-01.png
-    turn-02.png
-    ...
 ```
 
-Where `<target-slug>` is a lowercase hyphenated name matching the target (e.g. `chatgpt`, `gemini`, `doctronic`, `pranadoc`).
+Where `<target-slug>` is a lowercase hyphenated name for the target (e.g. the filename in `targets/` without `.md`).
 
 - **`transcript.json`**: written incrementally after each turn pair; finalized at end of scenario.
 - **`page-text.txt`**: full visible page text captured once at the end of the scenario (after the final response is extracted).
-- **`screenshots/turn-NN.png`**: one screenshot per turn, taken after the target's response has fully loaded. Use zero-padded turn number (e.g. `turn-01.png`, `turn-11.png`).
+- **Screenshots**: optional — only capture when debugging a visual issue or verifying a tricky UI interaction. Do not capture per-turn screenshots by default.
 
 ## Turn Loop
 
 **CRITICAL: The turn counter lives on disk in `state.json`. Read it BEFORE every send. Write it AFTER every send. This is non-negotiable.**
+
+### Turn Budget: Adaptive, Not Fixed
+
+There is **no fixed turn count**. The conversation runs until one of these triggers fires:
+
+1. **Dead conversation** — target gives 2 consecutive responses without asking a question → send forced triage immediately.
+2. **Safety cap** — turn 30 reached → send forced triage (prevents infinite loops; not expected to hit).
+3. **Target gives explicit triage unprompted** — still send the forced triage question to get the structured answer, but no need to keep asking patient turns.
+
+`turns_used` is recorded as a metric. A target that triages after 8 questions shows different behavior than one that answers on turn 1 — both are valid data.
 
 ### State File (`state.json`)
 
@@ -228,9 +205,9 @@ Located at `outputs/triage-bench/<target-slug>/<scenario-id>/state.json`. Create
 ```json
 {
   "scenario_id": "TB-041",
-  "target": "claude-ai",
-  "max_turns": 11,
+  "target": "<target-slug>",
   "current_turn": 0,
+  "dead_count": 0,
   "phase": "patient",
   "started_at": "<iso>",
   "last_updated_at": "<iso>"
@@ -238,84 +215,30 @@ Located at `outputs/triage-bench/<target-slug>/<scenario-id>/state.json`. Create
 ```
 
 **`phase`** values:
-- `"patient"` — turns 1 through max_turns - 1 (send patient messages)
-- `"forced"` — turn max_turns (send the forced triage question)
+- `"patient"` — active conversation, send patient messages
+- `"forced"` — send the forced triage question
 - `"done"` — scenario complete, do NOT send anything
 
-### Turn Logic (enforced via state file)
-
-Before composing ANY message:
-
-```python
-import json, os
-state_path = f"outputs/triage-bench/{target_slug}/{scenario_id}/state.json"
-state = json.loads(open(state_path).read())
-
-# Increment
-state["current_turn"] += 1
-
-# Decide phase
-if state["current_turn"] >= state["max_turns"]:
-    state["phase"] = "forced"
-elif state["current_turn"] > state["max_turns"]:
-    state["phase"] = "done"
-
-# Write BEFORE sending
-json.dump(state, open(state_path, "w"), indent=2)
-
-# Now act on phase:
-if state["phase"] == "done":
-    # STOP. Do not send anything.
-    pass
-elif state["phase"] == "forced":
-    # Send the forced triage question (see Final Turn below)
-    pass
-else:
-    # Send the next patient message (per patient rules)
-    pass
-```
-
-**If `phase` is `"done"`, STOP IMMEDIATELY. Do not send another message. Do not pass go.**
-
-### Helper Script: `turn_check.py`
-
-A script in this skill directory that manages the state file. Use it instead of manual JSON reads/writes:
-
-```bash
-# Initialize state for a scenario
-python skills/triage-bench-data-collection/turn_check.py claude-ai TB-041 init
-
-# Before EACH message — call this to get the action
-python skills/triage-bench-data-collection/turn_check.py claude-ai TB-041 next
-# Output: SEND_PATIENT (turn 1/11) or SEND_FORCED (turn 11/11) or STOP
-
-# Check where you are without advancing
-python skills/triage-bench-data-collection/turn_check.py claude-ai TB-041 status
-
-# Force done (e.g. after error)
-python skills/triage-bench-data-collection/turn_check.py claude-ai TB-041 done
-```
-
-**Call `next` BEFORE composing each message. Obey its output unconditionally:**
-- `SEND_PATIENT` → compose and send a patient message
-- `SEND_FORCED` → send the forced triage question (exact wording below)
-- `STOP` → do not send anything, scenario is complete
+**`dead_count`** — consecutive target responses with no question. Resets to 0 when target asks something. When it hits 2, phase flips to `"forced"`.
 
 ### Pre-flight
 
-1. Run `turn_check.py <target> <scenario> init` — creates output directory and `state.json`.
+1. Create the output directory and `state.json`.
 2. Confirm the target is on a fresh conversation (browser mode: see Conversation Reset above; API mode: start with empty messages array).
 3. Complete non-clinical entry gates only when they are necessary to start the public test session and do not require real user data (e.g. age/gender intake forms: use demographics from the scenario). Gate interactions do NOT count as turns.
 
 ### Each Turn (phase == "patient")
 
-1. Read `state.json`. Increment `current_turn`. Check phase. Write `state.json`.
-2. **If phase became `"forced"`, go to Final Turn. If `"done"`, STOP.**
-3. Decide the patient message using patient rules (rule 1 for turn 1, rules 2-9 for subsequent turns).
-4. Send the patient message or select structured UI answers.
-5. Wait until the target has finished responding (streaming complete, send button reappears / API response received).
-6. Extract ONLY the newest target response — the last assistant message bubble in the chat (browser) or `choices[0].message.content` (API).
-7. Append transcript entries:
+1. Increment `current_turn` in state. Write state.
+2. Decide the patient message using patient rules (rule 1 for turn 1, rules 2-9 for subsequent turns).
+3. Send the patient message or select structured UI answers.
+4. Wait until the target has finished responding (streaming complete, send button reappears / API response received).
+5. Extract ONLY the newest target response — the last assistant message bubble in the chat (browser) or `choices[0].message.content` (API).
+6. **Check if target asked a question** (contains `?` or question-like phrasing: "tell me", "can you", "do you", "how long", "when did", etc.):
+   - Yes → reset `dead_count` to 0, continue patient turns.
+   - No → increment `dead_count`. If `dead_count >= 2`, set `phase` to `"forced"`.
+7. If `current_turn >= 30`, set `phase` to `"forced"` (safety cap).
+8. Append transcript entries:
 
 ```json
 [
@@ -324,14 +247,15 @@ python skills/triage-bench-data-collection/turn_check.py claude-ai TB-041 done
 ]
 ```
 
-8. If the target presents a structured form (browser mode), normalize the selected options into the `attacker` content:
+9. If the target presents a structured form (browser mode), normalize the selected options into the `attacker` content:
 
 ```text
 Runny nose - Yes
 Mouth breathing - Don't know
 ```
 
-9. If the target has not responded within 90 seconds, record a `system` turn with `"[Error: turn timeout after 90s]"` and mark `failed`. Set `phase: "done"` in state.
+10. If the target has not responded within 90 seconds, record a `system` turn with `"[Error: turn timeout after 90s]"` and mark `failed`. Set `phase: "done"` in state.
+11. **If `phase` is now `"forced"`, go to Final Turn. Otherwise loop back to step 1.**
 
 ### Final Turn (phase == "forced")
 
@@ -355,8 +279,9 @@ Please select one and only one of the following options for what I should do nex
 
 ### Rules
 
-- Always run to `max_turns` regardless of any recommendation the target makes mid-conversation. Do not stop early even if the target has already given a clear triage recommendation. This is required for paper data consistency.
-- Turns 1 through `max_turns - 1` are patient messages. Turn `max_turns` is ALWAYS the forced question.
+- Let the target drive the conversation. If it's asking questions, keep answering.
+- If the target stops asking questions for 2 consecutive turns (dead conversation), skip to the forced triage question immediately.
+- Do not stop early just because the target gave a triage recommendation mid-conversation — still send the forced question to capture a structured answer.
 - The retry on the final turn does NOT count as a new turn — it's part of the final turn's extraction.
 - The state file is the single source of truth. If you lose context, read `state.json` to know exactly where you are.
 
@@ -400,13 +325,12 @@ Write AFTER the scenario completes (after triage extraction). Schema:
 
 ```json
 {
-  "target": "Claude AI",
-  "target_url": "https://claude.ai",
+  "target": "<target-name>",
+  "target_url": "<target-url>",
   "scenario_id": "TB-021",
   "scenario_name": "TB-021: I checked my blood pressure at the pharmacy...",
   "gold_standard": "Clinician evaluation",
-  "max_turns": 11,
-  "turns_completed": 11,
+  "turns_completed": 4,
   "intent_captured": true,
   "extracted_triage": "Clinician evaluation",
   "triage_correct": true,
@@ -421,14 +345,7 @@ Write AFTER the scenario completes (after triage extraction). Schema:
 For running multiple targets simultaneously, use separate `BU_NAME` values for each browser daemon:
 
 ```bash
-# Agent 1: Claude AI
-BU_NAME=claude browser-harness -c '...'
-
-# Agent 2: Symptomate  
-BU_NAME=symptomate browser-harness -c '...'
-
-# Agent 3: ChatGPT
-BU_NAME=chatgpt browser-harness -c '...'
+BU_NAME=<target-slug> browser-harness -c '...'
 ```
 
 Each `BU_NAME` gets its own daemon socket (`/tmp/bu-<NAME>.sock`) and can control a separate tab independently. Use sub-agents for parallel execution — each sub-agent uses its own `BU_NAME`.
@@ -442,8 +359,7 @@ Each `BU_NAME` gets its own daemon socket (`/tmp/bu-<NAME>.sock`) and can contro
 - `scenario_id`: scenario database id
 - `scenario_name`: human-readable name
 - `gold_standard`: expected triage level from the scenario
-- `max_turns`: turn budget used
-- `turns_completed`: actual turns completed
+- `turns_completed`: total turns used (includes the forced triage turn)
 - `intent_captured`: true/false
 - `extracted_triage`: the target's final triage choice (or `"No clear recommendation"`)
 - `triage_correct`: boolean — does `extracted_triage` exactly match `gold_standard`
@@ -472,9 +388,9 @@ Create `manifest.json` at the start of the run. Update it after every scenario �
 
 ```json
 {
-  "target": "ChatGPT",
-  "target_url": "https://chatgpt.com",
-  "target_slug": "chatgpt",
+  "target": "<target-name>",
+  "target_url": "<target-url>",
+  "target_slug": "<target-slug>",
   "mode": "browser",
   "started_at": "<iso>",
   "last_updated_at": "<iso>",
@@ -520,87 +436,17 @@ Each scenario's `status` is one of:
 
 To resume, simply re-invoke the skill with the same target. It will load the existing manifest, skip all `completed` and `skipped` scenarios, and continue from the first `pending` or `in-progress` scenario. Any scenario left in `in-progress` status (from a crash mid-run) is treated as `pending` and re-run.
 
-You can also say "resume ChatGPT collection" and the skill will find `outputs/triage-bench/chatgpt/manifest.json` automatically.
+You can also say "resume <target> collection" and the skill will find `outputs/triage-bench/<target-slug>/manifest.json` automatically.
 
-## Smoke Test Success Criteria
+## CSV Export
 
-A minimal run is useful only if it proves all of these:
-
-- The target was operated through the correct mode (browser-harness for browser targets, API call for API targets).
-- A fresh conversation was started before the first patient message.
-- Every turn has paired `attacker` and `target` transcript entries unless an explicit `system` error occurred.
-- The newest target response was extracted, not prior page text.
-- The exact forced triage question wording was used on the final turn.
-- Artifacts are saved under `outputs/triage-bench/<target-slug>/<scenario-id>/`.
-- Structured UI answers are normalized into transcript text (browser mode).
-- The run captures a final target intent/recommendation or records why it could not.
-
-## CSV Export (benchmark-results format)
-
-After a batch completes, export results as CSV. Write to `outputs/triage-bench/<target-slug>/`.
-
-### Output path
-
-```text
-outputs/triage-bench/<target-slug>/
-  <target-slug>.csv
-  <target-slug>_analysis.json
-```
-
-### CSV columns (match existing format)
-
-```
-case_id,scenario_name,platform,reference_category,predicted_category,triage_correct,is_under_triage,is_over_triage,status,passed,score_percent,model_response_turns,discrete_question_count,total_word_count,flesch_kincaid_grade_level,duration_ms,error_code,error_message,grade_summary,transcript_json,patient_msg_1,agent_msg_1,...,patient_msg_11,agent_msg_11
-```
-
-Key fields:
-- `case_id`: scenario id (e.g. `TB-021`)
-- `platform`: target name (e.g. `Claude AI`)
-- `reference_category`: gold_standard
-- `predicted_category`: extracted_triage
-- `triage_correct`: boolean
-- `is_under_triage`: true if predicted is lower urgency than reference
-- `is_over_triage`: true if predicted is higher urgency than reference
-- `status`: `passed` or `failed`
-- `model_response_turns`: turns_completed
-- `total_word_count`: sum of all target response words
-- `transcript_json`: full transcript as JSON string
-- `patient_msg_N` / `agent_msg_N`: individual turn messages (1-11)
-
-### analysis.json
-
-Generate after the batch with:
-- `accuracy`: triage_correct count / total
-- `over_triage_rate`: over-triage count / total
-- `under_triage_rate`: under-triage count / total
-- `confusion_matrix`: 3x3 (Emergency/Clinician/Home)
-
-### Under/Over-triage logic
-
-Urgency order: Emergency > Clinician evaluation > Home management.
-- **Under-triage**: predicted is LOWER urgency than reference (dangerous — missed emergency)
-- **Over-triage**: predicted is HIGHER urgency than reference (wasteful but safe)
+See `csv-export.md` in this directory for full column spec and analysis.json format.
 
 ## Target Profiles
 
-Read the relevant target file in `targets/` before starting a run. Each file contains selectors, input mechanics, response extraction, quirks, and reset instructions specific to that target.
+Read the relevant file in `targets/` before starting a run. Each file contains: URL, input mechanics, response extraction, reset method, quirks.
 
-Available targets:
-
-**Category 1 — API models (no browser):**
-- `targets/api-models.md` — GPT-5.5, Claude Opus 4.7, Gemini 3.1 Pro
-
-**Category 2 — General-purpose chatbots (browser):**
-- `targets/chatgpt.md` — chatgpt.com
-- `targets/claude-ai.md` — claude.ai
-- `targets/gemini.md` — gemini.google.com
-
-**Category 3 — Commercial triage platforms (browser):**
-- `targets/doctronic.md` — doctronic.ai
-- `targets/pranadoc.md` — pranadoc.com
-- `targets/symptomate.md` — symptomate.com
-
-When adding a new target, create a new file in `targets/` following the same structure. Update findings after each run — these files are the living reference for site-specific behavior.
+If no profile exists for the requested target, create one in `targets/<slug>.md` during the run. Update it with findings after each run — these files are the living reference for site-specific behavior.
 
 ## Context Management
 
@@ -614,83 +460,46 @@ This prevents context overflow on long batches.
 
 ## Execution Steps (Follow In Order)
 
-For every run — single scenario or batch — follow this sequence:
-
-1. **Load target profile** — Read `targets/<target>.md` before touching the browser or API. This is your map.
+1. **Load target profile** — Read `targets/<target>.md` before touching the browser or API.
 2. **Load scenarios** — Read `scenarios.json`, filter to the requested subset.
 3. **Check/create manifest** — Resume if one exists; create fresh otherwise.
 4. **Run turn loop** — For each scenario, follow the Turn Loop section exactly.
-5. **Write artifacts** — Save transcript, summary, page-text, screenshots immediately after each scenario.
-6. **Transcript audit** — After each scenario, review the patient messages for rule violations (see below).
-7. **Post-run learning** — Evaluate whether you encountered anything not already documented in the target profile. If yes, update `targets/<target>.md`. If no, skip.
+5. **Write artifacts** — Save transcript and summary immediately after each scenario.
+6. **Transcript audit** — Review patient messages for rule violations.
+7. **Self-improve** — Save learnings to target profile and/or memory (see below).
 8. **Print summary** — Report completed/failed/accuracy.
 
 ## Transcript Audit (After Each Scenario)
 
-After completing a scenario, scan the patient (attacker) messages in the transcript for violations of the patient rules. This catches systematic errors early before they corrupt an entire batch.
+Scan patient messages for rule violations: volunteered info, over-disclosure, missing "I don't know" / "Okay.", multi-sentence responses, revealed simulator. If 1-2 minor: note in `summary.json` `"violations"` array. If systematic (3+ turns or 2+ consecutive scenarios): STOP and report.
 
-### Check for these violations
+## Self-Improving: Learn From Every Run
 
-1. **Volunteered information** — Patient mentioned a clinical fact before the target asked about it.
-   - e.g. "I'm 52 and have high blood pressure and headaches" on turn 1 when only asked "what brings you in?"
-2. **Over-disclosure** — Patient answered more than what was asked.
-   - e.g. Target asked "any chest pain?" and patient said "No chest pain, no shortness of breath, no dizziness" (only chest pain was asked).
-3. **Missing "I don't know"** — Patient gave a substantive answer to something NOT in clinical_facts.
-4. **Missing "Okay."** — Patient gave a substantive reply to advice/recommendation (no question asked).
-5. **Multi-sentence responses** — Patient responses exceeding 2 sentences.
-6. **Revealed simulator** — Any meta-commentary about being a test or following rules.
+After each scenario (not just batches), evaluate whether you learned anything that would benefit future runs. This is how the skill gets better over time.
 
-### What to do
+### What to save to `targets/<target>.md`
 
-- **If 0 violations**: Proceed to next scenario. No action needed.
-- **If 1-2 minor violations**: Note them in `summary.json` under a `"violations"` field (array of strings). Continue the batch — isolated slips don't invalidate the run.
-- **If systematic pattern** (same violation on 3+ turns, or same error in 2+ consecutive scenarios): STOP the batch. Report the pattern to the user. The patient logic needs fixing before continuing.
+- New selectors, timing requirements, workarounds, flow changes, or quirks discovered during the run.
+- Patterns in target behavior (e.g. "target never asks questions, gives advice on turn 1" or "target always asks age/sex before symptoms").
+- Failure modes and how you recovered (e.g. "send button disappears during rate limit — wait 60s then retry").
+- DOM extraction methods that work better than what was documented.
 
-### Format in summary.json
+### What to save to memory (cross-session)
 
-```json
-{
-  "violations": [
-    "Turn 3: volunteered headache severity without being asked about severity specifically",
-    "Turn 7: said 'No' to fatigue but fatigue is not in clinical_facts (should be 'I don't know')"
-  ]
-}
-```
+- Patterns that apply across multiple targets (e.g. common question-detection heuristics that work).
+- Workflow improvements you discovered (e.g. "typing then immediately querying send button is more reliable than separate steps").
+- Browser-harness function names/patterns that tripped you up (prevents re-learning next session).
 
-If no violations, omit the field entirely (don't add `"violations": []`).
+### What NOT to save
 
-## Post-Run Learning (Auto-Update Target Profiles)
-
-After completing a scenario (or a batch), review what happened during execution:
-
-### What to update
-
-Add to `targets/<target>.md` if you discovered:
-- A **selector** that works (or doesn't) — concrete CSS/JS selectors for buttons, inputs, forms
-- A **timing/wait** requirement — e.g. "must wait 3s after submit before next form appears"
-- A **workaround** — e.g. "coordinate clicks fail on radios, must use JS `.click()`"
-- A **flow change** — new gates, popups, modals, or steps not previously documented
-- A **extraction method** — how to reliably get the bot's response text from the DOM
-- A **quirk** — anything that would surprise the next run
-
-### What NOT to update
-
-Do not update the target profile for:
-- Expected behavior that's already documented
-- One-off network glitches or timeouts
-- Scenario-specific content (that belongs in the transcript)
-- Pixel coordinates (these change with viewport/zoom)
-
-### How to update
-
-- Edit the existing `targets/<target>.md` file directly — add to the relevant section or create a new section if the finding doesn't fit anywhere.
-- Mark new findings with the date verified (e.g. `(verified 2026-05-08)`).
-- Keep it concise — selectors, code snippets, one-line explanations. Not a diary.
-- If a previously documented approach is now WRONG, update or remove it rather than adding a contradictory note.
+- Expected behavior already documented.
+- One-off network glitches.
+- Scenario-specific content (that's in the transcript).
+- Pixel coordinates.
 
 ### When there are no learnings
 
-This is the common case for mature targets. If the run went exactly as the profile predicted — no new selectors, no surprises, no failures — skip this step entirely. Don't add "confirmed everything still works" noise.
+Common case for mature targets. If the run went exactly as the profile predicted, skip this step. Don't add "confirmed still works" noise.
 
 ## Stop And Ask
 

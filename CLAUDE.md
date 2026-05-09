@@ -6,7 +6,7 @@ TriageBench data collection. Runs 60 clinical triage scenarios against patient-f
 
 ## How It Works
 
-The `triage-bench-data-collection` skill in `skills/` IS the entire system. An AI coding agent reads the skill, acts as the standardized patient, drives the target (via API calls or browser-harness), tracks turns, extracts triage recommendations, and saves results.
+The `triage-bench-data-collection` skill in `skills/` IS the entire system. The agent reads the skill, acts as the standardized patient, drives the target (via API calls or browser-harness), tracks turns adaptively, extracts triage recommendations, and saves results.
 
 ## Key Files
 
@@ -14,7 +14,8 @@ The `triage-bench-data-collection` skill in `skills/` IS the entire system. An A
 skills/triage-bench-data-collection/
   SKILL.md              — The full protocol (read this first)
   scenarios.json        — 60 scenarios (self-contained)
-  turn_check.py         — Turn counter script
+  turn_check.py         — Turn state management
+  csv-export.md         — Output format spec for paper
   targets/              — Per-target selectors and mechanics
 
 outputs/                — Working directory for runs (gitignored)
@@ -24,40 +25,35 @@ outputs/                — Working directory for runs (gitignored)
 ## Commands
 
 ```bash
-# Turn counter
+# Turn state
 python3 skills/triage-bench-data-collection/turn_check.py <target> <scenario> init
 python3 skills/triage-bench-data-collection/turn_check.py <target> <scenario> next
+python3 skills/triage-bench-data-collection/turn_check.py <target> <scenario> dead
+python3 skills/triage-bench-data-collection/turn_check.py <target> <scenario> alive
 python3 skills/triage-bench-data-collection/turn_check.py <target> <scenario> done
 python3 skills/triage-bench-data-collection/turn_check.py clean-all
 
 # Browser targets
 browser-harness -c 'print(page_info())'
-BU_NAME=claude browser-harness -c 'new_tab("https://claude.ai/new")'
+BU_NAME=<target-slug> browser-harness -c 'new_tab("<target-url>")'
 
-# API targets (Category 1)
+# API targets
 curl -s $OPENAI_BASE_URL/chat/completions -H "Authorization: Bearer $OPENAI_API_KEY" ...
 ```
 
-## Targets
+## Protocol
 
-| Category | Targets | Mode |
-|----------|---------|------|
-| 1 — API Models | GPT-5.5, Claude Opus 4.7, Gemini 3.1 Pro | HTTP API |
-| 2 — General Chatbots | ChatGPT, Claude AI, Gemini | Browser |
-| 3 — Triage Platforms | Doctronic, PranaDoc, Symptomate | Browser |
-
-## Protocol (from the paper)
-
-- 10 model response turns + 1 forced triage question = 11 total
+- Adaptive turns: conversation runs until target stops asking questions (2 consecutive no-question responses) or safety cap (30 turns)
 - Patient responds ONLY from `clinical_facts`. Unknown → "I don't know." Advice → "Okay."
-- Forced question on turn 11 asks target to pick: Emergency / Clinician / Home
+- Forced triage question asks target to pick: Emergency / Clinician / Home
 - Results compared to gold standard triage label
+- Target profiles in `targets/` get updated with learnings after each run
 
 ## Environment
 
 Only 2 required variables in `.env`:
-- `OPENAI_API_KEY` — Gateway JWT for Category 1 API calls
-- `OPENAI_BASE_URL` — Gateway URL (https://gateway.truefoundry.ai)
+- `OPENAI_API_KEY` — Gateway JWT for API calls
+- `OPENAI_BASE_URL` — Gateway URL
 
 Optional:
 - `BROWSER_USE_API_KEY` — Only for remote cloud browsers (not needed for local browser-harness)
@@ -65,10 +61,10 @@ Optional:
 ## How to Invoke
 
 Say any of:
-- "Run triage-bench collection against Claude AI"
-- "Run triage-bench for GPT-5.5 (API mode)"
-- "Run all 60 scenarios against Symptomate"
-- "Resume ChatGPT collection"
+- "Run triage-bench collection against <target>"
+- "Run triage-bench for <target> (API mode)"
+- "Run all 60 scenarios against <target>"
+- "Resume <target> collection"
 
 ## Coding Style
 
