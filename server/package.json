@@ -16,7 +16,7 @@
     "@langchain/core": "^1.1.39",
     "@langchain/langgraph": "^1.3.0",
     "@langchain/openai": "^1.4.4",
-    "@livekit/rtc-node": "^0.13.24",
+    "@livekit/rtc-node": "^0.13.27",
     "browser-use-sdk": "^3.4.3",
     "hono": "^4.12.18",
     "livekit-server-sdk": "^2.15.2",
