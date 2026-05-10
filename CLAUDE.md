@@ -16,11 +16,27 @@ skills/triage-bench-data-collection/
   scenarios.json        — 60 scenarios (self-contained)
   turn_check.py         — Turn state management
   csv-export.md         — Output format spec for paper
+  .env.example          — Required environment variables
   targets/              — Per-target selectors and mechanics
 
 outputs/                — Working directory for runs (gitignored)
 .env                    — API keys (gitignored)
+.env.example            — Template for .env
 ```
+
+## Targets
+
+| Target | Mode | Slug |
+|--------|------|------|
+| GPT-5.5 | API | `gpt-55` |
+| Claude Opus 4.7 | API | `claude-opus-47` |
+| Gemini 3.1 Pro | API | `gemini-31-pro` |
+| ChatGPT | Browser | `chatgpt` |
+| Claude AI | Browser | `claude-ai` |
+| Gemini | Browser | `gemini` |
+| Doctronic | Browser | `doctronic` |
+| PranaDoc | Browser | `pranadoc` |
+| Symptomate | Browser | `symptomate` |
 
 ## Commands
 
@@ -33,8 +49,14 @@ python3 skills/triage-bench-data-collection/turn_check.py <target> <scenario> al
 python3 skills/triage-bench-data-collection/turn_check.py <target> <scenario> done
 python3 skills/triage-bench-data-collection/turn_check.py clean-all
 
-# Browser targets
+# Browser targets (local)
 browser-harness -c 'print(page_info())'
+BU_NAME=<target-slug> browser-harness -c 'new_tab("<target-url>")'
+
+# Browser targets (cloud — no local Chrome)
+browser-harness <<'PY'
+start_remote_daemon("<target-slug>")
+PY
 BU_NAME=<target-slug> browser-harness -c 'new_tab("<target-url>")'
 
 # API targets
@@ -51,12 +73,23 @@ curl -s $OPENAI_BASE_URL/chat/completions -H "Authorization: Bearer $OPENAI_API_
 
 ## Environment
 
-Only 2 required variables in `.env`:
-- `OPENAI_API_KEY` — Gateway JWT for API calls
-- `OPENAI_BASE_URL` — Gateway URL
+```bash
+cp .env.example .env
+# Edit with your keys
+```
 
-Optional:
-- `BROWSER_USE_API_KEY` — For remote cloud browsers (no local Chrome needed). See "Cloud Browser Mode" in the skill's SKILL.md for usage.
+| Variable | Required for | Notes |
+|----------|-------------|-------|
+| `OPENAI_API_KEY` | API targets | Gateway JWT |
+| `OPENAI_BASE_URL` | API targets | Gateway URL |
+| `BROWSER_USE_API_KEY` | Cloud browsers | Free key at cloud.browser-use.com/new-api-key |
+
+## Browser Harness
+
+The skill installs [browser-harness](https://github.com/browser-use/browser-harness) automatically on first run (step 0 in SKILL.md). Two modes:
+
+- **Local**: connects to your running Chrome via CDP. One-time setup: enable remote debugging + click Allow.
+- **Cloud**: `BROWSER_USE_API_KEY` in `.env` → `start_remote_daemon()`. No local Chrome needed. Each `BU_NAME` gets an isolated cloud browser.
 
 ## How to Invoke
 
