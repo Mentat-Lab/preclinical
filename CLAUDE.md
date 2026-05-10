@@ -56,7 +56,7 @@ Only 2 required variables in `.env`:
 - `OPENAI_BASE_URL` — Gateway URL
 
 Optional:
-- `BROWSER_USE_API_KEY` — Only for remote cloud browsers (not needed for local browser-harness)
+- `BROWSER_USE_API_KEY` — For remote cloud browsers (no local Chrome needed). See "Cloud Browser Mode" in the skill's SKILL.md for usage.
 
 ## How to Invoke
 

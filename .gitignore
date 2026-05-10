@@ -1,6 +1,7 @@
 # Environment & secrets
 .env
 .env.*
+!.env.example
 
 # Run outputs (working directory, not committed)
 outputs/
@@ -23,9 +24,7 @@ Thumbs.db
 !.claude/settings.json
 
 # AI tool directories
-.agents/*
-!.agents/skills/
-!.agents/skills/**
+.agents/
 skills-lock.json
 
 # Temp

@@ -57,7 +57,7 @@ import httpx, os, json
 
 base_url = os.environ["OPENAI_BASE_URL"]
 api_key = os.environ["OPENAI_API_KEY"]
-model = "openai-main/gpt-5.4"  # or whichever target
+model = "openai-main/gpt-5.5"  # or whichever target
 
 messages = [
     {"role": "system", "content": "You are a medical triage assistant..."},

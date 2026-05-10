@@ -30,25 +30,36 @@ Scenario (clinical_facts + initial_message)
 
 The data collection runs entirely through an AI coding agent skill — no server, no Docker, no database.
 
-## Install
-
-### For Claude Code, Cursor, Windsurf, Copilot, Cline, or any skills.sh-compatible agent:
+## Quick Start
 
 ```bash
-npx skills add Mentat-Lab/preclinical
+# 1. Clone and set up env
+git clone https://github.com/Mentat-Lab/preclinical.git
+cd preclinical
+cp .env.example .env
+# Edit .env with your keys
+
+# 2. Install browser-harness (browser targets only)
+# Tell your agent: "Set up https://github.com/browser-use/browser-harness for me"
+# Or for cloud browsers — just set BROWSER_USE_API_KEY in .env (no local Chrome needed)
+
+# 3. Run
+# Tell your agent: "Run triage-bench collection against chatgpt"
 ```
 
-### Manual:
+### Install as a skill (Claude Code / Codex):
 
 ```bash
-git clone https://github.com/Mentat-Lab/preclinical.git
-# Point your agent at: skills/triage-bench-data-collection/SKILL.md
+npx skills add Mentat-Lab/preclinical#paper/local-browser-harness-collection --skill '*' --yes
 ```
 
 ## Prerequisites
 
-- **For API targets:** `OPENAI_API_KEY` and `OPENAI_BASE_URL` in `.env`
-- **For browser targets:** [browser-harness](https://github.com/anthropics/browser-harness) installed and connected to your local Chrome
+| Mode | What you need |
+|------|---------------|
+| **API targets** | `OPENAI_API_KEY` + `OPENAI_BASE_URL` in `.env` |
+| **Browser targets (local)** | [browser-harness](https://github.com/browser-use/browser-harness) connected to your Chrome |
+| **Browser targets (cloud)** | `BROWSER_USE_API_KEY` in `.env` — [free key](https://cloud.browser-use.com/new-api-key), no local Chrome needed |
 
 ## Usage
 
@@ -63,6 +74,22 @@ Tell your AI coding agent:
 
 The skill handles everything: patient simulation, adaptive turn tracking, browser/API interaction, transcript capture, triage extraction, and result export.
 
+## Available Targets
+
+| Target | Mode | Slug |
+|--------|------|------|
+| GPT-5.5 | API | `gpt-55` |
+| Claude Opus 4.7 | API | `claude-opus-47` |
+| Gemini 3.1 Pro | API | `gemini-31-pro` |
+| ChatGPT | Browser | `chatgpt` |
+| Claude AI | Browser | `claude-ai` |
+| Gemini | Browser | `gemini` |
+| Doctronic | Browser | `doctronic` |
+| PranaDoc | Browser | `pranadoc` |
+| Symptomate | Browser | `symptomate` |
+
+See `targets/` for per-target profiles with selectors, quirks, and mechanics.
+
 ## Self-Improving
 
 The skill gets better with every run:
@@ -70,8 +97,6 @@ The skill gets better with every run:
 1. **Before** — agent reads the target profile (`targets/<slug>.md`) for selectors, quirks, mechanics
 2. **During** — agent adapts to unexpected behavior (new popups, changed selectors, form validation)
 3. **After** — agent updates the target profile with findings. No profile exists? It creates one.
-
-First run against a new target discovers and documents everything. Subsequent runs benefit without re-paying discovery cost.
 
 ## File Structure
 
@@ -81,6 +106,7 @@ skills/triage-bench-data-collection/
   scenarios.json        — 60 scenarios (self-contained)
   turn_check.py         — Turn state management
   csv-export.md         — Output format spec for paper
+  .env.example          — Required environment variables
   targets/              — Per-target profiles (selectors, quirks, mechanics)
 ```
 
@@ -94,15 +120,6 @@ outputs/triage-bench/<target-slug>/<scenario-id>/
 ```
 
 After a batch, export to CSV for statistical analysis (see `csv-export.md`).
-
-## Environment
-
-```bash
-# .env
-OPENAI_API_KEY=<gateway-key>
-OPENAI_BASE_URL=https://gateway.truefoundry.ai
-BROWSER_USE_API_KEY=<optional, for remote cloud browsers only>
-```
 
 ## License
 

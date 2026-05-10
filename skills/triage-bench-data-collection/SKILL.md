@@ -340,6 +340,67 @@ Write AFTER the scenario completes (after triage extraction). Schema:
 }
 ```
 
+## Cloud Browser Mode (Remote Collection)
+
+Use cloud browsers when you don't want to use the local machine's Chrome — e.g. headless servers, parallel runs, or unattended collection. Requires `BROWSER_USE_API_KEY` in `.env`.
+
+### Setup
+
+```bash
+# Verify key is set
+grep BROWSER_USE_API_KEY .env
+
+# Start a cloud browser for the target
+browser-harness <<'PY'
+start_remote_daemon("<target-slug>")
+PY
+```
+
+`start_remote_daemon` provisions a real Chrome on Browser Use's cloud, connects the daemon to it over CDP, and prints a `liveUrl` you can open to watch the session. No local Chrome is touched.
+
+### Options
+
+```python
+start_remote_daemon("<target-slug>")                          # clean browser, no profile
+start_remote_daemon("<target-slug>", profileName="chatgpt")   # reuse saved login cookies
+start_remote_daemon("<target-slug>", proxyCountryCode="de")   # DE proxy
+start_remote_daemon("<target-slug>", timeout=120)             # 2-hour session
+```
+
+### Using the cloud browser
+
+Once started, all commands work the same — just prefix with `BU_NAME`:
+
+```bash
+BU_NAME=<target-slug> browser-harness <<'PY'
+new_tab("https://target-url.com")
+wait_for_load()
+print(page_info())
+PY
+```
+
+### Stopping (required — stops billing)
+
+```bash
+browser-harness <<'PY'
+from admin import stop_remote_daemon
+stop_remote_daemon("<target-slug>")
+PY
+```
+
+Always stop when the batch is done or on failure. Cloud browsers bill per-minute until stopped or timeout.
+
+### Cloud profiles
+
+To avoid re-logging-in each run, use cloud profiles:
+
+```python
+list_cloud_profiles()                                # see available profiles
+start_remote_daemon("chatgpt", profileName="my-chatgpt")  # reuse one
+```
+
+Profile state (cookies) persists when you `stop_remote_daemon()`.
+
 ## Parallel Execution
 
 For running multiple targets simultaneously, use separate `BU_NAME` values for each browser daemon:
@@ -348,7 +409,9 @@ For running multiple targets simultaneously, use separate `BU_NAME` values for e
 BU_NAME=<target-slug> browser-harness -c '...'
 ```
 
-Each `BU_NAME` gets its own daemon socket (`/tmp/bu-<NAME>.sock`) and can control a separate tab independently. Use sub-agents for parallel execution — each sub-agent uses its own `BU_NAME`.
+Each `BU_NAME` gets its own daemon socket (`/tmp/bu-<NAME>.sock`) and can control a separate browser independently (local or cloud). Use sub-agents for parallel execution — each sub-agent uses its own `BU_NAME`.
+
+For cloud parallel runs, each sub-agent calls `start_remote_daemon` with a distinct name — each gets its own isolated cloud browser instance.
 
 ## Summary Schema
 
@@ -459,6 +522,19 @@ Each scenario is fully independent. Between scenarios:
 This prevents context overflow on long batches.
 
 ## Execution Steps (Follow In Order)
+
+0. **Install browser-harness** (first run only) — If `browser-harness` is not available on `$PATH`, install it:
+
+   ```
+   Set up https://github.com/browser-use/browser-harness for me.
+   Read `install.md` and follow the steps to install browser-harness and connect it to my browser.
+   ```
+
+   This connects the agent to Chrome via CDP. The user will need to enable remote debugging and click Allow when prompted.
+
+   For **cloud browsers** (no local Chrome needed): get a free API key at `cloud.browser-use.com/new-api-key` and set `BROWSER_USE_API_KEY` in `.env`. Then use `start_remote_daemon()` (see "Cloud Browser Mode" section above).
+
+   Skip this step if `browser-harness -c 'print(page_info())'` already succeeds.
 
 1. **Load target profile** — Read `targets/<target>.md` before touching the browser or API.
 2. **Load scenarios** — Read `scenarios.json`, filter to the requested subset.
