@@ -30,27 +30,30 @@ Scenario (clinical_facts + initial_message)
 
 The data collection runs entirely through an AI coding agent skill — no server, no Docker, no database.
 
-## Quick Start
+## Setup Prompt
 
-```bash
-# 1. Clone and set up env
-git clone https://github.com/Mentat-Lab/preclinical.git
-cd preclinical
-cp .env.example .env
-# Edit .env with your keys
+Paste into Claude Code or Codex:
 
-# 2. Install browser-harness (browser targets only)
-# Tell your agent: "Set up https://github.com/browser-use/browser-harness for me"
-# Or for cloud browsers — just set BROWSER_USE_API_KEY in .env (no local Chrome needed)
+```text
+Set up https://github.com/Mentat-Lab/preclinical for me.
 
-# 3. Run
-# Tell your agent: "Run triage-bench collection against chatgpt"
+Read skills/triage-bench-data-collection/SKILL.md and run triage-bench collection against chatgpt.
 ```
 
-### Install as a skill (Claude Code / Codex):
+The agent will clone the repo, install [browser-harness](https://github.com/browser-use/browser-harness), connect to your browser, and start collecting.
+
+### Or install as a skill:
 
 ```bash
 npx skills add Mentat-Lab/preclinical#paper/local-browser-harness-collection --skill '*' --yes
+```
+
+### Manual setup:
+
+```bash
+git clone https://github.com/Mentat-Lab/preclinical.git
+cd preclinical
+cp .env.example .env   # Edit with your keys
 ```
 
 ## Prerequisites
