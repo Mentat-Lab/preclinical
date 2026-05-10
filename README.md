@@ -37,10 +37,10 @@ Paste into Claude Code or Codex:
 ```text
 Set up https://github.com/Mentat-Lab/preclinical for me.
 
-Read skills/triage-bench-data-collection/SKILL.md and run triage-bench collection against chatgpt.
+Read skills/triage-bench-data-collection/SKILL.md and install all prerequisites.
 ```
 
-The agent will clone the repo, install [browser-harness](https://github.com/browser-use/browser-harness), connect to your browser, and start collecting.
+The agent will clone the repo, install [browser-harness](https://github.com/browser-use/browser-harness), set up `.env`, and get everything ready. Then just say "Run triage-bench collection against chatgpt" to start.
 
 ### Or install as a skill:
 
