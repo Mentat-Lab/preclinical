@@ -62,7 +62,9 @@ cp .env.example .env   # Edit with your keys
 |------|---------------|
 | **API targets** | `OPENAI_API_KEY` + `OPENAI_BASE_URL` in `.env` |
 | **Browser targets (local)** | [browser-harness](https://github.com/browser-use/browser-harness) connected to your Chrome |
-| **Browser targets (cloud)** | `BROWSER_USE_API_KEY` in `.env` — [free key](https://cloud.browser-use.com/new-api-key), no local Chrome needed |
+| **Browser targets (cloud)** | `BROWSER_USE_API_KEY` + `BU_AUTOSPAWN=1` in `.env` — [free key](https://cloud.browser-use.com/new-api-key), no local Chrome needed |
+
+Browser mode auto-detects: tries local Chrome first, falls back to cloud automatically if local is unavailable and the API key is set.
 
 ## Usage
 

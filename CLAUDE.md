@@ -49,14 +49,8 @@ python3 skills/triage-bench-data-collection/turn_check.py <target> <scenario> al
 python3 skills/triage-bench-data-collection/turn_check.py <target> <scenario> done
 python3 skills/triage-bench-data-collection/turn_check.py clean-all
 
-# Browser targets (local)
-browser-harness -c 'print(page_info())'
-BU_NAME=<target-slug> browser-harness -c 'new_tab("<target-url>")'
-
-# Browser targets (cloud — no local Chrome)
-browser-harness <<'PY'
-start_remote_daemon("<target-slug>")
-PY
+# Browser targets (auto-detects local vs cloud)
+BU_NAME=<target-slug> browser-harness -c 'print(page_info())'
 BU_NAME=<target-slug> browser-harness -c 'new_tab("<target-url>")'
 
 # API targets
