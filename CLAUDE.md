@@ -86,6 +86,26 @@ The skill installs [browser-harness](https://github.com/browser-use/browser-harn
 - **Local** (default): connects to your running Chrome via CDP.
 - **Cloud** (auto-fallback): if local Chrome is unavailable and `BROWSER_USE_API_KEY` + `BU_AUTOSPAWN=1` are set, spawns a cloud browser automatically. Each `BU_NAME` gets an isolated cloud browser.
 
+### Function Names (common mistakes to avoid)
+
+| Wrong | Correct |
+|-------|---------|
+| `click(x, y)` | `click_at_xy(x, y)` |
+| `screenshot()` | `capture_screenshot("/tmp/file.png")` |
+| `goto(url)` | `new_tab(url)` or `goto_url(url)` |
+
+### Cloud Mode
+
+When local Chrome isn't available, load `.env` vars into shell before calling:
+```bash
+export $(grep -v '^#' .env | xargs) && BU_NAME=<slug> browser-harness -c '...'
+```
+
+Stop cloud browsers when done to end billing:
+```bash
+BU_NAME=<slug> browser-harness -c 'stop_remote_daemon("<slug>")'
+```
+
 ## How to Invoke
 
 Say any of:
