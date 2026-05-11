@@ -136,22 +136,38 @@ Use this mode for browser-based targets that require UI interaction (chatbots, s
 - Prefer DOM text extraction (`js(...)`) for reading responses. Only use screenshots when debugging visual issues or saving artifacts.
 - Prefer visible click/type operations for real UI controls. Use DOM reads for extraction and only use DOM writes when the visible UI path is blocked.
 - Stop and ask the user if the site requires credentials, CAPTCHA, payment, subscription, or destructive account changes.
-- Do not promise headless collection unless a configured browser-harness daemon/profile supports it. The reliable default is the user's local browser session.
+- Auto-detect browser mode: try local Chrome first; if unavailable, fall back to cloud (requires `BROWSER_USE_API_KEY` in `.env`). See "Connection Health & Auto-Detection" below.
 
-### Connection Health & Recovery
+### Connection Health & Auto-Detection
 
-The browser-harness daemon holds a websocket to Chrome's CDP port. This connection can go stale if Chrome restarts, sleeps, or switches profiles. Common symptom: `RuntimeError: no close frame received or sent`.
+The agent auto-detects which browser mode to use. **Do not ask the user** — follow this logic:
 
-**Before starting a batch** — verify the connection is alive:
+1. Try local: `browser-harness -c 'print(page_info())'`
+2. If local works → use local Chrome (default `BU_NAME=default`).
+3. If local fails → check if `BROWSER_USE_API_KEY` and `BU_AUTOSPAWN=1` are set in `.env`:
+   - **Both set**: the harness auto-spawns a cloud browser. Just set `BU_NAME=<target-slug>` and run — it handles the rest. Or explicitly call `start_remote_daemon("<target-slug>")` for more control (profile, proxy, timeout).
+   - **Key absent**: stop and tell the user to either enable local Chrome remote debugging or set `BROWSER_USE_API_KEY` + `BU_AUTOSPAWN=1` in `.env`.
+
 ```bash
-browser-harness -c 'print(page_info())'
+# Auto-mode (BU_AUTOSPAWN=1 in .env): just run with BU_NAME — cloud spawns automatically
+BU_NAME=<target-slug> browser-harness -c 'print(page_info())'
+
+# Explicit mode: start cloud browser with options, then use BU_NAME
+BU_NAME=<target-slug> browser-harness -c 'start_remote_daemon("<target-slug>")'
+BU_NAME=<target-slug> browser-harness -c 'print(page_info())'
 ```
 
-**If it fails** — kill the stale daemon and retry (auto-reconnects):
+Once a mode is established for the batch, stick with it for all scenarios.
+
+### Recovery (applies to both modes)
+
+The daemon's websocket can go stale if Chrome restarts, sleeps, or switches profiles. Common symptom: `RuntimeError: no close frame received or sent`.
+
+**If commands fail mid-batch** — kill the stale daemon and retry:
 ```bash
-kill $(cat /tmp/bu-default.pid 2>/dev/null) 2>/dev/null
-rm -f /tmp/bu-default.sock /tmp/bu-default.pid
-browser-harness -c 'print(page_info())'
+kill $(cat /tmp/bu-<NAME>.pid 2>/dev/null) 2>/dev/null
+rm -f /tmp/bu-<NAME>.sock /tmp/bu-<NAME>.pid
+browser-harness -c 'print(page_info())'   # or re-run start_remote_daemon for cloud
 ```
 
 **Between scenarios** — no cleanup needed if the daemon stays healthy. The daemon auto-recovers from stale sessions on the next call. If a scenario fails mid-run with a connection error:
@@ -523,18 +539,19 @@ This prevents context overflow on long batches.
 
 ## Execution Steps (Follow In Order)
 
-0. **Install browser-harness** (first run only) — If `browser-harness` is not available on `$PATH`, install it:
+0. **Install browser-harness + detect mode** (first run only) — If `browser-harness` is not on `$PATH`, install it:
 
    ```
    Set up https://github.com/browser-use/browser-harness for me.
    Read `install.md` and follow the steps to install browser-harness and connect it to my browser.
    ```
 
-   This connects the agent to Chrome via CDP. The user will need to enable remote debugging and click Allow when prompted.
+   Then auto-detect the browser mode (see "Connection Health & Auto-Detection" above):
+   - Try `browser-harness -c 'print(page_info())'` — if it works, use local.
+   - If local fails and `BROWSER_USE_API_KEY` is in `.env`, call `start_remote_daemon("<target-slug>")` and use cloud mode with `BU_NAME=<target-slug>` for the rest of the batch.
+   - If both fail, stop and tell the user.
 
-   For **cloud browsers** (no local Chrome needed): get a free API key at `cloud.browser-use.com/new-api-key` and set `BROWSER_USE_API_KEY` in `.env`. Then use `start_remote_daemon()` (see "Cloud Browser Mode" section above).
-
-   Skip this step if `browser-harness -c 'print(page_info())'` already succeeds.
+   Skip this step if `browser-harness -c 'print(page_info())'` or `BU_NAME=<target-slug> browser-harness -c 'print(page_info())'` already succeeds.
 
 1. **Load target profile** — Read `targets/<target>.md` before touching the browser or API.
 2. **Load scenarios** — Read `scenarios.json`, filter to the requested subset.

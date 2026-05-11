@@ -83,13 +83,14 @@ cp .env.example .env
 | `OPENAI_API_KEY` | API targets | Gateway JWT |
 | `OPENAI_BASE_URL` | API targets | Gateway URL |
 | `BROWSER_USE_API_KEY` | Cloud browsers | Free key at cloud.browser-use.com/new-api-key |
+| `BU_AUTOSPAWN` | Cloud browsers | Set to `1` to auto-spawn cloud when local Chrome unavailable |
 
 ## Browser Harness
 
-The skill installs [browser-harness](https://github.com/browser-use/browser-harness) automatically on first run (step 0 in SKILL.md). Two modes:
+The skill installs [browser-harness](https://github.com/browser-use/browser-harness) automatically on first run (step 0 in SKILL.md). Auto-detects mode:
 
-- **Local**: connects to your running Chrome via CDP. One-time setup: enable remote debugging + click Allow.
-- **Cloud**: `BROWSER_USE_API_KEY` in `.env` → `start_remote_daemon()`. No local Chrome needed. Each `BU_NAME` gets an isolated cloud browser.
+- **Local** (default): connects to your running Chrome via CDP.
+- **Cloud** (auto-fallback): if local Chrome is unavailable and `BROWSER_USE_API_KEY` + `BU_AUTOSPAWN=1` are set, spawns a cloud browser automatically. Each `BU_NAME` gets an isolated cloud browser.
 
 ## How to Invoke
 
