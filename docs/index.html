@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TriageBench Results</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #fff;
+        --text: #111;
+        --muted: #555;
+        --line: #d8d8d8;
+        --soft: #f5f5f5;
+        --accent: #075e54;
+        --pass: #116329;
+        --fail: #9f1c1c;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        font-size: 16px;
+        line-height: 1.45;
+      }
+
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      a:hover {
+        text-decoration: underline;
+      }
+
+      .wrap {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+      }
+
+      header {
+        border-bottom: 1px solid var(--line);
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 18px 0;
+      }
+
+      .brand {
+        font-weight: 700;
+      }
+
+      nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      .intro {
+        padding: 38px 0 34px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(2.2rem, 5vw, 4.4rem);
+        line-height: 0.98;
+        letter-spacing: 0;
+      }
+
+      .lede {
+        max-width: 820px;
+        margin: 18px 0 0;
+        color: var(--muted);
+        font-size: 1.05rem;
+      }
+
+      .meta,
+      .stats {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 18px;
+        margin-top: 18px;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .stats {
+        margin-top: 22px;
+        padding-top: 18px;
+        border-top: 1px solid var(--line);
+      }
+
+      .stat strong {
+        color: var(--text);
+      }
+
+      main {
+        padding: 30px 0 60px;
+      }
+
+      section {
+        margin-top: 48px;
+      }
+
+      section:first-child {
+        margin-top: 0;
+      }
+
+      .section-head {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 12px;
+      }
+
+      h2 {
+        margin: 0;
+        font-size: 1.35rem;
+        letter-spacing: 0;
+      }
+
+      h3 {
+        margin: 0;
+        font-size: 1.08rem;
+      }
+
+      .note,
+      .desc {
+        color: var(--muted);
+      }
+
+      .note {
+        margin: 0;
+        font-size: 0.92rem;
+      }
+
+      .desc {
+        max-width: 860px;
+        margin: 6px 0 14px;
+      }
+
+      .block {
+        margin-top: 28px;
+        padding-top: 24px;
+        border-top: 1px solid var(--line);
+      }
+
+      .block:first-child {
+        margin-top: 0;
+      }
+
+      .block-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .table-wrap {
+        overflow: auto;
+        border: 1px solid var(--line);
+      }
+
+      table {
+        width: 100%;
+        min-width: 760px;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line);
+        border-right: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+        font-size: 0.9rem;
+      }
+
+      th:last-child,
+      td:last-child {
+        border-right: 0;
+      }
+
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--soft);
+        color: #333;
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      th.sortable {
+        cursor: pointer;
+      }
+
+      tbody tr:hover {
+        background: #fafafa;
+      }
+
+      .right {
+        text-align: right;
+        white-space: nowrap;
+      }
+
+      .small {
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+
+      .pass {
+        color: var(--pass);
+        font-weight: 700;
+      }
+
+      .fail {
+        color: var(--fail);
+        font-weight: 700;
+      }
+
+      .filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      input,
+      select {
+        min-height: 38px;
+        border: 1px solid var(--line);
+        border-radius: 0;
+        background: var(--bg);
+        color: var(--text);
+        padding: 7px 9px;
+        font: inherit;
+        font-size: 0.92rem;
+      }
+
+      input {
+        width: min(420px, 100%);
+      }
+
+      details {
+        border-top: 1px solid var(--line);
+        padding: 14px 0;
+      }
+
+      summary {
+        cursor: pointer;
+        font-weight: 700;
+      }
+
+      .scenario-meta {
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      pre {
+        white-space: pre-wrap;
+        margin: 12px 0 0;
+        padding: 12px;
+        background: var(--soft);
+        border: 1px solid var(--line);
+        color: #222;
+        font:
+          0.86rem ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", monospace;
+      }
+
+      .matrix-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+        margin-top: 16px;
+      }
+
+      .matrix h3 {
+        margin-bottom: 8px;
+      }
+
+      .matrix table {
+        min-width: 0;
+      }
+
+      .matrix th,
+      .matrix td {
+        padding: 7px;
+        font-size: 0.78rem;
+      }
+
+      footer {
+        border-top: 1px solid var(--line);
+        padding: 24px 0;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      code {
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+          monospace;
+        font-size: 0.92em;
+      }
+
+      @media (max-width: 860px) {
+        .topbar,
+        .section-head,
+        .block-head {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        nav {
+          gap: 12px;
+        }
+
+        .matrix-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap topbar">
+        <div class="brand">TriageBench</div>
+        <nav>
+          <a href="#leaderboard">Leaderboard</a>
+          <a href="#agent-categories">Agent categories</a>
+          <a href="#care-levels">Care levels</a>
+          <a href="#scenarios">Scenarios</a>
+          <a href="#details">Details</a>
+          <a href="data/results.json">Data</a>
+        </nav>
+      </div>
+      <div class="wrap intro">
+        <h1>TriageBench Results</h1>
+        <p class="lede">
+          Results for patient-facing triage systems on 60 guideline-grounded
+          scenarios, evaluated across three agent categories and three triage
+          care levels.
+        </p>
+        <div class="meta" id="meta"></div>
+        <div class="stats" id="summary"></div>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <section id="leaderboard">
+        <div class="section-head">
+          <h2>Overall Leaderboard</h2>
+          <p class="note">All 60 scenarios combined.</p>
+        </div>
+        <div class="table-wrap">
+          <table id="leaderboard-table">
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th class="sortable">Target</th>
+                <th>Agent category</th>
+                <th class="right sortable">Accuracy</th>
+                <th class="right">Home management</th>
+                <th class="right">Clinic visit</th>
+                <th class="right">Emergency</th>
+                <th class="right sortable">Under-triage</th>
+                <th class="right sortable">Over-triage</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="agent-categories">
+        <div class="section-head">
+          <h2>Results by Agent Category</h2>
+          <p class="note">The three benchmark groups from the run.</p>
+        </div>
+        <div id="agent-category-sections"></div>
+      </section>
+
+      <section id="care-levels">
+        <div class="section-head">
+          <h2>Results by Care Level</h2>
+          <p class="note">Each care level contains 20 scenarios.</p>
+        </div>
+        <div id="care-level-sections"></div>
+      </section>
+
+      <section id="scenarios">
+        <div class="section-head">
+          <h2>Scenario Details</h2>
+          <p class="note">Click a scenario to view the case facts.</p>
+        </div>
+        <div class="filters">
+          <input id="scenario-search" type="search" placeholder="Search scenarios or case id" />
+          <select id="scenario-care-filter">
+            <option value="">All care levels</option>
+          </select>
+        </div>
+        <div id="scenario-list"></div>
+      </section>
+
+      <section id="details">
+        <h2>Details</h2>
+        <details open>
+          <summary>Methodology</summary>
+          <p class="desc">
+            Each target was evaluated on the same 60 scenarios. A simulated
+            patient answered questions from a fixed case specification, then the
+            target's final triage recommendation was extracted and compared with
+            the reference care level. Under-triage means the target recommended a
+            lower urgency level than the reference. Over-triage means it
+            recommended a higher urgency level.
+          </p>
+        </details>
+        <details>
+          <summary>Confusion matrices</summary>
+          <div class="matrix-grid" id="matrices"></div>
+        </details>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">TriageBench benchmark results.</div>
+    </footer>
+
+    <script src="data/results.js"></script>
+    <script>
+      const careOrder = ["home_care", "clinician_eval", "emergency"];
+      const agentOrder = ["category1", "category2", "category3"];
+      const matrixLabels = [
+        "Home management",
+        "Clinician evaluation",
+        "Emergency evaluation",
+      ];
+      const fmtPct = (value) =>
+        value == null ? "n/a" : `${(Number(value) * 100).toFixed(1)}%`;
+      const score = (item) =>
+        item ? `${item.correct}/${item.total} (${fmtPct(item.accuracy)})` : "n/a";
+      const shortCategory = (value) =>
+        String(value ?? "")
+          .replace("Emergency evaluation", "Emergency")
+          .replace("Clinician evaluation", "Clinic visit")
+          .replace("Home management", "Home management");
+      const esc = (value) =>
+        String(value ?? "")
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+
+      let data;
+      let sortState = { key: "accuracy", dir: -1 };
+
+      async function init() {
+        data = window.__TRIAGE_BENCH_RESULTS__;
+        if (!data) {
+          const response = await fetch("data/results.json");
+          data = await response.json();
+        }
+        renderMeta();
+        renderSummary();
+        renderLeaderboard();
+        renderAgentCategorySections();
+        renderCareLevelSections();
+        renderScenarioFilters();
+        renderScenarios();
+        renderMatrices();
+      }
+
+      function renderMeta() {
+        document.getElementById("meta").innerHTML = `
+          <span>Benchmark date: ${esc(data.benchmark_date)}</span>
+          <span>Generated: ${esc(data.generated_on)}</span>
+          <span>${data.targets.length} targets</span>
+          <span>${data.scenarios_total} scenarios</span>
+        `;
+      }
+
+      function renderSummary() {
+        const best = data.targets[0];
+        document.getElementById("summary").innerHTML = `
+          <span class="stat"><strong>${data.scenarios_total}</strong> scenarios</span>
+          <span class="stat"><strong>${data.targets.length}</strong> targets</span>
+          <span class="stat"><strong>3</strong> agent categories</span>
+          <span class="stat"><strong>3</strong> care levels</span>
+          <span class="stat"><strong>${esc(best.name)}</strong> top overall (${fmtPct(best.accuracy)})</span>
+        `;
+      }
+
+      function renderLeaderboard() {
+        const rows = [...data.targets].sort((a, b) => {
+          const av = a[sortState.key] ?? 0;
+          const bv = b[sortState.key] ?? 0;
+          return av > bv ? sortState.dir : av < bv ? -sortState.dir : 0;
+        });
+        document.querySelector("#leaderboard-table tbody").innerHTML = rows
+          .map((target, index) => {
+            const cats = target.category_scores;
+            return `
+              <tr>
+                <td>${index + 1}</td>
+                <td><strong>${esc(target.name)}</strong></td>
+                <td>${esc(data.agent_categories[target.agent_category].label)}</td>
+                <td class="right">${fmtPct(target.accuracy)}</td>
+                <td class="right">${score(cats.home_care)}</td>
+                <td class="right">${score(cats.clinician_eval)}</td>
+                <td class="right">${score(cats.emergency)}</td>
+                <td class="right">${fmtPct(target.under_triage_rate)}</td>
+                <td class="right">${fmtPct(target.over_triage_rate)}</td>
+              </tr>
+            `;
+          })
+          .join("");
+      }
+
+      function renderAgentCategorySections() {
+        document.getElementById("agent-category-sections").innerHTML = agentOrder
+          .map((groupKey) => {
+            const group = data.agent_categories[groupKey];
+            const targets = data.targets.filter(
+              (target) => target.agent_category === groupKey,
+            );
+            return `
+              <div class="block" id="${esc(groupKey)}">
+                <div class="block-head">
+                  <h3>${esc(group.label)}</h3>
+                  <span class="small">${targets.length} targets</span>
+                </div>
+                <p class="desc">${esc(group.description)}</p>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Target</th>
+                        <th class="right">Overall</th>
+                        <th class="right">Home management</th>
+                        <th class="right">Clinic visit</th>
+                        <th class="right">Emergency</th>
+                        <th class="right">Under-triage</th>
+                        <th class="right">Over-triage</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${targets
+                        .map((target) => {
+                          const cats = target.category_scores;
+                          return `
+                            <tr>
+                              <td><strong>${esc(target.name)}</strong></td>
+                              <td class="right">${target.correct}/${target.total} (${fmtPct(target.accuracy)})</td>
+                              <td class="right">${score(cats.home_care)}</td>
+                              <td class="right">${score(cats.clinician_eval)}</td>
+                              <td class="right">${score(cats.emergency)}</td>
+                              <td class="right">${fmtPct(target.under_triage_rate)}</td>
+                              <td class="right">${fmtPct(target.over_triage_rate)}</td>
+                            </tr>
+                          `;
+                        })
+                        .join("")}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      function renderCareLevelSections() {
+        document.getElementById("care-level-sections").innerHTML = careOrder
+          .map((careKey) => {
+            const care = data.categories[careKey];
+            const targets = [...data.targets].sort((a, b) => {
+              const av = a.category_scores[careKey]?.accuracy ?? 0;
+              const bv = b.category_scores[careKey]?.accuracy ?? 0;
+              return bv - av || a.name.localeCompare(b.name);
+            });
+            return `
+              <div class="block" id="${esc(careKey)}">
+                <div class="block-head">
+                  <h3>${esc(care.label)}</h3>
+                  <span class="small">${care.total} scenarios</span>
+                </div>
+                <p class="desc">${esc(care.description)}</p>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Target</th>
+                        <th>Agent category</th>
+                        <th class="right">Correct</th>
+                        <th class="right">Accuracy</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${targets
+                        .map((target) => {
+                          const item = target.category_scores[careKey];
+                          return `
+                            <tr>
+                              <td><strong>${esc(target.name)}</strong></td>
+                              <td>${esc(data.agent_categories[target.agent_category].label)}</td>
+                              <td class="right">${item.correct}/${item.total}</td>
+                              <td class="right">${fmtPct(item.accuracy)}</td>
+                            </tr>
+                          `;
+                        })
+                        .join("")}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      function renderScenarioFilters() {
+        const select = document.getElementById("scenario-care-filter");
+        select.innerHTML += careOrder
+          .map(
+            (key) =>
+              `<option value="${esc(key)}">${esc(data.categories[key].label)}</option>`,
+          )
+          .join("");
+        document
+          .getElementById("scenario-search")
+          .addEventListener("input", renderScenarios);
+        select.addEventListener("change", renderScenarios);
+      }
+
+      function renderScenarios() {
+        const query = document
+          .getElementById("scenario-search")
+          .value.toLowerCase();
+        const careFilter = document.getElementById("scenario-care-filter").value;
+        const scenarios = data.scenario_results.filter((scenario) => {
+          if (careFilter && scenario.category !== careFilter) return false;
+          const haystack =
+            `${scenario.case_id} ${scenario.initial_message} ${scenario.description} ${scenario.clinical_facts}`.toLowerCase();
+          return !query || haystack.includes(query);
+        });
+
+        document.getElementById("scenario-list").innerHTML = scenarios
+          .map(
+            (scenario) => `
+              <details>
+                <summary>
+                  ${esc(scenario.case_id)}: ${esc(scenario.description)}
+                  <span class="small">(${esc(data.categories[scenario.category].label)})</span>
+                </summary>
+                <div class="scenario-meta">
+                  <div><strong>Opening message:</strong> ${esc(scenario.initial_message)}</div>
+                  <div><strong>Reference care level:</strong> ${esc(data.categories[scenario.category].label)}</div>
+                  <div><strong>Demographics:</strong> ${esc(scenario.demographics)}</div>
+                </div>
+                <pre>${esc(scenario.clinical_facts)}</pre>
+              </details>
+            `,
+          )
+          .join("");
+      }
+
+      function renderMatrices() {
+        document.getElementById("matrices").innerHTML = data.targets
+          .map((target) => {
+            const matrix = target.confusion_matrix || {};
+            return `
+              <div class="matrix">
+                <h3>${esc(target.name)}</h3>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Ref / Pred</th>
+                        ${matrixLabels
+                          .map((label) => `<th>${esc(shortCategory(label))}</th>`)
+                          .join("")}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${matrixLabels
+                        .map(
+                          (row) => `
+                            <tr>
+                              <th>${esc(shortCategory(row))}</th>
+                              ${matrixLabels
+                                .map((col) => `<td>${matrix[row]?.[col] ?? 0}</td>`)
+                                .join("")}
+                            </tr>
+                          `,
+                        )
+                        .join("")}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+      }
+
+      document.querySelectorAll("#leaderboard-table th").forEach((th, index) => {
+        const keys = [
+          null,
+          "name",
+          null,
+          "accuracy",
+          null,
+          null,
+          null,
+          "under_triage_rate",
+          "over_triage_rate",
+        ];
+        if (!keys[index]) return;
+        th.addEventListener("click", () => {
+          sortState =
+            sortState.key === keys[index]
+              ? { key: keys[index], dir: -sortState.dir }
+              : { key: keys[index], dir: index === 1 ? 1 : -1 };
+          renderLeaderboard();
+        });
+      });
+
+      init();
+    </script>
+  </body>
+</html>
