@@ -19,7 +19,7 @@
     "@livekit/rtc-node": "^0.13.27",
     "browser-use-sdk": "^3.5.0",
     "hono": "^4.12.18",
-    "livekit-server-sdk": "^2.15.2",
+    "livekit-server-sdk": "^2.15.3",
     "pg-boss": "^12.18.2",
     "postgres": "^3.4.9",
     "zod": "^4.4.3"
