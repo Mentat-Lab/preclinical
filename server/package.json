@@ -18,7 +18,7 @@
     "@langchain/openai": "^1.4.5",
     "@livekit/rtc-node": "^0.13.27",
     "browser-use-sdk": "^3.5.0",
-    "hono": "^4.12.18",
+    "hono": "^4.12.19",
     "livekit-server-sdk": "^2.15.2",
     "pg-boss": "^12.18.2",
     "postgres": "^3.4.9",
