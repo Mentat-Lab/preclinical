@@ -5,7 +5,6 @@
 Open-source platform for testing healthcare AI agents with adversarial multi-turn conversations and automated grading.
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-[![CI](https://github.com/Mentat-Lab/preclinical/actions/workflows/ci.yml/badge.svg)](https://github.com/Mentat-Lab/preclinical/actions/workflows/ci.yml)
 
 </div>
 
@@ -61,7 +60,7 @@ preclinical run <agent-id> --creative --watch
 /plugin install preclinical@preclinical
 ```
 
-Provides 8 slash commands: `/preclinical:setup`, `/preclinical:run`, `/preclinical:benchmark`, `/preclinical:diagnose`, and more. Includes a SessionStart health check and cold-start setup wizard. If you clone the repo, the plugin loads automatically.
+Provides 8 slash commands: `/preclinical:setup`, `/preclinical:run`, `/preclinical:benchmark`, `/preclinical:diagnose`, and more. If you clone the repo, the plugin loads automatically.
 
 ### Agent Skills (Cursor, Windsurf, Copilot, Cline, and more)
 ```bash
@@ -94,7 +93,7 @@ preclinical/
 │   └── src/workers/      #   Scenario runner + voice transports
 ├── frontend/             # Vite + React UI
 ├── cli/                  # Python CLI and SDK (PyPI: preclinical)
-├── plugins/preclinical/  # Claude Code plugin (slash commands, hooks, skills)
+├── plugins/preclinical/  # Claude Code plugin (slash commands and skills)
 ├── skills/               # Agent skills for AI coding assistants (skills.sh)
 ├── tests/                # API and E2E tests
 ├── target-agents/        # Local provider mock/target agents
@@ -112,7 +111,7 @@ See [`.env.example`](.env.example) for all environment variables. Key settings:
 
 ## Documentation
 
-Full documentation: [Architecture](https://Mentat-Lab.github.io/preclinical/getting-started/architecture/), [CI/CD Integration](https://Mentat-Lab.github.io/preclinical/getting-started/ci-cd/), [Integrations](https://Mentat-Lab.github.io/preclinical/integrations/overview/)
+Full documentation: [Architecture](https://Mentat-Lab.github.io/preclinical/getting-started/architecture/), [Integrations](https://Mentat-Lab.github.io/preclinical/integrations/overview/)
 
 ## Updating
 ```bash

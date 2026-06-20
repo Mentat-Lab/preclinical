@@ -54,7 +54,6 @@ nav:
     - CLI, Plugin & Skills: getting-started/cli.md
     - How It Works: getting-started/how-it-works.md
     - Architecture: getting-started/architecture.md
-    - CI/CD Integration: getting-started/ci-cd.md
   - Core Concepts:
     - Scenarios: concepts/scenarios.md
     - Tests: concepts/tests.md

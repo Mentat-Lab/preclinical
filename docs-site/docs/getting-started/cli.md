@@ -136,7 +136,7 @@ preclinical results list <run-id> --json | jq '.results[] | select(.passed == fa
 
 ## Python SDK
 
-Use the SDK for programmatic access in scripts, notebooks, or CI pipelines.
+Use the SDK for programmatic access in scripts, notebooks, or local automation.
 
 ```python
 from preclinical import Preclinical
@@ -171,7 +171,7 @@ async with AsyncPreclinical() as client:
 
 ## Claude Code Plugin
 
-The Preclinical plugin gives Claude Code users a guided, interactive experience with slash commands, automatic health checks, and a cold-start setup wizard.
+The Preclinical plugin gives Claude Code users a guided, interactive experience with slash commands and a cold-start setup wizard.
 
 !!! note "Resource requirements"
     Preclinical runs as Docker containers (database, API server, worker). The plugin's setup command handles bootstrapping, but expect ~2 GB of Docker images on first start.
@@ -200,22 +200,6 @@ The Preclinical plugin gives Claude Code users a guided, interactive experience 
 | `/preclinical:compare` | Compare two runs side-by-side, detect regressions |
 | `/preclinical:export-report` | Generate markdown safety reports for stakeholders |
 
-### What Happens on Session Start
-
-The plugin runs a non-blocking health check when you start a Claude Code session. It verifies Docker, the CLI, and server connectivity, and warns you if anything is missing:
-
-```
-[preclinical] First time? Run /preclinical:setup to get started.
-```
-
-or, if partially configured:
-
-```
-[preclinical] Setup issues detected:
-  - Docker Compose services are not running
-  Run /preclinical:setup to fix.
-```
-
 ### Cold-Start Setup
 
 Running `/preclinical:setup` with nothing installed walks you through two paths:
@@ -229,7 +213,7 @@ Running `/preclinical:setup` with nothing installed walks you through two paths:
 bash plugins/preclinical/tests/smoke-test.sh
 ```
 
-Runs 14 checks across 4 layers: manifest validation, command discovery, health-check behavior, and setup detection.
+Runs checks across 3 layers: manifest validation, command discovery, and setup detection.
 
 ## Agent Skills (Cursor, Windsurf, Copilot, Cline, and more)
 

@@ -7,9 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
-- Claude Code plugin with 8 slash commands, SessionStart health check, and marketplace support
+- Claude Code plugin with 8 slash commands and marketplace support
 - Agent skills for non-Claude AI assistants (Cursor, Windsurf, Copilot, Cline)
-- Plugin validation in CI pipeline
 - ElevenLabs provider
 
 ### Changed
@@ -27,6 +26,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Removed finalize-run route (duplicated worker logic)
 - Removed `creativeMode` from GraderState (unused)
 - Removed `medical_specialties` from attack vectors (unused)
+- Removed GitHub Actions workflows
+- Removed Claude Code plugin SessionStart health check
 
 ## [1.0.0] -- 2026-03-10
 

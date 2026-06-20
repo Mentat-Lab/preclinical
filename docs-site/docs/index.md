@@ -86,4 +86,3 @@ Healthcare AI agents are being deployed rapidly, but without standardized testin
 - [How It Works](getting-started/how-it-works.md) -- Understand the testing flow
 - [Integrations](integrations/overview.md) -- Connect your AI agent
 - [API Reference](api-reference/index.md) -- Full REST API documentation
-- [CI/CD](getting-started/ci-cd.md) -- Automate testing in your pipeline

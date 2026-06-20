@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Smoke test for the Preclinical Claude Code plugin.
-# Verifies plugin loading, command discovery, hook behavior, and cold-start UX.
+# Verifies plugin loading, command discovery, and cold-start UX.
 #
 # Usage: bash plugins/preclinical/tests/smoke-test.sh
 # Requires: claude CLI in PATH
@@ -74,37 +74,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-bold "Layer 3: Health check script (cold-start)"
-
-# Run from temp dir with no docker-compose context
-HEALTH_OUTPUT=$(cd "$TMPDIR_BASE" && bash "$PLUGIN_DIR/scripts/health-check.sh" 2>&1 || true)
-HEALTH_EXIT=$?
-
-if [ "$HEALTH_EXIT" -eq 0 ]; then
-  pass "health-check exits 0 (non-blocking)"
-else
-  fail "health-check exited $HEALTH_EXIT (should always exit 0)"
-fi
-
-if echo "$HEALTH_OUTPUT" | grep -qi "preclinical"; then
-  pass "health-check outputs preclinical message"
-else
-  fail "health-check produced no preclinical output"
-fi
-
-# If CLI is not installed, expect the first-time message
-if ! command -v preclinical &>/dev/null; then
-  if echo "$HEALTH_OUTPUT" | grep -qi "setup"; then
-    pass "health-check suggests /preclinical:setup when CLI missing"
-  else
-    fail "health-check doesn't suggest setup when CLI missing"
-  fi
-else
-  pass "health-check ran with CLI present (skipping cold-start check)"
-fi
-
-# ---------------------------------------------------------------------------
-bold "Layer 4: Cold-start setup detection"
+bold "Layer 3: Cold-start setup detection"
 
 WORKDIR="$TMPDIR_BASE/setup"
 mkdir -p "$WORKDIR"
@@ -116,8 +86,8 @@ SETUP_OUTPUT=$(cd "$WORKDIR" && claude --plugin-dir "$PLUGIN_DIR" -p \
 # return empty output or ask for permissions. Either way, the command
 # should reference setup concepts if it produces output.
 if [ -z "$(echo "$SETUP_OUTPUT" | tr -d '[:space:]')" ]; then
-  pass "setup command invoked (empty output — permission-blocked in -p mode, expected)"
-elif echo "$SETUP_OUTPUT" | grep -qiE "docker|preclinical|setup|server|install|health|permission|approve"; then
+  pass "setup command invoked (empty output - permission-blocked in -p mode, expected)"
+elif echo "$SETUP_OUTPUT" | grep -qiE "docker|preclinical|setup|server|install|permission|approve"; then
   pass "setup command produces relevant setup guidance"
 else
   fail "setup command produced unexpected output"
